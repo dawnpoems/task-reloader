@@ -4,31 +4,33 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: task-reloader-db
+    env_file: .env
     environment:
-      POSTGRES_USER: task_reloader
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: task_reloader
+      POSTGRES_USER: ${POSTGRES_USER:-task_reloader}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
+      POSTGRES_DB: ${POSTGRES_DB:-task_reloader}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U task_reloader"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
 
   api:
     build:
-      context: ../apps/api
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: apps/api/Dockerfile
     container_name: task-reloader-api
     ports:
       - "8080:8080"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/task_reloader
-      SPRING_DATASOURCE_USERNAME: task_reloader
-      SPRING_DATASOURCE_PASSWORD: password
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-task_reloader}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-task_reloader}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-postgres123}
       SPRING_JPA_HIBERNATE_DDL_AUTO: validate
       SPRING_FLYWAY_ENABLED: "true"
     depends_on:
@@ -39,6 +41,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 60s
 
 volumes:
   postgres_data:
