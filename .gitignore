@@ -1,0 +1,106 @@
+# =========================
+# IDE
+# =========================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+*.iml
+*.iws
+*.ipr
+
+# =========================
+# Gradle (Java/Spring Boot)
+# =========================
+.gradle/
+build/
+gradle-app.setting
+!gradle-wrapper.jar
+!gradle-wrapper.properties
+.gradletasknamecache
+
+# =========================
+# Maven (if used)
+# =========================
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+.mvn/
+mvnw
+mvnw.cmd
+
+# =========================
+# Node.js / npm (React)
+# =========================
+node_modules/
+npm-debug.log
+npm-debug.log.*
+yarn-debug.log
+yarn-error.log
+.npm
+.eslintcache
+dist/
+out/
+.next/
+
+# =========================
+# package-lock files
+# =========================
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# =========================
+# Spring Boot
+# =========================
+*.log
+application.properties
+application-*.properties
+application.yaml
+application-*.yaml
+!src/main/resources/application.yaml
+!src/main/resources/application-*.yaml
+
+# =========================
+# Runtime
+# =========================
+.env
+.env.local
+.env.*.local
+
+# =========================
+# OS
+# =========================
+.DS_Store
+Thumbs.db
+*.tmp
+
+# =========================
+# Database
+# =========================
+*.db
+*.sqlite
+*.sqlite3
+postgres_data/
+
+# =========================
+# Docker
+# =========================
+.dockerignore
+docker-compose.override.yml
+.docker/
+
+# =========================
+# Temporary files
+# =========================
+*.tmp
+*.temp
+*.bak
+*.orig
+
