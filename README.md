@@ -266,3 +266,75 @@ task-reloader/
 - Task 인스턴스 + audit log
 - Testcontainers(Postgres)
 - CI(GitHub Actions)
+
+---
+
+## 13. 로컬 실행 가이드 (Docker / DB / Application)
+
+### 필수 도구
+- Docker Desktop (Compose 포함)
+- Java 17 (Gradle Wrapper 사용)
+- `psql` 클라이언트 (선택, DB 확인용)
+
+### 1) 데이터베이스만 Docker로 실행
+```sh
+cd infra
+docker compose up -d postgres
+```
+- Postgres 16 컨테이너가 `localhost:5432`로 열린다.
+- 자격 증명은 `infra/.env`의 `POSTGRES_*` 값을 따른다.
+
+### 2) API를 호스트에서 실행
+```sh
+cd apps/api
+./gradlew bootRun --args='--spring.profiles.active=local'
+```
+- `spring.profiles.default=local`이라 별도 인자 없이도 동일하게 동작한다.
+- Flyway가 `application-local.yml`을 통해 `db/migration` 스크립트를 자동 적용한다.
+
+### 3) Docker Compose로 API+DB 동시 실행
+```sh
+cd infra
+docker compose up -d
+```
+- `postgres` → `api` 순으로 기동하며, API는 8080 포트를 사용한다.
+- 중지 시 `docker compose down` 또는 `docker compose stop api postgres`.
+
+### 4) 동작 확인
+```sh
+curl http://localhost:8080/healthz
+open http://localhost:8080/swagger-ui/index.html
+```
+- `ok` 응답이면 헬스 체크 완료.
+- Swagger UI에서 `GET /healthz` 엔드포인트가 노출되는지 확인한다.
+
+### 5) DB 스키마 확인 (선택)
+```sh
+psql "postgresql://task_reloader:change_me_in_production@localhost:5432/task_reloader" -c "\\dt"
+psql "postgresql://task_reloader:change_me_in_production@localhost:5432/task_reloader" -c "\\d tasks"
+```
+- `tasks`와 `flyway_schema_history` 테이블이 존재해야 한다.
+
+### 트러블슈팅
+- 포트 8080이 사용 중이면 Docker API 컨테이너를 중지하거나 `server.port`를 변경한다.
+- DB 연결 오류 시 컨테이너 로그(`docker logs task-reloader-db`)로 헬스 상태를 확인한다.
+
+## 14. 시스템 구성 개요 (현재 상태)
+
+### Database
+- `infra/docker-compose.yml`의 `postgres` 서비스가 PostgreSQL 16-alpine 이미지를 사용한다.
+- 환경 변수는 `infra/.env`에서 불러오며 기본값은 `task_reloader / change_me_in_production` 조합이다.
+- 호스트 5432 포트에 바인딩되고, 데이터는 `postgres_data` 볼륨에 영구 저장된다.
+- Flyway 마이그레이션은 `apps/api/src/main/resources/db/migration` 내 스크립트로 관리하며, `application-local.yml`이 동일한 자격 증명으로 연결한다.
+
+### Docker Compose
+- `postgres`와 `api` 두 서비스를 정의한다.
+- `api` 컨테이너는 `apps/api/Dockerfile` 빌드 결과로 8080 포트를 노출하며, `SPRING_DATASOURCE_*` 환경변수로 컨테이너 내부 DB에 연결한다.
+- `depends_on`/healthcheck 설정으로 Postgres 준비가 끝난 뒤 API가 기동되도록 구성돼 있다.
+- 로컬 개발 시 DB만 필요하면 `docker compose up -d postgres`로 부분 실행도 가능하다.
+
+### Application (Spring Boot)
+- 기본 프로필이 `local`로 지정되어 `application-local.yml` 설정을 자동으로 불러온다.
+- 주요 설정: Postgres datasource, `spring.jpa.hibernate.ddl-auto=validate`, `spring.flyway.enabled=true`.
+- `/healthz` 컨트롤러로 단순 헬스 체크를 제공하며, `springdoc-openapi`를 포함해 Swagger UI(`/swagger-ui/index.html`)와 OpenAPI 문서를 자동 노출한다.
+- Flyway가 기동 시점에 `tasks` 테이블과 인덱스를 생성/검증해 주므로 별도 수동 스키마 작업이 필요 없다.
