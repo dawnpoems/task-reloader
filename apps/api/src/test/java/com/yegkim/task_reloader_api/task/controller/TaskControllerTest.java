@@ -1,0 +1,209 @@
+package com.yegkim.task_reloader_api.task.controller;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.yegkim.task_reloader_api.task.dto.TaskResponse;
+import com.yegkim.task_reloader_api.task.entity.Task;
+import com.yegkim.task_reloader_api.task.service.TaskService;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
+import org.springframework.boot.http.converter.autoconfigure.HttpMessageConvertersAutoConfiguration;
+import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Bean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+
+import java.time.OffsetDateTime;
+import java.util.List;
+
+import static org.hamcrest.Matchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+@WebMvcTest(TaskController.class)
+@ImportAutoConfiguration({
+	JacksonAutoConfiguration.class,
+	HttpMessageConvertersAutoConfiguration.class
+})
+@DisplayName("TaskController 단위테스트")
+class TaskControllerTest {
+
+	@TestConfiguration
+	static class TestConfig {
+		@Bean
+		public ObjectMapper objectMapper() {
+			ObjectMapper mapper = new ObjectMapper();
+			mapper.registerModule(new JavaTimeModule());
+			mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+			return mapper;
+		}
+	}
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @MockitoBean
+    private TaskService taskService;
+
+    private TaskResponse taskResponse;
+
+    @BeforeEach
+    void setUp() {
+        OffsetDateTime now = OffsetDateTime.now();
+        taskResponse = TaskResponse.builder()
+                .id(1L)
+                .name("Test Task")
+                .everyNDays(7)
+                .timezone("Asia/Seoul")
+                .nextDueAt(now.plusDays(7))
+                .lastCompletedAt(now.minusDays(1))
+                .isActive(true)
+                .createdAt(now)
+                .updatedAt(now)
+                .build();
+    }
+
+    @Test
+    @DisplayName("전체 작업 목록 조회 - 성공")
+    void testFindAllSuccess() throws Exception {
+        // given
+        List<TaskResponse> responses = List.of(taskResponse);
+        when(taskService.findAll()).thenReturn(responses);
+
+        // when & then
+        mockMvc.perform(get("/api/tasks")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].id", is(1)))
+                .andExpect(jsonPath("$.data[0].name", is("Test Task")))
+                .andExpect(jsonPath("$.data[0].everyNDays", is(7)))
+                .andExpect(jsonPath("$.error").doesNotExist());
+
+        verify(taskService, times(1)).findAll();
+    }
+
+    @Test
+    @DisplayName("작업 단건 조회 - 성공")
+    void testFindByIdSuccess() throws Exception {
+        // given
+        when(taskService.findById(1L)).thenReturn(taskResponse);
+
+        // when & then
+        mockMvc.perform(get("/api/tasks/1")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.data.id", is(1)))
+                .andExpect(jsonPath("$.data.name", is("Test Task")))
+                .andExpect(jsonPath("$.error").doesNotExist());
+
+        verify(taskService, times(1)).findById(1L);
+    }
+
+    @Test
+    @DisplayName("작업 단건 조회 - 존재하지 않음")
+    void testFindByIdNotFound() throws Exception {
+        // given
+        when(taskService.findById(999L))
+                .thenThrow(new IllegalArgumentException("Task not found: id=999"));
+
+        // when & then
+        mockMvc.perform(get("/api/tasks/999")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success", is(false)))
+                .andExpect(jsonPath("$.error.code", is("BAD_REQUEST")))
+                .andExpect(jsonPath("$.error.message", containsString("Task not found")))
+                .andExpect(jsonPath("$.data").doesNotExist());
+
+        verify(taskService, times(1)).findById(999L);
+    }
+
+    @Test
+    @DisplayName("작업 생성 - 성공")
+    void testCreateSuccess() throws Exception {
+        // given
+        Task requestTask = Task.builder()
+                .name("New Task")
+                .everyNDays(5)
+                .timezone("Asia/Seoul")
+                .nextDueAt(OffsetDateTime.now().plusDays(5))
+                .isActive(true)
+                .build();
+
+        TaskResponse createdResponse = TaskResponse.builder()
+                .id(2L)
+                .name("New Task")
+                .everyNDays(5)
+                .timezone("Asia/Seoul")
+                .nextDueAt(OffsetDateTime.now().plusDays(5))
+                .lastCompletedAt(null)
+                .isActive(true)
+                .createdAt(OffsetDateTime.now())
+                .updatedAt(OffsetDateTime.now())
+                .build();
+
+        when(taskService.create(any(Task.class))).thenReturn(createdResponse);
+
+        // when & then
+        mockMvc.perform(post("/api/tasks")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(requestTask)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.data.id", is(2)))
+                .andExpect(jsonPath("$.data.name", is("New Task")))
+                .andExpect(jsonPath("$.data.everyNDays", is(5)))
+                .andExpect(jsonPath("$.error").doesNotExist());
+
+        verify(taskService, times(1)).create(any(Task.class));
+    }
+
+    @Test
+    @DisplayName("작업 삭제 - 성공")
+    void testDeleteSuccess() throws Exception {
+        // given
+        doNothing().when(taskService).delete(1L);
+
+        // when & then
+        mockMvc.perform(delete("/api/tasks/1")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isNoContent());
+
+        verify(taskService, times(1)).delete(1L);
+    }
+
+    @Test
+    @DisplayName("작업 삭제 - 존재하지 않음")
+    void testDeleteNotFound() throws Exception {
+        // given
+        doThrow(new IllegalArgumentException("Task not found: id=999"))
+                .when(taskService).delete(999L);
+
+        // when & then
+        mockMvc.perform(delete("/api/tasks/999")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success", is(false)))
+                .andExpect(jsonPath("$.error.code", is("BAD_REQUEST")));
+
+        verify(taskService, times(1)).delete(999L);
+    }
+}
+
+
