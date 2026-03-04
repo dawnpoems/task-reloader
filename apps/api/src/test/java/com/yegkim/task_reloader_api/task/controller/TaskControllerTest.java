@@ -3,8 +3,8 @@ package com.yegkim.task_reloader_api.task.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.yegkim.task_reloader_api.task.dto.CreateTaskRequest;
 import com.yegkim.task_reloader_api.task.dto.TaskResponse;
-import com.yegkim.task_reloader_api.task.entity.Task;
 import com.yegkim.task_reloader_api.task.service.TaskService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -138,12 +138,9 @@ class TaskControllerTest {
     @DisplayName("작업 생성 - 성공")
     void testCreateSuccess() throws Exception {
         // given
-        Task requestTask = Task.builder()
+        CreateTaskRequest request = CreateTaskRequest.builder()
                 .name("New Task")
                 .everyNDays(5)
-                .timezone("Asia/Seoul")
-                .nextDueAt(OffsetDateTime.now().plusDays(5))
-                .isActive(true)
                 .build();
 
         TaskResponse createdResponse = TaskResponse.builder()
@@ -158,12 +155,12 @@ class TaskControllerTest {
                 .updatedAt(OffsetDateTime.now())
                 .build();
 
-        when(taskService.create(any(Task.class))).thenReturn(createdResponse);
+        when(taskService.create(any(CreateTaskRequest.class))).thenReturn(createdResponse);
 
         // when & then
         mockMvc.perform(post("/api/tasks")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(requestTask)))
+                        .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success", is(true)))
                 .andExpect(jsonPath("$.data.id", is(2)))
@@ -171,7 +168,60 @@ class TaskControllerTest {
                 .andExpect(jsonPath("$.data.everyNDays", is(5)))
                 .andExpect(jsonPath("$.error").doesNotExist());
 
-        verify(taskService, times(1)).create(any(Task.class));
+        verify(taskService, times(1)).create(any(CreateTaskRequest.class));
+    }
+
+    @Test
+    @DisplayName("작업 생성 - name이 빈 값이면 400")
+    void testCreateFailWhenNameIsBlank() throws Exception {
+        // given
+        CreateTaskRequest request = CreateTaskRequest.builder()
+                .name("")
+                .everyNDays(5)
+                .build();
+
+        // when & then
+        mockMvc.perform(post("/api/tasks")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+
+        verify(taskService, never()).create(any());
+    }
+
+    @Test
+    @DisplayName("작업 생성 - everyNDays가 0이면 400")
+    void testCreateFailWhenEveryNDaysIsZero() throws Exception {
+        // given
+        CreateTaskRequest request = CreateTaskRequest.builder()
+                .name("Task")
+                .everyNDays(0)
+                .build();
+
+        // when & then
+        mockMvc.perform(post("/api/tasks")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+
+        verify(taskService, never()).create(any());
+    }
+
+    @Test
+    @DisplayName("작업 생성 - everyNDays가 null이면 400")
+    void testCreateFailWhenEveryNDaysIsNull() throws Exception {
+        // given
+        CreateTaskRequest request = CreateTaskRequest.builder()
+                .name("Task")
+                .build();
+
+        // when & then
+        mockMvc.perform(post("/api/tasks")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+
+        verify(taskService, never()).create(any());
     }
 
     @Test

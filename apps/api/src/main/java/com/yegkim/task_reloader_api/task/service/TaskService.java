@@ -1,6 +1,7 @@
 package com.yegkim.task_reloader_api.task.service;
 
 import com.yegkim.task_reloader_api.task.mapper.TaskMapper;
+import com.yegkim.task_reloader_api.task.dto.CreateTaskRequest;
 import com.yegkim.task_reloader_api.task.dto.TaskResponse;
 import com.yegkim.task_reloader_api.task.entity.Task;
 import com.yegkim.task_reloader_api.task.repository.TaskRepository;
@@ -29,7 +30,8 @@ public class TaskService {
     }
 
     @Transactional
-    public TaskResponse create(Task task) {
+    public TaskResponse create(CreateTaskRequest request) {
+        Task task = taskMapper.toEntity(request);
         return taskMapper.toResponse(taskRepository.save(task));
     }
 

@@ -1,5 +1,6 @@
 package com.yegkim.task_reloader_api.task.service;
 
+import com.yegkim.task_reloader_api.task.dto.CreateTaskRequest;
 import com.yegkim.task_reloader_api.task.dto.TaskResponse;
 import com.yegkim.task_reloader_api.task.entity.Task;
 import com.yegkim.task_reloader_api.task.mapper.TaskMapper;
@@ -121,11 +122,15 @@ class TaskServiceTest {
     @DisplayName("작업 생성 - 성공")
     void testCreateSuccess() {
         // given
+        CreateTaskRequest request = CreateTaskRequest.builder()
+                .name("New Task")
+                .everyNDays(5)
+                .build();
+
         Task newTask = Task.builder()
                 .name("New Task")
                 .everyNDays(5)
                 .timezone("Asia/Seoul")
-                .nextDueAt(OffsetDateTime.now().plusDays(5))
                 .isActive(true)
                 .build();
 
@@ -138,16 +143,18 @@ class TaskServiceTest {
                 .isActive(true)
                 .build();
 
+        when(taskMapper.toEntity(request)).thenReturn(newTask);
         when(taskRepository.save(newTask)).thenReturn(newTask);
         when(taskMapper.toResponse(newTask)).thenReturn(newTaskResponse);
 
         // when
-        TaskResponse result = taskService.create(newTask);
+        TaskResponse result = taskService.create(request);
 
         // then
         assertThat(result).isNotNull();
         assertThat(result.getName()).isEqualTo("New Task");
         assertThat(result.getEveryNDays()).isEqualTo(5);
+        verify(taskMapper, times(1)).toEntity(request);
         verify(taskRepository, times(1)).save(newTask);
         verify(taskMapper, times(1)).toResponse(newTask);
     }

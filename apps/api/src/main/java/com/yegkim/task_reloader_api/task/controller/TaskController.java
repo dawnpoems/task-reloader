@@ -1,11 +1,12 @@
 package com.yegkim.task_reloader_api.task.controller;
 
 import com.yegkim.task_reloader_api.common.response.ApiResponse;
+import com.yegkim.task_reloader_api.task.dto.CreateTaskRequest;
 import com.yegkim.task_reloader_api.task.dto.TaskResponse;
-import com.yegkim.task_reloader_api.task.entity.Task;
 import com.yegkim.task_reloader_api.task.service.TaskService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -35,8 +36,8 @@ public class TaskController {
     @Operation(summary = "작업 생성")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public ApiResponse<TaskResponse> create(@RequestBody Task task) {
-        return ApiResponse.success(taskService.create(task));
+    public ApiResponse<TaskResponse> create(@Valid @RequestBody CreateTaskRequest request) {
+        return ApiResponse.success(taskService.create(request));
     }
 
     @Operation(summary = "작업 삭제")
