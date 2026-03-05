@@ -3,6 +3,9 @@ package com.yegkim.task_reloader_api.task.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.yegkim.task_reloader_api.common.exception.TaskInactiveException;
+import com.yegkim.task_reloader_api.common.exception.TaskNotFoundException;
+import com.yegkim.task_reloader_api.common.exception.TaskRecentlyCompletedException;
 import com.yegkim.task_reloader_api.task.dto.CreateTaskRequest;
 import com.yegkim.task_reloader_api.task.dto.TaskResponse;
 import com.yegkim.task_reloader_api.task.dto.UpdateTaskRequest;
@@ -401,6 +404,95 @@ class TaskControllerTest {
                 .andExpect(jsonPath("$.error.code", is("BAD_REQUEST")));
 
         verify(taskService, times(1)).delete(999L);
+    }
+
+    @Test
+    @DisplayName("작업 완료 - 성공 (200 OK + TaskResponse)")
+    void testCompleteSuccess() throws Exception {
+        // given
+        OffsetDateTime now = OffsetDateTime.now();
+        TaskResponse completedResponse = TaskResponse.builder()
+                .id(1L)
+                .name("Test Task")
+                .everyNDays(7)
+                .timezone("Asia/Seoul")
+                .status(TaskStatus.UPCOMING)
+                .nextDueAt(now.plusDays(7))
+                .completedAt(now)
+                .lastCompletedAt(now)
+                .isActive(true)
+                .createdAt(now)
+                .updatedAt(now)
+                .build();
+
+        when(taskService.complete(1L)).thenReturn(completedResponse);
+
+        // when & then
+        mockMvc.perform(post("/api/tasks/1/complete")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.data.id", is(1)))
+                .andExpect(jsonPath("$.data.status", is("UPCOMING")))
+                .andExpect(jsonPath("$.data.completedAt").exists())
+                .andExpect(jsonPath("$.data.lastCompletedAt").exists())
+                .andExpect(jsonPath("$.error").doesNotExist());
+
+        verify(taskService, times(1)).complete(1L);
+    }
+
+    @Test
+    @DisplayName("작업 완료 - 존재하지 않음 (404)")
+    void testCompleteNotFound() throws Exception {
+        // given
+        when(taskService.complete(999L)).thenThrow(new TaskNotFoundException(999L));
+
+        // when & then
+        mockMvc.perform(post("/api/tasks/999/complete")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success", is(false)))
+                .andExpect(jsonPath("$.error.code", is("TASK_NOT_FOUND")))
+                .andExpect(jsonPath("$.error.message", containsString("999")))
+                .andExpect(jsonPath("$.data").doesNotExist());
+
+        verify(taskService, times(1)).complete(999L);
+    }
+
+    @Test
+    @DisplayName("작업 완료 - 비활성 Task (409)")
+    void testCompleteInactiveTask() throws Exception {
+        // given
+        when(taskService.complete(1L)).thenThrow(new TaskInactiveException(1L));
+
+        // when & then
+        mockMvc.perform(post("/api/tasks/1/complete")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success", is(false)))
+                .andExpect(jsonPath("$.error.code", is("TASK_INACTIVE")))
+                .andExpect(jsonPath("$.error.message", containsString("1")))
+                .andExpect(jsonPath("$.data").doesNotExist());
+
+        verify(taskService, times(1)).complete(1L);
+    }
+
+    @Test
+    @DisplayName("작업 완료 - 2초 이내 중복 완료 (409)")
+    void testCompleteRecentlyCompleted() throws Exception {
+        // given
+        when(taskService.complete(1L)).thenThrow(new TaskRecentlyCompletedException(1L));
+
+        // when & then
+        mockMvc.perform(post("/api/tasks/1/complete")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success", is(false)))
+                .andExpect(jsonPath("$.error.code", is("TASK_RECENTLY_COMPLETED")))
+                .andExpect(jsonPath("$.error.message", containsString("1")))
+                .andExpect(jsonPath("$.data").doesNotExist());
+
+        verify(taskService, times(1)).complete(1L);
     }
 }
 

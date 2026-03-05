@@ -73,5 +73,11 @@ public class TaskController {
         taskService.delete(id);
         return ApiResponse.success(null);
     }
+
+    @Operation(summary = "작업 완료")
+    @PostMapping("/{id}/complete")
+    public ApiResponse<TaskResponse> complete(@PathVariable Long id) {
+        return ApiResponse.success(taskService.complete(id));
+    }
 }
 
