@@ -12,6 +12,7 @@ import java.util.List;
 @Mapper(componentModel = MappingConstants.ComponentModel.SPRING)
 public interface TaskMapper {
 
+    @Mapping(target = "status", ignore = true)
     TaskResponse toResponse(Task task);
 
     List<TaskResponse> toResponseList(List<Task> tasks);

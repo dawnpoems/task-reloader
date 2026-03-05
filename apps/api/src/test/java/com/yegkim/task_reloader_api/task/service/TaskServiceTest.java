@@ -73,12 +73,13 @@ class TaskServiceTest {
     }
 
     @Test
-    @DisplayName("전체 작업 목록 조회 - 활성 작업만 nextDueAt 오름차순으로 반환")
+    @DisplayName("전체 작업 목록 조회 - 활성 작업만 nextDueAt 오름차순으로 반환하고 status 포함")
     void testFindAllSuccess() {
         // given
         List<Task> tasks = List.of(task);
         when(taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc()).thenReturn(tasks);
-        when(taskMapper.toResponseList(tasks)).thenReturn(List.of(taskResponse));
+        when(taskMapper.toResponse(task)).thenReturn(taskResponse);
+        when(taskStatusResolver.resolve(any(Instant.class), any())).thenReturn(TaskStatus.UPCOMING);
 
         // when
         List<TaskResponse> result = taskService.findAll();
@@ -87,13 +88,14 @@ class TaskServiceTest {
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getId()).isEqualTo(1L);
         assertThat(result.get(0).getName()).isEqualTo("Test Task");
+        assertThat(result.get(0).getStatus()).isEqualTo(TaskStatus.UPCOMING);
         verify(taskRepository, times(1)).findAllByIsActiveTrueOrderByNextDueAtAsc();
         verify(taskRepository, never()).findAll();
-        verify(taskMapper, times(1)).toResponseList(tasks);
+        verify(taskMapper, times(1)).toResponse(task);
     }
 
     @Test
-    @DisplayName("status=TODAY 필터링 - TODAY인 작업만 반환")
+    @DisplayName("status=TODAY 필터링 - TODAY인 작업만 반환하고 status 포함")
     void testFindAllWithStatusToday() {
         // given
         OffsetDateTime now = OffsetDateTime.now();
@@ -108,12 +110,11 @@ class TaskServiceTest {
         when(taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc()).thenReturn(allTasks);
         when(taskStatusResolver.resolve(any(Instant.class), any())).thenAnswer(invocation -> {
             Instant instant = invocation.getArgument(0);
-            // todayTask.nextDueAt == now → TODAY, upcomingTask → UPCOMING
             return instant.equals(todayTask.getNextDueAt().toInstant())
                     ? TaskStatus.TODAY
                     : TaskStatus.UPCOMING;
         });
-        when(taskMapper.toResponseList(List.of(todayTask))).thenReturn(List.of(todayResponse));
+        when(taskMapper.toResponse(todayTask)).thenReturn(todayResponse);
 
         // when
         List<TaskResponse> result = taskService.findAll(TaskStatus.TODAY);
@@ -121,11 +122,13 @@ class TaskServiceTest {
         // then
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getName()).isEqualTo("Today Task");
-        verify(taskMapper, times(1)).toResponseList(List.of(todayTask));
+        assertThat(result.get(0).getStatus()).isEqualTo(TaskStatus.TODAY);
+        verify(taskMapper, times(1)).toResponse(todayTask);
+        verify(taskMapper, never()).toResponse(upcomingTask);
     }
 
     @Test
-    @DisplayName("status=OVERDUE 필터링 - OVERDUE인 작업만 반환")
+    @DisplayName("status=OVERDUE 필터링 - OVERDUE인 작업만 반환하고 status 포함")
     void testFindAllWithStatusOverdue() {
         // given
         OffsetDateTime now = OffsetDateTime.now();
@@ -144,7 +147,7 @@ class TaskServiceTest {
                     ? TaskStatus.OVERDUE
                     : TaskStatus.TODAY;
         });
-        when(taskMapper.toResponseList(List.of(overdueTask))).thenReturn(List.of(overdueResponse));
+        when(taskMapper.toResponse(overdueTask)).thenReturn(overdueResponse);
 
         // when
         List<TaskResponse> result = taskService.findAll(TaskStatus.OVERDUE);
@@ -152,6 +155,7 @@ class TaskServiceTest {
         // then
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getName()).isEqualTo("Overdue Task");
+        assertThat(result.get(0).getStatus()).isEqualTo(TaskStatus.OVERDUE);
     }
 
     @Test
@@ -165,13 +169,13 @@ class TaskServiceTest {
 
         when(taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc()).thenReturn(allTasks);
         when(taskStatusResolver.resolve(any(Instant.class), any())).thenReturn(TaskStatus.TODAY);
-        when(taskMapper.toResponseList(List.of())).thenReturn(List.of());
 
         // when
         List<TaskResponse> result = taskService.findAll(TaskStatus.UPCOMING);
 
         // then
         assertThat(result).isEmpty();
+        verify(taskMapper, never()).toResponse(any());
     }
 
     @Test
@@ -180,7 +184,6 @@ class TaskServiceTest {
         // given
         OffsetDateTime now = OffsetDateTime.now();
 
-        // DB가 이미 ASC로 반환하지만, 정렬 의도가 코드에 명시되어 있는지 검증
         Task older = Task.builder().id(1L).name("Older Overdue").everyNDays(1)
                 .nextDueAt(now.minusDays(5)).isActive(true).build();
         Task newer = Task.builder().id(2L).name("Newer Overdue").everyNDays(1)
@@ -196,9 +199,8 @@ class TaskServiceTest {
 
         when(taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc()).thenReturn(reversedFromDb);
         when(taskStatusResolver.resolve(any(Instant.class), any())).thenReturn(TaskStatus.OVERDUE);
-        // sorted() 적용 후 [older, newer] 순서로 toResponseList가 호출되어야 함
-        when(taskMapper.toResponseList(List.of(older, newer)))
-                .thenReturn(List.of(olderResponse, newerResponse));
+        when(taskMapper.toResponse(older)).thenReturn(olderResponse);
+        when(taskMapper.toResponse(newer)).thenReturn(newerResponse);
 
         // when
         List<TaskResponse> result = taskService.findAll(TaskStatus.OVERDUE);
@@ -207,7 +209,6 @@ class TaskServiceTest {
         assertThat(result).hasSize(2);
         assertThat(result.get(0).getName()).isEqualTo("Older Overdue");  // 더 오래된 것이 먼저
         assertThat(result.get(1).getName()).isEqualTo("Newer Overdue");
-        verify(taskMapper).toResponseList(List.of(older, newer));
     }
 
     @Test
@@ -215,36 +216,22 @@ class TaskServiceTest {
     void testFindAllOrderedByNextDueAt() {
         // given
         OffsetDateTime now = OffsetDateTime.now();
-        Task first = Task.builder()
-                .id(1L)
-                .name("First Task")
-                .everyNDays(1)
-                .nextDueAt(now.plusDays(1))
-                .isActive(true)
-                .build();
-        Task second = Task.builder()
-                .id(2L)
-                .name("Second Task")
-                .everyNDays(1)
-                .nextDueAt(now.plusDays(3))
-                .isActive(true)
-                .build();
-        Task third = Task.builder()
-                .id(3L)
-                .name("Third Task")
-                .everyNDays(1)
-                .nextDueAt(now.plusDays(5))
-                .isActive(true)
-                .build();
+        Task first = Task.builder().id(1L).name("First Task").everyNDays(1)
+                .nextDueAt(now.plusDays(1)).isActive(true).build();
+        Task second = Task.builder().id(2L).name("Second Task").everyNDays(1)
+                .nextDueAt(now.plusDays(3)).isActive(true).build();
+        Task third = Task.builder().id(3L).name("Third Task").everyNDays(1)
+                .nextDueAt(now.plusDays(5)).isActive(true).build();
         List<Task> orderedTasks = List.of(first, second, third);
 
-        TaskResponse firstResponse = TaskResponse.builder().id(1L).name("First Task").nextDueAt(now.plusDays(1)).build();
-        TaskResponse secondResponse = TaskResponse.builder().id(2L).name("Second Task").nextDueAt(now.plusDays(3)).build();
-        TaskResponse thirdResponse = TaskResponse.builder().id(3L).name("Third Task").nextDueAt(now.plusDays(5)).build();
-        List<TaskResponse> orderedResponses = List.of(firstResponse, secondResponse, thirdResponse);
-
         when(taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc()).thenReturn(orderedTasks);
-        when(taskMapper.toResponseList(orderedTasks)).thenReturn(orderedResponses);
+        when(taskMapper.toResponse(first)).thenReturn(
+                TaskResponse.builder().id(1L).name("First Task").nextDueAt(now.plusDays(1)).build());
+        when(taskMapper.toResponse(second)).thenReturn(
+                TaskResponse.builder().id(2L).name("Second Task").nextDueAt(now.plusDays(3)).build());
+        when(taskMapper.toResponse(third)).thenReturn(
+                TaskResponse.builder().id(3L).name("Third Task").nextDueAt(now.plusDays(5)).build());
+        when(taskStatusResolver.resolve(any(Instant.class), any())).thenReturn(TaskStatus.UPCOMING);
 
         // when
         List<TaskResponse> result = taskService.findAll();
@@ -260,11 +247,12 @@ class TaskServiceTest {
     }
 
     @Test
-    @DisplayName("작업 단건 조회 - 성공")
+    @DisplayName("작업 단건 조회 - 성공 (status 포함)")
     void testFindByIdSuccess() {
         // given
         when(taskRepository.findById(1L)).thenReturn(Optional.of(task));
         when(taskMapper.toResponse(task)).thenReturn(taskResponse);
+        when(taskStatusResolver.resolve(any(Instant.class), any())).thenReturn(TaskStatus.UPCOMING);
 
         // when
         TaskResponse result = taskService.findById(1L);
@@ -273,6 +261,7 @@ class TaskServiceTest {
         assertThat(result).isNotNull();
         assertThat(result.getId()).isEqualTo(1L);
         assertThat(result.getName()).isEqualTo("Test Task");
+        assertThat(result.getStatus()).isEqualTo(TaskStatus.UPCOMING);
         verify(taskRepository, times(1)).findById(1L);
         verify(taskMapper, times(1)).toResponse(task);
     }
@@ -294,7 +283,7 @@ class TaskServiceTest {
     }
 
     @Test
-    @DisplayName("작업 생성 - 성공")
+    @DisplayName("작업 생성 - 성공 (status 포함)")
     void testCreateSuccess() {
         // given
         CreateTaskRequest request = CreateTaskRequest.builder()
@@ -323,6 +312,7 @@ class TaskServiceTest {
         when(taskMapper.toEntity(request)).thenReturn(newTask);
         when(taskRepository.save(newTask)).thenReturn(newTask);
         when(taskMapper.toResponse(newTask)).thenReturn(newTaskResponse);
+        when(taskStatusResolver.resolve(any(Instant.class), any())).thenReturn(TaskStatus.UPCOMING);
 
         // when
         TaskResponse result = taskService.create(request);
@@ -332,13 +322,14 @@ class TaskServiceTest {
         assertThat(result.getName()).isEqualTo("New Task");
         assertThat(result.getEveryNDays()).isEqualTo(5);
         assertThat(result.getNextDueAt()).isNotNull();
+        assertThat(result.getStatus()).isEqualTo(TaskStatus.UPCOMING);
         verify(taskMapper, times(1)).toEntity(request);
         verify(taskRepository, times(1)).save(newTask);
         verify(taskMapper, times(1)).toResponse(newTask);
     }
 
     @Test
-    @DisplayName("작업 수정 - 성공")
+    @DisplayName("작업 수정 - 성공 (status 포함)")
     void testUpdateSuccess() {
         // given
         UpdateTaskRequest request = UpdateTaskRequest.builder()
@@ -357,6 +348,7 @@ class TaskServiceTest {
 
         when(taskRepository.findById(1L)).thenReturn(Optional.of(task));
         when(taskMapper.toResponse(task)).thenReturn(updatedResponse);
+        when(taskStatusResolver.resolve(any(Instant.class), any())).thenReturn(TaskStatus.UPCOMING);
 
         // when
         TaskResponse result = taskService.update(1L, request);
@@ -366,6 +358,7 @@ class TaskServiceTest {
         assertThat(result.getName()).isEqualTo("Updated Task");
         assertThat(result.getEveryNDays()).isEqualTo(3);
         assertThat(result.getIsActive()).isFalse();
+        assertThat(result.getStatus()).isEqualTo(TaskStatus.UPCOMING);
         verify(taskRepository, times(1)).findById(1L);
         verify(taskMapper, times(1)).toResponse(task);
     }
@@ -388,6 +381,7 @@ class TaskServiceTest {
 
         when(taskRepository.findById(1L)).thenReturn(Optional.of(task));
         when(taskMapper.toResponse(task)).thenReturn(updatedResponse);
+        when(taskStatusResolver.resolve(any(Instant.class), any())).thenReturn(TaskStatus.UPCOMING);
 
         // when
         TaskResponse result = taskService.update(1L, request);

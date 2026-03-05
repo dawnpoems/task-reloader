@@ -30,32 +30,34 @@ public class TaskService {
     private final TaskStatusResolver taskStatusResolver;
 
     public List<TaskResponse> findAll() {
-        return taskMapper.toResponseList(
-                taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc()
-        );
+        TimeWindow window = TimeWindow.ofKst();
+        List<Task> tasks = taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc();
+        return tasks.stream()
+                .map(task -> withStatus(taskMapper.toResponse(task), task, window))
+                .toList();
     }
 
     public List<TaskResponse> findAll(TaskStatus status) {
         List<Task> tasks = taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc();
         TimeWindow window = TimeWindow.ofKst();
-        return taskMapper.toResponseList(
-                tasks.stream()
-                        .filter(task -> taskStatusResolver.resolve(task.getNextDueAt().toInstant(), window) == status)
-                        .sorted(BY_NEXT_DUE_AT_ASC)   // OVERDUE·TODAY·UPCOMING 모두 next_due_at ASC
-                        .toList()
-        );
+        return tasks.stream()
+                .filter(task -> taskStatusResolver.resolve(task.getNextDueAt().toInstant(), window) == status)
+                .sorted(BY_NEXT_DUE_AT_ASC)   // OVERDUE·TODAY·UPCOMING 모두 next_due_at ASC
+                .map(task -> withStatus(taskMapper.toResponse(task), task, window))
+                .toList();
     }
 
     public TaskResponse findById(Long id) {
         Task task = taskRepository.findById(id)
                 .orElseThrow(() -> new TaskNotFoundException(id));
-        return taskMapper.toResponse(task);
+        return withStatus(taskMapper.toResponse(task), task, TimeWindow.ofKst());
     }
 
     @Transactional
     public TaskResponse create(CreateTaskRequest request) {
         Task task = taskMapper.toEntity(request);
-        return taskMapper.toResponse(taskRepository.save(task));
+        Task saved = taskRepository.save(task);
+        return withStatus(taskMapper.toResponse(saved), saved, TimeWindow.ofKst());
     }
 
     @Transactional
@@ -63,7 +65,7 @@ public class TaskService {
         Task task = taskRepository.findById(id)
                 .orElseThrow(() -> new TaskNotFoundException(id));
         task.update(request.getName(), request.getEveryNDays(), request.getIsActive());
-        return taskMapper.toResponse(task);
+        return withStatus(taskMapper.toResponse(task), task, TimeWindow.ofKst());
     }
 
     @Transactional
@@ -71,6 +73,12 @@ public class TaskService {
         Task task = taskRepository.findById(id)
                 .orElseThrow(() -> new TaskNotFoundException(id));
         taskRepository.delete(task);
+    }
+
+    private TaskResponse withStatus(TaskResponse response, Task task, TimeWindow window) {
+        TaskStatus status = taskStatusResolver.resolve(task.getNextDueAt().toInstant(), window);
+        response.setStatus(status);
+        return response;
     }
 }
 

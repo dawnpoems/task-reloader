@@ -71,6 +71,7 @@ class TaskControllerTest {
                 .name("Test Task")
                 .everyNDays(7)
                 .timezone("Asia/Seoul")
+                .status(TaskStatus.UPCOMING)
                 .nextDueAt(now.plusDays(7))
                 .lastCompletedAt(now.minusDays(1))
                 .isActive(true)
@@ -95,6 +96,7 @@ class TaskControllerTest {
                 .andExpect(jsonPath("$.data[0].id", is(1)))
                 .andExpect(jsonPath("$.data[0].name", is("Test Task")))
                 .andExpect(jsonPath("$.data[0].everyNDays", is(7)))
+                .andExpect(jsonPath("$.data[0].status", is("UPCOMING")))
                 .andExpect(jsonPath("$.error").doesNotExist());
 
         verify(taskService, times(1)).findAll();
@@ -175,6 +177,7 @@ class TaskControllerTest {
                 .andExpect(jsonPath("$.success", is(true)))
                 .andExpect(jsonPath("$.data.id", is(1)))
                 .andExpect(jsonPath("$.data.name", is("Test Task")))
+                .andExpect(jsonPath("$.data.status", is("UPCOMING")))
                 .andExpect(jsonPath("$.error").doesNotExist());
 
         verify(taskService, times(1)).findById(1L);
@@ -213,6 +216,7 @@ class TaskControllerTest {
                 .name("New Task")
                 .everyNDays(5)
                 .timezone("Asia/Seoul")
+                .status(TaskStatus.UPCOMING)
                 .nextDueAt(OffsetDateTime.now().plusDays(5))
                 .lastCompletedAt(null)
                 .isActive(true)
@@ -231,6 +235,7 @@ class TaskControllerTest {
                 .andExpect(jsonPath("$.data.id", is(2)))
                 .andExpect(jsonPath("$.data.name", is("New Task")))
                 .andExpect(jsonPath("$.data.everyNDays", is(5)))
+                .andExpect(jsonPath("$.data.status", is("UPCOMING")))
                 .andExpect(jsonPath("$.error").doesNotExist());
 
         verify(taskService, times(1)).create(any(CreateTaskRequest.class));
