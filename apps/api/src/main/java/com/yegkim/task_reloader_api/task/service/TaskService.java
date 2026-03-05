@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Comparator;
 import java.util.List;
 
 @Service
@@ -20,12 +21,18 @@ import java.util.List;
 @Transactional(readOnly = true)
 public class TaskService {
 
+    // OVERDUE / TODAY / UPCOMING 모두 오래된 것부터 (next_due_at ASC)
+    private static final Comparator<Task> BY_NEXT_DUE_AT_ASC =
+            Comparator.comparing(Task::getNextDueAt);
+
     private final TaskRepository taskRepository;
     private final TaskMapper taskMapper;
     private final TaskStatusResolver taskStatusResolver;
 
     public List<TaskResponse> findAll() {
-        return taskMapper.toResponseList(taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc());
+        return taskMapper.toResponseList(
+                taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc()
+        );
     }
 
     public List<TaskResponse> findAll(TaskStatus status) {
@@ -34,6 +41,7 @@ public class TaskService {
         return taskMapper.toResponseList(
                 tasks.stream()
                         .filter(task -> taskStatusResolver.resolve(task.getNextDueAt().toInstant(), window) == status)
+                        .sorted(BY_NEXT_DUE_AT_ASC)   // OVERDUE·TODAY·UPCOMING 모두 next_due_at ASC
                         .toList()
         );
     }

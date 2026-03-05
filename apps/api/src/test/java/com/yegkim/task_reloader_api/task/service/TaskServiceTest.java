@@ -18,7 +18,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 
@@ -173,6 +172,42 @@ class TaskServiceTest {
 
         // then
         assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("status=OVERDUE 필터링 - 여러 건일 때 next_due_at ASC 정렬 유지")
+    void testFindAllWithStatusSortedByNextDueAtAsc() {
+        // given
+        OffsetDateTime now = OffsetDateTime.now();
+
+        // DB가 이미 ASC로 반환하지만, 정렬 의도가 코드에 명시되어 있는지 검증
+        Task older = Task.builder().id(1L).name("Older Overdue").everyNDays(1)
+                .nextDueAt(now.minusDays(5)).isActive(true).build();
+        Task newer = Task.builder().id(2L).name("Newer Overdue").everyNDays(1)
+                .nextDueAt(now.minusDays(1)).isActive(true).build();
+
+        // 일부러 역순으로 넘겨 sorted()가 없으면 순서가 깨짐을 확인
+        List<Task> reversedFromDb = List.of(newer, older);
+
+        TaskResponse olderResponse = TaskResponse.builder().id(1L).name("Older Overdue")
+                .nextDueAt(now.minusDays(5)).build();
+        TaskResponse newerResponse = TaskResponse.builder().id(2L).name("Newer Overdue")
+                .nextDueAt(now.minusDays(1)).build();
+
+        when(taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc()).thenReturn(reversedFromDb);
+        when(taskStatusResolver.resolve(any(Instant.class), any())).thenReturn(TaskStatus.OVERDUE);
+        // sorted() 적용 후 [older, newer] 순서로 toResponseList가 호출되어야 함
+        when(taskMapper.toResponseList(List.of(older, newer)))
+                .thenReturn(List.of(olderResponse, newerResponse));
+
+        // when
+        List<TaskResponse> result = taskService.findAll(TaskStatus.OVERDUE);
+
+        // then
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).getName()).isEqualTo("Older Overdue");  // 더 오래된 것이 먼저
+        assertThat(result.get(1).getName()).isEqualTo("Newer Overdue");
+        verify(taskMapper).toResponseList(List.of(older, newer));
     }
 
     @Test
