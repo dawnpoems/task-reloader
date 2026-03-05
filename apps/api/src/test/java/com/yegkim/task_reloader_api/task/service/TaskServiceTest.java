@@ -17,8 +17,10 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 
@@ -38,6 +40,9 @@ class TaskServiceTest {
 
     @Mock
     private TaskStatusResolver taskStatusResolver;
+
+    @Mock
+    private Clock clock;
 
     @InjectMocks
     private TaskService taskService;
@@ -449,28 +454,32 @@ class TaskServiceTest {
     @DisplayName("작업 완료 - 성공 (completedAt·lastCompletedAt·nextDueAt 갱신 및 status 포함)")
     void testCompleteSuccess() {
         // given
-        OffsetDateTime now = OffsetDateTime.now();
+        Instant fixedNow = Instant.parse("2026-03-05T12:00:00Z");
+        OffsetDateTime fixedOdt = fixedNow.atOffset(ZoneOffset.UTC);
+
+        OffsetDateTime beforeNow = fixedOdt.minusDays(1);
         Task activeTask = Task.builder()
                 .id(1L)
                 .name("Test Task")
                 .everyNDays(7)
                 .timezone("Asia/Seoul")
-                .nextDueAt(now.minusDays(1))   // OVERDUE 상태
+                .nextDueAt(beforeNow)   // OVERDUE 상태
                 .isActive(true)
-                .createdAt(now)
-                .updatedAt(now)
+                .createdAt(beforeNow)
+                .updatedAt(beforeNow)
                 .build();
 
         TaskResponse completedResponse = TaskResponse.builder()
                 .id(1L)
                 .name("Test Task")
                 .everyNDays(7)
-                .nextDueAt(now.plusDays(7))    // now + everyNDays 로 갱신됨
-                .lastCompletedAt(now)
-                .completedAt(now)
+                .nextDueAt(fixedOdt.plusDays(7))
+                .lastCompletedAt(fixedOdt)
+                .completedAt(fixedOdt)
                 .isActive(true)
                 .build();
 
+        when(clock.instant()).thenReturn(fixedNow);
         when(taskRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(activeTask));
         when(taskMapper.toResponse(activeTask)).thenReturn(completedResponse);
         when(taskStatusResolver.resolve(any(Instant.class), any())).thenReturn(TaskStatus.UPCOMING);
@@ -479,14 +488,14 @@ class TaskServiceTest {
         TaskResponse result = taskService.complete(1L);
 
         // then
-        // nextDueAt = 완료 시점 + everyNDays(7)
-        assertThat(activeTask.getNextDueAt()).isAfter(now);
-        assertThat(activeTask.getNextDueAt()).isBeforeOrEqualTo(now.plusDays(7).plusSeconds(1));
-        // completedAt, lastCompletedAt = 완료 시점
-        assertThat(activeTask.getCompletedAt()).isNotNull();
-        assertThat(activeTask.getLastCompletedAt()).isEqualTo(activeTask.getCompletedAt());
+        // completedAt = lastCompletedAt = fixedNow(UTC)
+        assertThat(activeTask.getCompletedAt()).isEqualTo(fixedOdt);
+        assertThat(activeTask.getLastCompletedAt()).isEqualTo(fixedOdt);
+        // nextDueAt = fixedNow + 7일
+        assertThat(activeTask.getNextDueAt()).isEqualTo(fixedOdt.plusDays(7));
         // 응답 status 포함
         assertThat(result.getStatus()).isEqualTo(TaskStatus.UPCOMING);
+        verify(clock, times(1)).instant();
         verify(taskRepository, times(1)).findByIdForUpdate(1L);
         verify(taskMapper, times(1)).toResponse(activeTask);
     }

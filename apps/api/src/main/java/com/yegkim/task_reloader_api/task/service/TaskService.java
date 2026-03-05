@@ -14,7 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.OffsetDateTime;
+import java.time.Clock;
 import java.util.Comparator;
 import java.util.List;
 
@@ -30,6 +30,7 @@ public class TaskService {
     private final TaskRepository taskRepository;
     private final TaskMapper taskMapper;
     private final TaskStatusResolver taskStatusResolver;
+    private final Clock clock;
 
     public List<TaskResponse> findAll() {
         TimeWindow window = TimeWindow.ofKst();
@@ -86,7 +87,7 @@ public class TaskService {
             throw new TaskInactiveException(id);
         }
 
-        task.complete(OffsetDateTime.now());
+        task.complete(clock.instant());
         return withStatus(taskMapper.toResponse(task), task, TimeWindow.ofKst());
     }
 

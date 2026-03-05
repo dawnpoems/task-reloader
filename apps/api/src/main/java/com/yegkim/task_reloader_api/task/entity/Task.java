@@ -3,7 +3,9 @@ package com.yegkim.task_reloader_api.task.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 
 @Entity
 @Table(name = "tasks")
@@ -52,10 +54,11 @@ public class Task {
         if (isActive != null) this.isActive = isActive;
     }
 
-    public void complete(OffsetDateTime now) {
-        this.completedAt = now;
-        this.lastCompletedAt = now;
-        this.nextDueAt = now.plusDays(this.everyNDays);
+    public void complete(Instant now) {
+        OffsetDateTime odt = now.atOffset(ZoneOffset.UTC);
+        this.completedAt = odt;
+        this.lastCompletedAt = odt;
+        this.nextDueAt = odt.plusDays(this.everyNDays);
     }
 
     @PrePersist
