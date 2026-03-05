@@ -10,6 +10,6 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
 
     List<Task> findByIsActiveTrueAndNextDueAtBefore(OffsetDateTime now);
 
-    List<Task> findByIsActiveTrue();
+    List<Task> findAllByIsActiveTrueOrderByNextDueAtAsc();
 }
 
