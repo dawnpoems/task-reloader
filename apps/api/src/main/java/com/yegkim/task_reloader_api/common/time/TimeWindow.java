@@ -20,8 +20,19 @@ public class TimeWindow {
         this.tomorrowStartUtc = todayStart.plusDays(1).toInstant();
     }
 
+    /** 테스트 등 경계값을 직접 지정해야 할 때 사용 */
+    private TimeWindow(Instant todayStartUtc, Instant tomorrowStartUtc) {
+        this.todayStartUtc = todayStartUtc;
+        this.tomorrowStartUtc = tomorrowStartUtc;
+    }
+
     public static TimeWindow of(ZoneId zone) {
         return new TimeWindow(zone);
+    }
+
+    /** 테스트용: 경계 Instant를 직접 주입 */
+    public static TimeWindow of(Instant todayStartUtc, Instant tomorrowStartUtc) {
+        return new TimeWindow(todayStartUtc, tomorrowStartUtc);
     }
 
     public static TimeWindow ofKst() {
