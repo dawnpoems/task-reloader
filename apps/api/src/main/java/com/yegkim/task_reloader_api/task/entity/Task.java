@@ -54,6 +54,9 @@ public class Task {
         OffsetDateTime now = OffsetDateTime.now();
         this.createdAt = now;
         this.updatedAt = now;
+        if (this.nextDueAt == null) {
+            this.nextDueAt = now.plusDays(this.everyNDays);
+        }
     }
 
     @PreUpdate

@@ -129,11 +129,13 @@ class TaskServiceTest {
                 .everyNDays(5)
                 .build();
 
+        OffsetDateTime now = OffsetDateTime.now();
         Task newTask = Task.builder()
                 .name("New Task")
                 .everyNDays(5)
                 .timezone("Asia/Seoul")
                 .isActive(true)
+                .nextDueAt(now.plusDays(5))
                 .build();
 
         TaskResponse newTaskResponse = TaskResponse.builder()
@@ -141,7 +143,7 @@ class TaskServiceTest {
                 .name("New Task")
                 .everyNDays(5)
                 .timezone("Asia/Seoul")
-                .nextDueAt(OffsetDateTime.now().plusDays(5))
+                .nextDueAt(now.plusDays(5))
                 .isActive(true)
                 .build();
 
@@ -156,6 +158,7 @@ class TaskServiceTest {
         assertThat(result).isNotNull();
         assertThat(result.getName()).isEqualTo("New Task");
         assertThat(result.getEveryNDays()).isEqualTo(5);
+        assertThat(result.getNextDueAt()).isNotNull();
         verify(taskMapper, times(1)).toEntity(request);
         verify(taskRepository, times(1)).save(newTask);
         verify(taskMapper, times(1)).toResponse(newTask);

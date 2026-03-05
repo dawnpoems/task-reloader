@@ -53,7 +53,7 @@ A completion-driven recurring task scheduler
 
 1. 사용자가 Task를 등록
 
-   → `next_due_at = now` 로 설정되어 즉시 “오늘 할 일”에 표시됨
+   → `next_due_at = now + every_n_days` 로 설정됨
 
 2. 사용자가 Task를 완료 처리
 3. 시스템이 완료 시점을 기준으로 다음 due 계산
@@ -119,7 +119,7 @@ A completion-driven recurring task scheduler
 
 - 입력: name, every_n_days
 - 처리:
-    - `next_due_at = now`
+    - `next_due_at = now + every_n_days`
     - `last_completed_at = null`
     - `is_active = true`
 
