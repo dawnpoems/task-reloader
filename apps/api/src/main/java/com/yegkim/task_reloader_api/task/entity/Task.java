@@ -43,6 +43,12 @@ public class Task {
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
 
+    public void update(String name, Integer everyNDays, Boolean isActive) {
+        if (name != null) this.name = name;
+        if (everyNDays != null) this.everyNDays = everyNDays;
+        if (isActive != null) this.isActive = isActive;
+    }
+
     @PrePersist
     protected void onCreate() {
         OffsetDateTime now = OffsetDateTime.now();

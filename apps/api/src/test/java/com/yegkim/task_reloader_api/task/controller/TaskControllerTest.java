@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.yegkim.task_reloader_api.task.dto.CreateTaskRequest;
 import com.yegkim.task_reloader_api.task.dto.TaskResponse;
+import com.yegkim.task_reloader_api.task.dto.UpdateTaskRequest;
 import com.yegkim.task_reloader_api.task.service.TaskService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -28,6 +29,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @WebMvcTest(TaskController.class)
@@ -222,6 +224,84 @@ class TaskControllerTest {
                 .andExpect(status().isBadRequest());
 
         verify(taskService, never()).create(any());
+    }
+
+    @Test
+    @DisplayName("작업 수정 - 성공")
+    void testUpdateSuccess() throws Exception {
+        // given
+        UpdateTaskRequest request = UpdateTaskRequest.builder()
+                .name("Updated Task")
+                .everyNDays(3)
+                .isActive(false)
+                .build();
+
+        TaskResponse updatedResponse = TaskResponse.builder()
+                .id(1L)
+                .name("Updated Task")
+                .everyNDays(3)
+                .timezone("Asia/Seoul")
+                .nextDueAt(OffsetDateTime.now().plusDays(3))
+                .isActive(false)
+                .createdAt(OffsetDateTime.now())
+                .updatedAt(OffsetDateTime.now())
+                .build();
+
+        when(taskService.update(eq(1L), any(UpdateTaskRequest.class))).thenReturn(updatedResponse);
+
+        // when & then
+        mockMvc.perform(patch("/api/tasks/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.data.id", is(1)))
+                .andExpect(jsonPath("$.data.name", is("Updated Task")))
+                .andExpect(jsonPath("$.data.everyNDays", is(3)))
+                .andExpect(jsonPath("$.data.isActive", is(false)))
+                .andExpect(jsonPath("$.error").doesNotExist());
+
+        verify(taskService, times(1)).update(eq(1L), any(UpdateTaskRequest.class));
+    }
+
+    @Test
+    @DisplayName("작업 수정 - everyNDays가 0이면 400")
+    void testUpdateFailWhenEveryNDaysIsZero() throws Exception {
+        // given
+        UpdateTaskRequest request = UpdateTaskRequest.builder()
+                .everyNDays(0)
+                .build();
+
+        // when & then
+        mockMvc.perform(patch("/api/tasks/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+
+        verify(taskService, never()).update(any(), any());
+    }
+
+    @Test
+    @DisplayName("작업 수정 - 존재하지 않음")
+    void testUpdateNotFound() throws Exception {
+        // given
+        UpdateTaskRequest request = UpdateTaskRequest.builder()
+                .name("Updated Task")
+                .build();
+
+        when(taskService.update(eq(999L), any(UpdateTaskRequest.class)))
+                .thenThrow(new IllegalArgumentException("Task not found: id=999"));
+
+        // when & then
+        mockMvc.perform(patch("/api/tasks/999")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success", is(false)))
+                .andExpect(jsonPath("$.error.code", is("BAD_REQUEST")))
+                .andExpect(jsonPath("$.error.message", containsString("Task not found")));
+
+        verify(taskService, times(1)).update(eq(999L), any(UpdateTaskRequest.class));
     }
 
     @Test

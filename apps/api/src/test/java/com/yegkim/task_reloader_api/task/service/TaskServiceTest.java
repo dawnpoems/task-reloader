@@ -2,6 +2,7 @@ package com.yegkim.task_reloader_api.task.service;
 
 import com.yegkim.task_reloader_api.task.dto.CreateTaskRequest;
 import com.yegkim.task_reloader_api.task.dto.TaskResponse;
+import com.yegkim.task_reloader_api.task.dto.UpdateTaskRequest;
 import com.yegkim.task_reloader_api.task.entity.Task;
 import com.yegkim.task_reloader_api.task.mapper.TaskMapper;
 import com.yegkim.task_reloader_api.task.repository.TaskRepository;
@@ -157,6 +158,88 @@ class TaskServiceTest {
         verify(taskMapper, times(1)).toEntity(request);
         verify(taskRepository, times(1)).save(newTask);
         verify(taskMapper, times(1)).toResponse(newTask);
+    }
+
+    @Test
+    @DisplayName("작업 수정 - 성공")
+    void testUpdateSuccess() {
+        // given
+        UpdateTaskRequest request = UpdateTaskRequest.builder()
+                .name("Updated Task")
+                .everyNDays(3)
+                .isActive(false)
+                .build();
+
+        TaskResponse updatedResponse = TaskResponse.builder()
+                .id(1L)
+                .name("Updated Task")
+                .everyNDays(3)
+                .timezone("Asia/Seoul")
+                .isActive(false)
+                .build();
+
+        when(taskRepository.findById(1L)).thenReturn(Optional.of(task));
+        when(taskMapper.toResponse(task)).thenReturn(updatedResponse);
+
+        // when
+        TaskResponse result = taskService.update(1L, request);
+
+        // then
+        assertThat(result).isNotNull();
+        assertThat(result.getName()).isEqualTo("Updated Task");
+        assertThat(result.getEveryNDays()).isEqualTo(3);
+        assertThat(result.getIsActive()).isFalse();
+        verify(taskRepository, times(1)).findById(1L);
+        verify(taskMapper, times(1)).toResponse(task);
+    }
+
+    @Test
+    @DisplayName("작업 수정 - 일부 필드만 수정")
+    void testUpdatePartialFields() {
+        // given
+        UpdateTaskRequest request = UpdateTaskRequest.builder()
+                .name("Partial Update")
+                .build();
+
+        TaskResponse updatedResponse = TaskResponse.builder()
+                .id(1L)
+                .name("Partial Update")
+                .everyNDays(7)
+                .timezone("Asia/Seoul")
+                .isActive(true)
+                .build();
+
+        when(taskRepository.findById(1L)).thenReturn(Optional.of(task));
+        when(taskMapper.toResponse(task)).thenReturn(updatedResponse);
+
+        // when
+        TaskResponse result = taskService.update(1L, request);
+
+        // then
+        assertThat(result).isNotNull();
+        assertThat(result.getName()).isEqualTo("Partial Update");
+        assertThat(result.getEveryNDays()).isEqualTo(7);
+        verify(taskRepository, times(1)).findById(1L);
+    }
+
+    @Test
+    @DisplayName("작업 수정 - 존재하지 않음")
+    void testUpdateNotFound() {
+        // given
+        UpdateTaskRequest request = UpdateTaskRequest.builder()
+                .name("Updated Task")
+                .build();
+
+        when(taskRepository.findById(999L)).thenReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> taskService.update(999L, request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Task not found")
+                .hasMessageContaining("999");
+
+        verify(taskRepository, times(1)).findById(999L);
+        verify(taskMapper, never()).toResponse(any());
     }
 
     @Test
