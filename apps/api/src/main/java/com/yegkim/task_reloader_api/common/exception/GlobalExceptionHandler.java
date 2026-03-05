@@ -31,6 +31,13 @@ public class GlobalExceptionHandler {
         return ApiResponse.error(ErrorResponse.of("BAD_REQUEST", ex.getMessage()));
     }
 
+    @ExceptionHandler(TaskNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ApiResponse<Void> handleTaskNotFound(TaskNotFoundException ex) {
+        log.warn("Task not found: {}", ex.getMessage());
+        return ApiResponse.error(ErrorResponse.of("TASK_NOT_FOUND", ex.getMessage()));
+    }
+
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public ApiResponse<Void> handleException(Exception ex) {

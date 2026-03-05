@@ -1,5 +1,6 @@
 package com.yegkim.task_reloader_api.task.service;
 
+import com.yegkim.task_reloader_api.common.exception.TaskNotFoundException;
 import com.yegkim.task_reloader_api.task.mapper.TaskMapper;
 import com.yegkim.task_reloader_api.task.dto.CreateTaskRequest;
 import com.yegkim.task_reloader_api.task.dto.UpdateTaskRequest;
@@ -26,7 +27,7 @@ public class TaskService {
 
     public TaskResponse findById(Long id) {
         Task task = taskRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Task not found: id=" + id));
+                .orElseThrow(() -> new TaskNotFoundException(id));
         return taskMapper.toResponse(task);
     }
 
@@ -39,7 +40,7 @@ public class TaskService {
     @Transactional
     public TaskResponse update(Long id, UpdateTaskRequest request) {
         Task task = taskRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Task not found: id=" + id));
+                .orElseThrow(() -> new TaskNotFoundException(id));
         task.update(request.getName(), request.getEveryNDays(), request.getIsActive());
         return taskMapper.toResponse(task);
     }
@@ -47,7 +48,7 @@ public class TaskService {
     @Transactional
     public void delete(Long id) {
         Task task = taskRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Task not found: id=" + id));
+                .orElseThrow(() -> new TaskNotFoundException(id));
         taskRepository.delete(task);
     }
 }
