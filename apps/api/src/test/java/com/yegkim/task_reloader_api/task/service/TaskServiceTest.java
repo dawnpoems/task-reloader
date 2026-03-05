@@ -1,5 +1,6 @@
 package com.yegkim.task_reloader_api.task.service;
 
+import com.yegkim.task_reloader_api.common.exception.TaskNotFoundException;
 import com.yegkim.task_reloader_api.task.dto.CreateTaskRequest;
 import com.yegkim.task_reloader_api.task.dto.TaskResponse;
 import com.yegkim.task_reloader_api.task.dto.UpdateTaskRequest;
@@ -111,8 +112,8 @@ class TaskServiceTest {
 
         // when & then
         assertThatThrownBy(() -> taskService.findById(999L))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Task not found")
+                .isInstanceOf(TaskNotFoundException.class)
+                .hasMessageContaining("작업을 찾을 수 없습니다")
                 .hasMessageContaining("999");
 
         verify(taskRepository, times(1)).findById(999L);
@@ -234,8 +235,8 @@ class TaskServiceTest {
 
         // when & then
         assertThatThrownBy(() -> taskService.update(999L, request))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Task not found")
+                .isInstanceOf(TaskNotFoundException.class)
+                .hasMessageContaining("작업을 찾을 수 없습니다")
                 .hasMessageContaining("999");
 
         verify(taskRepository, times(1)).findById(999L);
@@ -265,8 +266,9 @@ class TaskServiceTest {
 
         // when & then
         assertThatThrownBy(() -> taskService.delete(999L))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Task not found");
+                .isInstanceOf(TaskNotFoundException.class)
+                .hasMessageContaining("작업을 찾을 수 없습니다")
+                .hasMessageContaining("999");
 
         verify(taskRepository, times(1)).findById(999L);
         verify(taskRepository, never()).delete(any());
