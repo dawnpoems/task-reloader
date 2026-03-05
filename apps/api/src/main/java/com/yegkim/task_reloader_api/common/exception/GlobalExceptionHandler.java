@@ -54,6 +54,13 @@ public class GlobalExceptionHandler {
         return ApiResponse.error(ErrorResponse.of("TASK_INACTIVE", ex.getMessage()));
     }
 
+    @ExceptionHandler(TaskRecentlyCompletedException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ApiResponse<Void> handleTaskRecentlyCompleted(TaskRecentlyCompletedException ex) {
+        log.warn("Task recently completed: {}", ex.getMessage());
+        return ApiResponse.error(ErrorResponse.of("TASK_RECENTLY_COMPLETED", ex.getMessage()));
+    }
+
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public ApiResponse<Void> handleException(Exception ex) {

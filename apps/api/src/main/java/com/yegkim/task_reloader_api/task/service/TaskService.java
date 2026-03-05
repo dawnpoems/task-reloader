@@ -2,6 +2,7 @@ package com.yegkim.task_reloader_api.task.service;
 
 import com.yegkim.task_reloader_api.common.exception.TaskInactiveException;
 import com.yegkim.task_reloader_api.common.exception.TaskNotFoundException;
+import com.yegkim.task_reloader_api.common.exception.TaskRecentlyCompletedException;
 import com.yegkim.task_reloader_api.common.time.TimeWindow;
 import com.yegkim.task_reloader_api.task.mapper.TaskMapper;
 import com.yegkim.task_reloader_api.task.dto.CreateTaskRequest;
@@ -15,6 +16,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 
@@ -78,6 +81,8 @@ public class TaskService {
         taskRepository.delete(task);
     }
 
+    private static final long COMPLETE_COOLDOWN_SECONDS = 2;
+
     @Transactional
     public TaskResponse complete(Long id) {
         Task task = taskRepository.findByIdForUpdate(id)
@@ -87,7 +92,14 @@ public class TaskService {
             throw new TaskInactiveException(id);
         }
 
-        task.complete(clock.instant());
+        Instant now = clock.instant();
+
+        if (task.getLastCompletedAt() != null
+                && Duration.between(task.getLastCompletedAt().toInstant(), now).toSeconds() < COMPLETE_COOLDOWN_SECONDS) {
+            throw new TaskRecentlyCompletedException(id);
+        }
+
+        task.complete(now);
         return withStatus(taskMapper.toResponse(task), task, TimeWindow.ofKst());
     }
 

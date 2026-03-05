@@ -2,6 +2,7 @@ package com.yegkim.task_reloader_api.task.service;
 
 import com.yegkim.task_reloader_api.common.exception.TaskInactiveException;
 import com.yegkim.task_reloader_api.common.exception.TaskNotFoundException;
+import com.yegkim.task_reloader_api.common.exception.TaskRecentlyCompletedException;
 import com.yegkim.task_reloader_api.task.dto.CreateTaskRequest;
 import com.yegkim.task_reloader_api.task.dto.TaskResponse;
 import com.yegkim.task_reloader_api.task.dto.UpdateTaskRequest;
@@ -542,6 +543,83 @@ class TaskServiceTest {
         verify(taskRepository, times(1)).findByIdForUpdate(1L);
         // complete() 이후 로직은 실행되지 않아야 함
         verify(taskMapper, never()).toResponse(any());
+    }
+
+    @Test
+    @DisplayName("작업 완료 - 2초 이내 중복 완료 시도 시 409")
+    void testCompleteDuplicateWithinCooldown() {
+        // given
+        Instant fixedNow = Instant.parse("2026-03-05T12:00:01Z");
+        OffsetDateTime lastCompleted = Instant.parse("2026-03-05T12:00:00Z").atOffset(ZoneOffset.UTC); // 1초 전
+
+        Task recentlyCompletedTask = Task.builder()
+                .id(1L)
+                .name("Test Task")
+                .everyNDays(7)
+                .nextDueAt(lastCompleted.plusDays(7))
+                .lastCompletedAt(lastCompleted)   // 1초 전에 완료됨
+                .isActive(true)
+                .createdAt(lastCompleted)
+                .updatedAt(lastCompleted)
+                .build();
+
+        when(clock.instant()).thenReturn(fixedNow);
+        when(taskRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(recentlyCompletedTask));
+
+        // when & then
+        assertThatThrownBy(() -> taskService.complete(1L))
+                .isInstanceOf(TaskRecentlyCompletedException.class)
+                .hasMessageContaining("최근에 이미 완료된 작업입니다")
+                .hasMessageContaining("1");
+
+        verify(taskRepository, times(1)).findByIdForUpdate(1L);
+        verify(taskMapper, never()).toResponse(any());
+    }
+
+    @Test
+    @DisplayName("작업 완료 - 2초 이후 재완료는 정상 처리")
+    void testCompleteAfterCooldown() {
+        // given
+        Instant fixedNow = Instant.parse("2026-03-05T12:00:03Z");
+        OffsetDateTime fixedOdt = fixedNow.atOffset(ZoneOffset.UTC);
+        OffsetDateTime lastCompleted = Instant.parse("2026-03-05T12:00:00Z").atOffset(ZoneOffset.UTC); // 3초 전
+
+        Task previouslyCompletedTask = Task.builder()
+                .id(1L)
+                .name("Test Task")
+                .everyNDays(7)
+                .nextDueAt(lastCompleted.plusDays(7))
+                .lastCompletedAt(lastCompleted)   // 3초 전에 완료됨
+                .isActive(true)
+                .createdAt(lastCompleted)
+                .updatedAt(lastCompleted)
+                .build();
+
+        TaskResponse response = TaskResponse.builder()
+                .id(1L)
+                .name("Test Task")
+                .everyNDays(7)
+                .nextDueAt(fixedOdt.plusDays(7))
+                .lastCompletedAt(fixedOdt)
+                .completedAt(fixedOdt)
+                .isActive(true)
+                .build();
+
+        when(clock.instant()).thenReturn(fixedNow);
+        when(taskRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(previouslyCompletedTask));
+        when(taskMapper.toResponse(previouslyCompletedTask)).thenReturn(response);
+        when(taskStatusResolver.resolve(any(Instant.class), any())).thenReturn(TaskStatus.UPCOMING);
+
+        // when
+        TaskResponse result = taskService.complete(1L);
+
+        // then
+        assertThat(result.getStatus()).isEqualTo(TaskStatus.UPCOMING);
+        assertThat(previouslyCompletedTask.getCompletedAt()).isEqualTo(fixedOdt);
+        assertThat(previouslyCompletedTask.getLastCompletedAt()).isEqualTo(fixedOdt);
+        assertThat(previouslyCompletedTask.getNextDueAt()).isEqualTo(fixedOdt.plusDays(7));
+        verify(taskRepository, times(1)).findByIdForUpdate(1L);
+        verify(taskMapper, times(1)).toResponse(previouslyCompletedTask);
     }
 }
 
