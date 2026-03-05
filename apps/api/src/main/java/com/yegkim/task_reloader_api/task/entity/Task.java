@@ -30,6 +30,9 @@ public class Task {
     @Column(name = "next_due_at", nullable = false)
     private OffsetDateTime nextDueAt;
 
+    @Column(name = "completed_at")
+    private OffsetDateTime completedAt;
+
     @Column(name = "last_completed_at")
     private OffsetDateTime lastCompletedAt;
 
@@ -47,6 +50,12 @@ public class Task {
         if (name != null) this.name = name;
         if (everyNDays != null) this.everyNDays = everyNDays;
         if (isActive != null) this.isActive = isActive;
+    }
+
+    public void complete(OffsetDateTime now) {
+        this.completedAt = now;
+        this.lastCompletedAt = now;
+        this.nextDueAt = now.plusDays(this.everyNDays);
     }
 
     @PrePersist

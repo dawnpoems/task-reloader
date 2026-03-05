@@ -1,5 +1,6 @@
 package com.yegkim.task_reloader_api.task.service;
 
+import com.yegkim.task_reloader_api.common.exception.TaskInactiveException;
 import com.yegkim.task_reloader_api.common.exception.TaskNotFoundException;
 import com.yegkim.task_reloader_api.task.dto.CreateTaskRequest;
 import com.yegkim.task_reloader_api.task.dto.TaskResponse;
@@ -442,6 +443,96 @@ class TaskServiceTest {
 
         verify(taskRepository, times(1)).findById(999L);
         verify(taskRepository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("작업 완료 - 성공 (completedAt·lastCompletedAt·nextDueAt 갱신 및 status 포함)")
+    void testCompleteSuccess() {
+        // given
+        OffsetDateTime now = OffsetDateTime.now();
+        Task activeTask = Task.builder()
+                .id(1L)
+                .name("Test Task")
+                .everyNDays(7)
+                .timezone("Asia/Seoul")
+                .nextDueAt(now.minusDays(1))   // OVERDUE 상태
+                .isActive(true)
+                .createdAt(now)
+                .updatedAt(now)
+                .build();
+
+        TaskResponse completedResponse = TaskResponse.builder()
+                .id(1L)
+                .name("Test Task")
+                .everyNDays(7)
+                .nextDueAt(now.plusDays(7))    // now + everyNDays 로 갱신됨
+                .lastCompletedAt(now)
+                .completedAt(now)
+                .isActive(true)
+                .build();
+
+        when(taskRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(activeTask));
+        when(taskMapper.toResponse(activeTask)).thenReturn(completedResponse);
+        when(taskStatusResolver.resolve(any(Instant.class), any())).thenReturn(TaskStatus.UPCOMING);
+
+        // when
+        TaskResponse result = taskService.complete(1L);
+
+        // then
+        // nextDueAt = 완료 시점 + everyNDays(7)
+        assertThat(activeTask.getNextDueAt()).isAfter(now);
+        assertThat(activeTask.getNextDueAt()).isBeforeOrEqualTo(now.plusDays(7).plusSeconds(1));
+        // completedAt, lastCompletedAt = 완료 시점
+        assertThat(activeTask.getCompletedAt()).isNotNull();
+        assertThat(activeTask.getLastCompletedAt()).isEqualTo(activeTask.getCompletedAt());
+        // 응답 status 포함
+        assertThat(result.getStatus()).isEqualTo(TaskStatus.UPCOMING);
+        verify(taskRepository, times(1)).findByIdForUpdate(1L);
+        verify(taskMapper, times(1)).toResponse(activeTask);
+    }
+
+    @Test
+    @DisplayName("작업 완료 - 존재하지 않음 (404)")
+    void testCompleteNotFound() {
+        // given
+        when(taskRepository.findByIdForUpdate(999L)).thenReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> taskService.complete(999L))
+                .isInstanceOf(TaskNotFoundException.class)
+                .hasMessageContaining("작업을 찾을 수 없습니다")
+                .hasMessageContaining("999");
+
+        verify(taskRepository, times(1)).findByIdForUpdate(999L);
+        verify(taskMapper, never()).toResponse(any());
+    }
+
+    @Test
+    @DisplayName("작업 완료 - 비활성 Task (409)")
+    void testCompleteInactiveTask() {
+        // given
+        OffsetDateTime now = OffsetDateTime.now();
+        Task inactiveTask = Task.builder()
+                .id(1L)
+                .name("Inactive Task")
+                .everyNDays(7)
+                .nextDueAt(now.plusDays(7))
+                .isActive(false)   // 비활성
+                .createdAt(now)
+                .updatedAt(now)
+                .build();
+
+        when(taskRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(inactiveTask));
+
+        // when & then
+        assertThatThrownBy(() -> taskService.complete(1L))
+                .isInstanceOf(TaskInactiveException.class)
+                .hasMessageContaining("비활성화된 작업입니다")
+                .hasMessageContaining("1");
+
+        verify(taskRepository, times(1)).findByIdForUpdate(1L);
+        // complete() 이후 로직은 실행되지 않아야 함
+        verify(taskMapper, never()).toResponse(any());
     }
 }
 

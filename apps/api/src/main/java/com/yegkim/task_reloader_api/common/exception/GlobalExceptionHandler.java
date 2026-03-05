@@ -47,6 +47,13 @@ public class GlobalExceptionHandler {
         return ApiResponse.error(ErrorResponse.of("TASK_NOT_FOUND", ex.getMessage()));
     }
 
+    @ExceptionHandler(TaskInactiveException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ApiResponse<Void> handleTaskInactive(TaskInactiveException ex) {
+        log.warn("Task inactive: {}", ex.getMessage());
+        return ApiResponse.error(ErrorResponse.of("TASK_INACTIVE", ex.getMessage()));
+    }
+
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public ApiResponse<Void> handleException(Exception ex) {

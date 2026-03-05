@@ -1,5 +1,6 @@
 package com.yegkim.task_reloader_api.task.service;
 
+import com.yegkim.task_reloader_api.common.exception.TaskInactiveException;
 import com.yegkim.task_reloader_api.common.exception.TaskNotFoundException;
 import com.yegkim.task_reloader_api.common.time.TimeWindow;
 import com.yegkim.task_reloader_api.task.mapper.TaskMapper;
@@ -13,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.OffsetDateTime;
 import java.util.Comparator;
 import java.util.List;
 
@@ -73,6 +75,19 @@ public class TaskService {
         Task task = taskRepository.findById(id)
                 .orElseThrow(() -> new TaskNotFoundException(id));
         taskRepository.delete(task);
+    }
+
+    @Transactional
+    public TaskResponse complete(Long id) {
+        Task task = taskRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new TaskNotFoundException(id));
+
+        if (!task.getIsActive()) {
+            throw new TaskInactiveException(id);
+        }
+
+        task.complete(OffsetDateTime.now());
+        return withStatus(taskMapper.toResponse(task), task, TimeWindow.ofKst());
     }
 
     private TaskResponse withStatus(TaskResponse response, Task task, TimeWindow window) {

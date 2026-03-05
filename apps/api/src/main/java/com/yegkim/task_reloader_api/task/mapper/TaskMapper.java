@@ -20,6 +20,7 @@ public interface TaskMapper {
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "timezone", constant = "Asia/Seoul")
     @Mapping(target = "nextDueAt", ignore = true)
+    @Mapping(target = "completedAt", ignore = true)
     @Mapping(target = "lastCompletedAt", ignore = true)
     @Mapping(target = "isActive", constant = "true")
     @Mapping(target = "createdAt", ignore = true)

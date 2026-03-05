@@ -18,6 +18,7 @@ public class TaskResponse {
     @Setter
     private TaskStatus status;
     private OffsetDateTime nextDueAt;
+    private OffsetDateTime completedAt;
     private OffsetDateTime lastCompletedAt;
     private Boolean isActive;
     private OffsetDateTime createdAt;
