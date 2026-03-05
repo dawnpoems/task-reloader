@@ -8,6 +8,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @Slf4j
 @RestControllerAdvice
@@ -22,6 +23,14 @@ public class GlobalExceptionHandler {
                 .orElse("잘못된 요청입니다.");
         log.warn("Validation failed: {}", message);
         return ApiResponse.error(ErrorResponse.of("VALIDATION_ERROR", message));
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ApiResponse<Void> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        String message = String.format("'%s'은(는) 올바르지 않은 값입니다.", ex.getValue());
+        log.warn("Type mismatch: {}", message);
+        return ApiResponse.error(ErrorResponse.of("INVALID_PARAMETER", message));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

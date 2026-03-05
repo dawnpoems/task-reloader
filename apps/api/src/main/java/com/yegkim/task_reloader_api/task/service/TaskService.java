@@ -1,11 +1,13 @@
 package com.yegkim.task_reloader_api.task.service;
 
 import com.yegkim.task_reloader_api.common.exception.TaskNotFoundException;
+import com.yegkim.task_reloader_api.common.time.TimeWindow;
 import com.yegkim.task_reloader_api.task.mapper.TaskMapper;
 import com.yegkim.task_reloader_api.task.dto.CreateTaskRequest;
 import com.yegkim.task_reloader_api.task.dto.UpdateTaskRequest;
 import com.yegkim.task_reloader_api.task.dto.TaskResponse;
 import com.yegkim.task_reloader_api.task.entity.Task;
+import com.yegkim.task_reloader_api.task.entity.TaskStatus;
 import com.yegkim.task_reloader_api.task.repository.TaskRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -20,9 +22,20 @@ public class TaskService {
 
     private final TaskRepository taskRepository;
     private final TaskMapper taskMapper;
+    private final TaskStatusResolver taskStatusResolver;
 
     public List<TaskResponse> findAll() {
         return taskMapper.toResponseList(taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc());
+    }
+
+    public List<TaskResponse> findAll(TaskStatus status) {
+        List<Task> tasks = taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc();
+        TimeWindow window = TimeWindow.ofKst();
+        return taskMapper.toResponseList(
+                tasks.stream()
+                        .filter(task -> taskStatusResolver.resolve(task.getNextDueAt().toInstant(), window) == status)
+                        .toList()
+        );
     }
 
     public TaskResponse findById(Long id) {

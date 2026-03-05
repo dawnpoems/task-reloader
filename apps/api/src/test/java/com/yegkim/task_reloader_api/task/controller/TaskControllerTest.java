@@ -6,6 +6,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.yegkim.task_reloader_api.task.dto.CreateTaskRequest;
 import com.yegkim.task_reloader_api.task.dto.TaskResponse;
 import com.yegkim.task_reloader_api.task.dto.UpdateTaskRequest;
+import com.yegkim.task_reloader_api.task.entity.TaskStatus;
 import com.yegkim.task_reloader_api.task.service.TaskService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -97,6 +98,68 @@ class TaskControllerTest {
                 .andExpect(jsonPath("$.error").doesNotExist());
 
         verify(taskService, times(1)).findAll();
+    }
+
+    @Test
+    @DisplayName("전체 작업 목록 조회 - status=ALL이면 findAll() 호출")
+    void testFindAllWithStatusAll() throws Exception {
+        // given
+        when(taskService.findAll()).thenReturn(List.of(taskResponse));
+
+        // when & then
+        mockMvc.perform(get("/api/tasks").param("status", "ALL")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", is(true)));
+
+        verify(taskService, times(1)).findAll();
+        verify(taskService, never()).findAll(any(TaskStatus.class));
+    }
+
+    @Test
+    @DisplayName("전체 작업 목록 조회 - status=TODAY이면 findAll(TODAY) 호출")
+    void testFindAllWithStatusToday() throws Exception {
+        // given
+        when(taskService.findAll(TaskStatus.TODAY)).thenReturn(List.of(taskResponse));
+
+        // when & then
+        mockMvc.perform(get("/api/tasks").param("status", "TODAY")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.data", hasSize(1)));
+
+        verify(taskService, times(1)).findAll(TaskStatus.TODAY);
+        verify(taskService, never()).findAll();
+    }
+
+    @Test
+    @DisplayName("전체 작업 목록 조회 - status=OVERDUE이면 findAll(OVERDUE) 호출")
+    void testFindAllWithStatusOverdue() throws Exception {
+        // given
+        when(taskService.findAll(TaskStatus.OVERDUE)).thenReturn(List.of());
+
+        // when & then
+        mockMvc.perform(get("/api/tasks").param("status", "OVERDUE")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.data", hasSize(0)));
+
+        verify(taskService, times(1)).findAll(TaskStatus.OVERDUE);
+    }
+
+    @Test
+    @DisplayName("전체 작업 목록 조회 - 잘못된 status 값이면 400")
+    void testFindAllWithInvalidStatus() throws Exception {
+        mockMvc.perform(get("/api/tasks").param("status", "INVALID")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success", is(false)))
+                .andExpect(jsonPath("$.error.code", is("BAD_REQUEST")));
+
+        verify(taskService, never()).findAll();
+        verify(taskService, never()).findAll(any(TaskStatus.class));
     }
 
     @Test

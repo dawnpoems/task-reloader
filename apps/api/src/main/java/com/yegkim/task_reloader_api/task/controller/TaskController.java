@@ -4,8 +4,10 @@ import com.yegkim.task_reloader_api.common.response.ApiResponse;
 import com.yegkim.task_reloader_api.task.dto.CreateTaskRequest;
 import com.yegkim.task_reloader_api.task.dto.TaskResponse;
 import com.yegkim.task_reloader_api.task.dto.UpdateTaskRequest;
+import com.yegkim.task_reloader_api.task.entity.TaskStatus;
 import com.yegkim.task_reloader_api.task.service.TaskService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -22,10 +24,27 @@ public class TaskController {
 
     private final TaskService taskService;
 
-    @Operation(summary = "전체 작업 목록 조회")
+    @Operation(summary = "작업 목록 조회")
     @GetMapping
-    public ApiResponse<List<TaskResponse>> findAll() {
-        return ApiResponse.success(taskService.findAll());
+    public ApiResponse<List<TaskResponse>> findAll(
+            @Parameter(description = "상태 필터 (ALL | OVERDUE | TODAY | UPCOMING)")
+            @RequestParam(defaultValue = "ALL") String status
+    ) {
+        if ("ALL".equalsIgnoreCase(status)) {
+            return ApiResponse.success(taskService.findAll());
+        }
+        TaskStatus taskStatus = parseStatus(status);
+        return ApiResponse.success(taskService.findAll(taskStatus));
+    }
+
+    private TaskStatus parseStatus(String status) {
+        try {
+            return TaskStatus.valueOf(status.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(
+                    String.format("'%s'은(는) 올바르지 않은 status 값입니다. (ALL | OVERDUE | TODAY | UPCOMING)", status)
+            );
+        }
     }
 
     @Operation(summary = "작업 단건 조회")

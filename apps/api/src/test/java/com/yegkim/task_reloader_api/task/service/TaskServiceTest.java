@@ -5,6 +5,7 @@ import com.yegkim.task_reloader_api.task.dto.CreateTaskRequest;
 import com.yegkim.task_reloader_api.task.dto.TaskResponse;
 import com.yegkim.task_reloader_api.task.dto.UpdateTaskRequest;
 import com.yegkim.task_reloader_api.task.entity.Task;
+import com.yegkim.task_reloader_api.task.entity.TaskStatus;
 import com.yegkim.task_reloader_api.task.mapper.TaskMapper;
 import com.yegkim.task_reloader_api.task.repository.TaskRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,7 +16,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 
@@ -32,6 +35,9 @@ class TaskServiceTest {
 
     @Mock
     private TaskMapper taskMapper;
+
+    @Mock
+    private TaskStatusResolver taskStatusResolver;
 
     @InjectMocks
     private TaskService taskService;
@@ -85,6 +91,88 @@ class TaskServiceTest {
         verify(taskRepository, times(1)).findAllByIsActiveTrueOrderByNextDueAtAsc();
         verify(taskRepository, never()).findAll();
         verify(taskMapper, times(1)).toResponseList(tasks);
+    }
+
+    @Test
+    @DisplayName("status=TODAY 필터링 - TODAY인 작업만 반환")
+    void testFindAllWithStatusToday() {
+        // given
+        OffsetDateTime now = OffsetDateTime.now();
+        Task todayTask = Task.builder().id(1L).name("Today Task").everyNDays(1)
+                .nextDueAt(now).isActive(true).build();
+        Task upcomingTask = Task.builder().id(2L).name("Upcoming Task").everyNDays(3)
+                .nextDueAt(now.plusDays(3)).isActive(true).build();
+        List<Task> allTasks = List.of(todayTask, upcomingTask);
+
+        TaskResponse todayResponse = TaskResponse.builder().id(1L).name("Today Task").build();
+
+        when(taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc()).thenReturn(allTasks);
+        when(taskStatusResolver.resolve(any(Instant.class), any())).thenAnswer(invocation -> {
+            Instant instant = invocation.getArgument(0);
+            // todayTask.nextDueAt == now → TODAY, upcomingTask → UPCOMING
+            return instant.equals(todayTask.getNextDueAt().toInstant())
+                    ? TaskStatus.TODAY
+                    : TaskStatus.UPCOMING;
+        });
+        when(taskMapper.toResponseList(List.of(todayTask))).thenReturn(List.of(todayResponse));
+
+        // when
+        List<TaskResponse> result = taskService.findAll(TaskStatus.TODAY);
+
+        // then
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getName()).isEqualTo("Today Task");
+        verify(taskMapper, times(1)).toResponseList(List.of(todayTask));
+    }
+
+    @Test
+    @DisplayName("status=OVERDUE 필터링 - OVERDUE인 작업만 반환")
+    void testFindAllWithStatusOverdue() {
+        // given
+        OffsetDateTime now = OffsetDateTime.now();
+        Task overdueTask = Task.builder().id(1L).name("Overdue Task").everyNDays(1)
+                .nextDueAt(now.minusDays(2)).isActive(true).build();
+        Task todayTask = Task.builder().id(2L).name("Today Task").everyNDays(1)
+                .nextDueAt(now).isActive(true).build();
+        List<Task> allTasks = List.of(overdueTask, todayTask);
+
+        TaskResponse overdueResponse = TaskResponse.builder().id(1L).name("Overdue Task").build();
+
+        when(taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc()).thenReturn(allTasks);
+        when(taskStatusResolver.resolve(any(Instant.class), any())).thenAnswer(invocation -> {
+            Instant instant = invocation.getArgument(0);
+            return instant.equals(overdueTask.getNextDueAt().toInstant())
+                    ? TaskStatus.OVERDUE
+                    : TaskStatus.TODAY;
+        });
+        when(taskMapper.toResponseList(List.of(overdueTask))).thenReturn(List.of(overdueResponse));
+
+        // when
+        List<TaskResponse> result = taskService.findAll(TaskStatus.OVERDUE);
+
+        // then
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getName()).isEqualTo("Overdue Task");
+    }
+
+    @Test
+    @DisplayName("status 필터링 - 해당 상태의 작업이 없으면 빈 리스트 반환")
+    void testFindAllWithStatusReturnsEmpty() {
+        // given
+        OffsetDateTime now = OffsetDateTime.now();
+        Task todayTask = Task.builder().id(1L).name("Today Task").everyNDays(1)
+                .nextDueAt(now).isActive(true).build();
+        List<Task> allTasks = List.of(todayTask);
+
+        when(taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc()).thenReturn(allTasks);
+        when(taskStatusResolver.resolve(any(Instant.class), any())).thenReturn(TaskStatus.TODAY);
+        when(taskMapper.toResponseList(List.of())).thenReturn(List.of());
+
+        // when
+        List<TaskResponse> result = taskService.findAll(TaskStatus.UPCOMING);
+
+        // then
+        assertThat(result).isEmpty();
     }
 
     @Test
