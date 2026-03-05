@@ -68,11 +68,11 @@ class TaskServiceTest {
     }
 
     @Test
-    @DisplayName("전체 작업 목록 조회 - 성공")
+    @DisplayName("전체 작업 목록 조회 - 활성 작업만 nextDueAt 오름차순으로 반환")
     void testFindAllSuccess() {
         // given
         List<Task> tasks = List.of(task);
-        when(taskRepository.findAll()).thenReturn(tasks);
+        when(taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc()).thenReturn(tasks);
         when(taskMapper.toResponseList(tasks)).thenReturn(List.of(taskResponse));
 
         // when
@@ -82,8 +82,58 @@ class TaskServiceTest {
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getId()).isEqualTo(1L);
         assertThat(result.get(0).getName()).isEqualTo("Test Task");
-        verify(taskRepository, times(1)).findAll();
+        verify(taskRepository, times(1)).findAllByIsActiveTrueOrderByNextDueAtAsc();
+        verify(taskRepository, never()).findAll();
         verify(taskMapper, times(1)).toResponseList(tasks);
+    }
+
+    @Test
+    @DisplayName("전체 작업 목록 조회 - nextDueAt 오름차순 정렬 순서 검증")
+    void testFindAllOrderedByNextDueAt() {
+        // given
+        OffsetDateTime now = OffsetDateTime.now();
+        Task first = Task.builder()
+                .id(1L)
+                .name("First Task")
+                .everyNDays(1)
+                .nextDueAt(now.plusDays(1))
+                .isActive(true)
+                .build();
+        Task second = Task.builder()
+                .id(2L)
+                .name("Second Task")
+                .everyNDays(1)
+                .nextDueAt(now.plusDays(3))
+                .isActive(true)
+                .build();
+        Task third = Task.builder()
+                .id(3L)
+                .name("Third Task")
+                .everyNDays(1)
+                .nextDueAt(now.plusDays(5))
+                .isActive(true)
+                .build();
+        List<Task> orderedTasks = List.of(first, second, third);
+
+        TaskResponse firstResponse = TaskResponse.builder().id(1L).name("First Task").nextDueAt(now.plusDays(1)).build();
+        TaskResponse secondResponse = TaskResponse.builder().id(2L).name("Second Task").nextDueAt(now.plusDays(3)).build();
+        TaskResponse thirdResponse = TaskResponse.builder().id(3L).name("Third Task").nextDueAt(now.plusDays(5)).build();
+        List<TaskResponse> orderedResponses = List.of(firstResponse, secondResponse, thirdResponse);
+
+        when(taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc()).thenReturn(orderedTasks);
+        when(taskMapper.toResponseList(orderedTasks)).thenReturn(orderedResponses);
+
+        // when
+        List<TaskResponse> result = taskService.findAll();
+
+        // then
+        assertThat(result).hasSize(3);
+        assertThat(result.get(0).getId()).isEqualTo(1L);
+        assertThat(result.get(1).getId()).isEqualTo(2L);
+        assertThat(result.get(2).getId()).isEqualTo(3L);
+        assertThat(result.get(0).getNextDueAt()).isBefore(result.get(1).getNextDueAt());
+        assertThat(result.get(1).getNextDueAt()).isBefore(result.get(2).getNextDueAt());
+        verify(taskRepository, times(1)).findAllByIsActiveTrueOrderByNextDueAtAsc();
     }
 
     @Test

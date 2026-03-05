@@ -22,7 +22,7 @@ public class TaskService {
     private final TaskMapper taskMapper;
 
     public List<TaskResponse> findAll() {
-        return taskMapper.toResponseList(taskRepository.findAll());
+        return taskMapper.toResponseList(taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc());
     }
 
     public TaskResponse findById(Long id) {
