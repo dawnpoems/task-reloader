@@ -2,11 +2,14 @@ import { useState } from 'react'
 import { useTasks } from './hooks/useTasks'
 import { TaskSection } from './components/TaskSection'
 import { TaskForm } from './components/TaskForm'
+import { TaskEditModal } from './components/TaskEditModal'
+import type { Task } from './types/task'
 import './App.css'
 
 function App() {
-  const { tasks, isLoading, error, createTask, completeTask, deleteTask } = useTasks()
+  const { tasks, isLoading, error, createTask, updateTask, completeTask, deleteTask } = useTasks()
   const [showForm, setShowForm] = useState(false)
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
 
   return (
     <div className="app">
@@ -38,10 +41,19 @@ function App() {
           <TaskSection
             tasks={tasks}
             onComplete={completeTask}
-            onDelete={deleteTask}
+            onEdit={setSelectedTask}
           />
         )}
       </main>
+
+      {selectedTask && (
+        <TaskEditModal
+          task={selectedTask}
+          onUpdate={updateTask}
+          onDelete={deleteTask}
+          onClose={() => setSelectedTask(null)}
+        />
+      )}
     </div>
   )
 }

@@ -4,7 +4,7 @@ import { formatDate } from '../lib/utils'
 interface TaskSectionProps {
   tasks: Task[]
   onComplete: (id: number) => Promise<boolean>
-  onDelete: (id: number) => Promise<boolean>
+  onEdit: (task: Task) => void
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -23,7 +23,7 @@ const STATUS_CLASS: Record<string, string> = {
   PENDING: 'task-card--pending',
 }
 
-export function TaskSection({ tasks, onComplete, onDelete }: TaskSectionProps) {
+export function TaskSection({ tasks, onComplete, onEdit }: TaskSectionProps) {
   if (tasks.length === 0) {
     return <p className="task-section__empty">등록된 Task가 없습니다.</p>
   }
@@ -44,7 +44,7 @@ export function TaskSection({ tasks, onComplete, onDelete }: TaskSectionProps) {
               {task.status !== 'COMPLETED' && task.isActive && (
                 <button onClick={() => onComplete(task.id)} className="btn-complete">완료</button>
               )}
-              <button onClick={() => onDelete(task.id)} className="btn-delete">삭제</button>
+              <button onClick={() => onEdit(task)} className="btn-edit">수정</button>
             </div>
           </div>
         </li>

@@ -13,7 +13,12 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
       headers: { 'Content-Type': 'application/json', ...options.headers },
       ...options,
     })
-    // 백엔드가 이미 { success, data, error } 구조로 응답
+
+    // 204 No Content 등 body가 없는 응답은 json 파싱 생략
+    if (response.status === 204 || response.headers.get('content-length') === '0') {
+      return { success: response.ok }
+    }
+
     const body: ApiResponse<T> = await response.json()
     return body
   } catch (error) {
