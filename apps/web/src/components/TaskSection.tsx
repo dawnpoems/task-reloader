@@ -8,7 +8,7 @@ interface TaskSectionProps {
 }
 
 const STATUS_LABEL: Record<string, string> = {
-  TODAY: '오늘',
+  TODAY: '오늘 할 일',
   UPCOMING: '예정',
   OVERDUE: '기한 초과',
   COMPLETED: '완료',
@@ -32,14 +32,10 @@ export function TaskSection({ tasks, onComplete, onEdit }: TaskSectionProps) {
     <ul className="task-section">
       {tasks.map((task) => (
         <li key={task.id} className={`task-card ${STATUS_CLASS[task.status] ?? ''}`}>
-          <div className="task-card__header">
-            <span className="task-card__status">{STATUS_LABEL[task.status] ?? task.status}</span>
-            <span className="task-card__due">다음 예정: {formatDate(task.nextDueAt)}</span>
-          </div>
-          <h3 className="task-card__title">{task.name}</h3>
-          <p className="task-card__description">매 {task.everyNDays}일마다 반복</p>
-          <div className="task-card__footer">
-            <span className="task-card__date">생성: {formatDate(task.createdAt)}</span>
+
+          {/* 상단: 상태 배지 + 액션 버튼 */}
+          <div className="task-card__top">
+            <span className="task-card__status-badge">{STATUS_LABEL[task.status] ?? task.status}</span>
             <div className="task-card__actions">
               {task.status !== 'COMPLETED' && task.isActive && (
                 <button onClick={() => onComplete(task.id)} className="btn-complete">완료</button>
@@ -47,6 +43,22 @@ export function TaskSection({ tasks, onComplete, onEdit }: TaskSectionProps) {
               <button onClick={() => onEdit(task)} className="btn-edit">수정</button>
             </div>
           </div>
+
+          {/* 메인: Task 이름 */}
+          <h3 className="task-card__title">{task.name}</h3>
+
+          {/* 다음 예정일 - 눈에 띄게 */}
+          <div className="task-card__due">
+            <span className="task-card__due-label">다음 예정</span>
+            <span className="task-card__due-date">{formatDate(task.nextDueAt)}</span>
+          </div>
+
+          {/* 부가 정보 - 구석에 작게 */}
+          <div className="task-card__meta">
+            <span>매 {task.everyNDays}일마다</span>
+            <span>생성 {formatDate(task.createdAt)}</span>
+          </div>
+
         </li>
       ))}
     </ul>
