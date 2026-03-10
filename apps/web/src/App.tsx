@@ -7,7 +7,7 @@ import type { Task } from './types/task'
 import './App.css'
 
 function App() {
-  const { tasks, isLoading, error, createTask, updateTask, completeTask, deleteTask } = useTasks()
+  const { tasks, isLoading, error, toast, createTask, updateTask, completeTask, deleteTask } = useTasks()
   const [showForm, setShowForm] = useState(false)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
 
@@ -34,6 +34,7 @@ function App() {
         )}
 
         {error && <p className="app-error">{error}</p>}
+        {toast && <p className="app-toast">{toast}</p>}
 
         {isLoading ? (
           <p className="app-loading">불러오는 중...</p>
