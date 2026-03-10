@@ -1,17 +1,12 @@
-export interface Task {
-  id: string
-  title: string
-  description: string
-  status: 'pending' | 'completed' | 'in-progress'
-  createdAt: Date
-  updatedAt: Date
-  dueDate?: Date
-}
+// ApiResponse는 api/client.ts 에서 export됩니다
+export type { ApiResponse } from '../api/client'
 
-export interface ApiResponse<T> {
-  success: boolean
-  data?: T
-  error?: string
-  message?: string
-}
+// Task 관련 타입은 types/task.ts 에서 export됩니다
+export type {
+  Task,
+  TaskStatus,
+  CreateTaskRequest,
+  UpdateTaskRequest,
+  TaskListResponse,
+} from './task'
 

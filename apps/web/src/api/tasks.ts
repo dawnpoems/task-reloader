@@ -1,0 +1,24 @@
+import { apiClient, ApiResponse } from './client'
+import type { Task, CreateTaskRequest, UpdateTaskRequest, TaskStatusFilter } from '../types/task'
+
+export const tasksApi = {
+  getAll: (filter: TaskStatusFilter = 'ALL'): Promise<ApiResponse<Task[]>> =>
+    apiClient.get<Task[]>(`/tasks?status=${filter}`),
+
+  getById: (id: number): Promise<ApiResponse<Task>> =>
+    apiClient.get<Task>(`/tasks/${id}`),
+
+  create: (request: CreateTaskRequest): Promise<ApiResponse<Task>> =>
+    apiClient.post<Task>('/tasks', request),
+
+  // 백엔드는 PATCH
+  update: (id: number, request: UpdateTaskRequest): Promise<ApiResponse<Task>> =>
+    apiClient.patch<Task>(`/tasks/${id}`, request),
+
+  delete: (id: number): Promise<ApiResponse<void>> =>
+    apiClient.delete<void>(`/tasks/${id}`),
+
+  // 백엔드는 POST /{id}/complete
+  complete: (id: number): Promise<ApiResponse<Task>> =>
+    apiClient.post<Task>(`/tasks/${id}/complete`, {}),
+}
