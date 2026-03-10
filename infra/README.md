@@ -7,6 +7,150 @@
 `.env` 파일을 생성하세요:
 
 ```bash
+cp infra/.env.example infra/.env
+```
+
+`.env` 파일을 열어 설정값을 수정하세요 (프로덕션 환경에서는 강력한 비밀번호 사용):
+
+```env
+POSTGRES_USER=task_reloader
+POSTGRES_PASSWORD=your_secure_password      # ⚠️ 변경 필수
+POSTGRES_DB=task_reloader
+
+SPRING_DATASOURCE_USERNAME=task_reloader
+SPRING_DATASOURCE_PASSWORD=your_secure_password  # ⚠️ 변경 필수
+```
+
+---
+
+## 🖥️ 개발 환경 (로컬)
+
+각 앱을 개별적으로 실행하는 방식입니다.
+
+### 1. DB만 Docker로 실행
+
+```bash
+cd infra
+docker-compose up postgres -d
+```
+
+### 2. API 실행 (Spring Boot)
+
+```bash
+# 루트에서
+./gradlew :apps:api:bootRun --args='--spring.profiles.active=local'
+```
+
+- API: http://localhost:8080
+- Swagger UI: http://localhost:8080/swagger-ui.html
+
+### 3. Web 실행 (Vite dev server)
+
+```bash
+cd apps/web
+npm install
+npm run dev
+```
+
+- Web: http://localhost:5173
+- `/api` 요청은 자동으로 `localhost:8080`으로 프록시됨 (vite.config.ts)
+
+---
+
+## 🐳 운영 환경 (Docker 전체 스택)
+
+모든 서비스(DB + API + Web)를 Docker로 실행합니다.
+
+```bash
+cd infra
+docker-compose up --build -d
+```
+
+| 서비스 | URL |
+|--------|-----|
+| Web (nginx) | http://localhost:80 |
+| API | http://localhost:8080 |
+| Swagger UI | http://localhost:8080/swagger-ui.html |
+| PostgreSQL | localhost:5432 |
+
+### 종료
+
+```bash
+cd infra
+docker-compose down
+
+# 볼륨(DB 데이터)까지 삭제
+docker-compose down -v
+```
+
+---
+
+## 🧪 테스트
+
+### API 단위/통합 테스트
+
+```bash
+# DB 없이 단위 테스트만
+./gradlew :apps:api:test
+
+# Testcontainers 포함 전체 테스트 (Docker 필요)
+./gradlew :apps:api:test --info
+```
+
+### Web 타입 체크
+
+```bash
+cd apps/web
+npm run type-check
+```
+
+---
+
+## 📋 서비스 아키텍처
+
+```
+[Browser]
+    │
+    ▼
+[web: nginx :80]
+    │  /         → React SPA (정적 파일)
+    │  /api/**   → proxy
+    ▼
+[api: Spring Boot :8080]
+    │
+    ▼
+[postgres: PostgreSQL :5432]
+```
+
+---
+
+## 🐛 문제 해결
+
+### .env 파일 오류
+**해결**: `infra/.env` 파일이 생성되었는지 확인하세요.
+
+### PostgreSQL 연결 실패
+**해결**: Docker Desktop이 실행 중인지 확인하세요.
+
+### API 헬스체크 실패
+**해결**: API가 완전히 시작될 때까지 대기 (약 60초)
+
+---
+
+## 🔒 보안 주의사항
+
+⚠️ **절대 `infra/.env` 파일을 Git에 커밋하지 마세요!**
+- `.env`는 `.gitignore`에 등록되어 있습니다
+- `.env.example`은 참고용 템플릿입니다
+
+
+## 🚀 빠른 시작
+
+### 1단계: 환경 설정
+
+`.env` 파일을 생성하세요:
+
+```bash
 cp .env.example .env
 ```
 
