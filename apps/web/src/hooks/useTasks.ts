@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { tasksApi } from '../api/tasks'
+import { extractErrorMessage } from '../api/client'
 import type { Task, CreateTaskRequest, UpdateTaskRequest, TaskStatusFilter } from '../types/task'
 
 interface UseTasksReturn {
@@ -17,6 +18,13 @@ export function useTasks(filter: TaskStatusFilter = 'ALL'): UseTasksReturn {
   const [tasks, setTasks] = useState<Task[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const errorTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const setErrorWithTimeout = useCallback((msg: string) => {
+    if (errorTimer.current) clearTimeout(errorTimer.current)
+    setError(msg)
+    errorTimer.current = setTimeout(() => setError(null), 3000)
+  }, [])
 
   const fetchTasks = useCallback(async () => {
     setIsLoading(true)
@@ -35,21 +43,21 @@ export function useTasks(filter: TaskStatusFilter = 'ALL'): UseTasksReturn {
   const createTask = async (request: CreateTaskRequest): Promise<boolean> => {
     const res = await tasksApi.create(request)
     if (res.success) { await fetchTasks(); return true }
-    setError('Task 생성에 실패했습니다.')
+    setErrorWithTimeout(extractErrorMessage(res.error, 'Task 생성에 실패했습니다.'))
     return false
   }
 
   const updateTask = async (id: number, request: UpdateTaskRequest): Promise<boolean> => {
     const res = await tasksApi.update(id, request)
     if (res.success) { await fetchTasks(); return true }
-    setError('Task 수정에 실패했습니다.')
+    setErrorWithTimeout(extractErrorMessage(res.error, 'Task 수정에 실패했습니다.'))
     return false
   }
 
   const deleteTask = async (id: number): Promise<boolean> => {
     const res = await tasksApi.delete(id)
     if (res.success) { setTasks((prev) => prev.filter((t) => t.id !== id)); return true }
-    setError('Task 삭제에 실패했습니다.')
+    setErrorWithTimeout(extractErrorMessage(res.error, 'Task 삭제에 실패했습니다.'))
     return false
   }
 
@@ -59,7 +67,7 @@ export function useTasks(filter: TaskStatusFilter = 'ALL'): UseTasksReturn {
       setTasks((prev) => prev.map((t) => (t.id === id ? res.data! : t)))
       return true
     }
-    setError('Task 완료 처리에 실패했습니다.')
+    setErrorWithTimeout(extractErrorMessage(res.error, 'Task 완료 처리에 실패했습니다.'))
     return false
   }
 

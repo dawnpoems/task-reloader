@@ -21,6 +21,16 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   }
 }
 
+// error 필드가 객체({ code, message })이면 message를, 문자열이면 그대로 반환
+export function extractErrorMessage(
+  error: ApiResponse<unknown>['error'],
+  fallback = '알 수 없는 오류가 발생했습니다.'
+): string {
+  if (!error) return fallback
+  if (typeof error === 'string') return error
+  return error.message || fallback
+}
+
 export const apiClient = {
   get: <T,>(endpoint: string) =>
     request<T>(endpoint, { method: 'GET' }),
