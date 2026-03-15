@@ -6,6 +6,7 @@ export interface Task {
   name: string
   everyNDays: number
   timezone: string
+  startDate?: string
   status: TaskStatus
   nextDueAt?: string
   completedAt?: string
@@ -18,12 +19,14 @@ export interface Task {
 export interface CreateTaskRequest {
   name: string
   everyNDays: number
+  startDate?: string
   timezone?: string
 }
 
 export interface UpdateTaskRequest {
   name?: string
   everyNDays?: number
+  startDate?: string
   timezone?: string
 }
 
@@ -32,5 +35,3 @@ export type TaskStatusFilter = 'ALL' | 'OVERDUE' | 'TODAY' | 'UPCOMING'
 
 // types/index.ts 에서 사용하던 TaskListResponse 제거 (백엔드는 List<TaskResponse> 직접 반환)
 export type TaskListResponse = Task[]
-
-

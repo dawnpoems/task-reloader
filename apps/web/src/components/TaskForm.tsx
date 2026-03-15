@@ -6,9 +6,18 @@ interface TaskFormProps {
   onCancel?: () => void
 }
 
+const todayDateInput = (): string => {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 export function TaskForm({ onSubmit, onCancel }: TaskFormProps) {
   const [name, setName] = useState('')
   const [everyNDays, setEveryNDays] = useState(7)
+  const [startDate, setStartDate] = useState(todayDateInput())
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -18,8 +27,8 @@ export function TaskForm({ onSubmit, onCancel }: TaskFormProps) {
     if (everyNDays < 1) { setError('반복 주기는 1일 이상이어야 합니다.'); return }
     setIsSubmitting(true)
     setError(null)
-    const success = await onSubmit({ name: name.trim(), everyNDays })
-    if (success) { setName(''); setEveryNDays(7) }
+    const success = await onSubmit({ name: name.trim(), everyNDays, startDate: startDate || undefined })
+    if (success) { setName(''); setEveryNDays(7); setStartDate(todayDateInput()) }
     else { setError('저장에 실패했습니다. 다시 시도해 주세요.') }
     setIsSubmitting(false)
   }
@@ -43,6 +52,17 @@ export function TaskForm({ onSubmit, onCancel }: TaskFormProps) {
           disabled={isSubmitting} />
       </div>
 
+      <div className="task-form__field">
+        <label htmlFor="startDate">시작 날짜</label>
+        <input
+          id="startDate"
+          type="date"
+          value={startDate}
+          onChange={(e) => setStartDate(e.target.value)}
+          disabled={isSubmitting}
+        />
+      </div>
+
       <div className="task-form__actions">
         {onCancel && (
           <button type="button" onClick={onCancel} disabled={isSubmitting} className="btn-secondary">
@@ -56,4 +76,3 @@ export function TaskForm({ onSubmit, onCancel }: TaskFormProps) {
     </form>
   )
 }
-

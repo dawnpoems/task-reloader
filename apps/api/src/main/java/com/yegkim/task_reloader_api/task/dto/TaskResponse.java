@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
 @Getter
@@ -15,6 +16,7 @@ public class TaskResponse {
     private String name;
     private Integer everyNDays;
     private String timezone;
+    private LocalDate startDate;
     @Setter
     private TaskStatus status;
     private OffsetDateTime nextDueAt;
@@ -24,4 +26,3 @@ public class TaskResponse {
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
 }
-

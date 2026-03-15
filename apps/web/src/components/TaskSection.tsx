@@ -56,6 +56,7 @@ export function TaskSection({ tasks, onComplete, onEdit }: TaskSectionProps) {
           {/* 부가 정보 - 구석에 작게 */}
           <div className="task-card__meta">
             <span>매 {task.everyNDays}일마다</span>
+            {task.startDate && <span>시작 {task.startDate}</span>}
             <span>생성 {formatDate(task.createdAt)}</span>
           </div>
 
@@ -64,4 +65,3 @@ export function TaskSection({ tasks, onComplete, onEdit }: TaskSectionProps) {
     </ul>
   )
 }
-

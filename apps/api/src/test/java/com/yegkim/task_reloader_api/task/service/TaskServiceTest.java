@@ -20,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -336,6 +337,51 @@ class TaskServiceTest {
     }
 
     @Test
+    @DisplayName("작업 생성 - startDate 지정 시 응답에 반영")
+    void testCreateWithStartDateSuccess() {
+        LocalDate startDate = LocalDate.of(2026, 4, 1);
+        OffsetDateTime initialDueAt = OffsetDateTime.parse("2026-04-01T00:00:00+09:00");
+
+        CreateTaskRequest request = CreateTaskRequest.builder()
+                .name("New Task")
+                .everyNDays(5)
+                .startDate(startDate)
+                .build();
+
+        Task newTask = Task.builder()
+                .name("New Task")
+                .everyNDays(5)
+                .timezone("Asia/Seoul")
+                .startDate(startDate)
+                .nextDueAt(initialDueAt)
+                .isActive(true)
+                .build();
+
+        TaskResponse newTaskResponse = TaskResponse.builder()
+                .id(2L)
+                .name("New Task")
+                .everyNDays(5)
+                .timezone("Asia/Seoul")
+                .startDate(startDate)
+                .nextDueAt(initialDueAt)
+                .isActive(true)
+                .build();
+
+        when(taskMapper.toEntity(request)).thenReturn(newTask);
+        when(taskRepository.save(newTask)).thenReturn(newTask);
+        when(taskMapper.toResponse(newTask)).thenReturn(newTaskResponse);
+        when(taskStatusResolver.resolve(any(Instant.class), any())).thenReturn(TaskStatus.UPCOMING);
+
+        // when
+        TaskResponse result = taskService.create(request);
+
+        // then
+        assertThat(result.getStartDate()).isEqualTo(startDate);
+        assertThat(result.getNextDueAt()).isEqualTo(initialDueAt);
+        assertThat(result.getStatus()).isEqualTo(TaskStatus.UPCOMING);
+    }
+
+    @Test
     @DisplayName("작업 수정 - 성공 (status 포함)")
     void testUpdateSuccess() {
         // given
@@ -368,6 +414,40 @@ class TaskServiceTest {
         assertThat(result.getStatus()).isEqualTo(TaskStatus.UPCOMING);
         verify(taskRepository, times(1)).findById(1L);
         verify(taskMapper, times(1)).toResponse(task);
+    }
+
+    @Test
+    @DisplayName("작업 수정 - startDate 변경 시 nextDueAt을 시작일 00:00으로 재설정")
+    void testUpdateWithStartDateResetsNextDueAt() {
+        LocalDate startDate = LocalDate.of(2026, 5, 10);
+        OffsetDateTime expectedDueAt = OffsetDateTime.parse("2026-05-10T00:00:00+09:00");
+
+        UpdateTaskRequest request = UpdateTaskRequest.builder()
+                .startDate(startDate)
+                .build();
+
+        TaskResponse updatedResponse = TaskResponse.builder()
+                .id(1L)
+                .name(task.getName())
+                .everyNDays(task.getEveryNDays())
+                .timezone(task.getTimezone())
+                .startDate(startDate)
+                .nextDueAt(expectedDueAt)
+                .isActive(task.getIsActive())
+                .build();
+
+        when(taskRepository.findById(1L)).thenReturn(Optional.of(task));
+        when(taskMapper.toResponse(task)).thenReturn(updatedResponse);
+        when(taskStatusResolver.resolve(any(Instant.class), any())).thenReturn(TaskStatus.TODAY);
+
+        // when
+        TaskResponse result = taskService.update(1L, request);
+
+        // then
+        assertThat(task.getStartDate()).isEqualTo(startDate);
+        assertThat(task.getNextDueAt()).isEqualTo(expectedDueAt);
+        assertThat(result.getStartDate()).isEqualTo(startDate);
+        assertThat(result.getStatus()).isEqualTo(TaskStatus.TODAY);
     }
 
     @Test
@@ -622,4 +702,3 @@ class TaskServiceTest {
         verify(taskMapper, times(1)).toResponse(previouslyCompletedTask);
     }
 }
-

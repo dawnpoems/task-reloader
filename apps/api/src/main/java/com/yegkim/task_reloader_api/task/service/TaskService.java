@@ -70,7 +70,7 @@ public class TaskService {
     public TaskResponse update(Long id, UpdateTaskRequest request) {
         Task task = taskRepository.findById(id)
                 .orElseThrow(() -> new TaskNotFoundException(id));
-        task.update(request.getName(), request.getEveryNDays(), request.getIsActive());
+        task.update(request.getName(), request.getEveryNDays(), request.getIsActive(), request.getStartDate());
         return withStatus(taskMapper.toResponse(task), task, TimeWindow.ofKst());
     }
 
@@ -109,4 +109,3 @@ public class TaskService {
         return response;
     }
 }
-

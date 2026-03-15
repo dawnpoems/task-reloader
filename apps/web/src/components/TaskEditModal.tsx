@@ -8,9 +8,18 @@ interface TaskEditModalProps {
   onClose: () => void
 }
 
+const todayDateInput = (): string => {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditModalProps) {
   const [name, setName] = useState(task.name)
   const [everyNDays, setEveryNDays] = useState(task.everyNDays)
+  const [startDate, setStartDate] = useState(task.startDate ?? todayDateInput())
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -22,7 +31,7 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
     if (everyNDays < 1) { setError('반복 주기는 1일 이상이어야 합니다.'); return }
     setIsSubmitting(true)
     setError(null)
-    const ok = await onUpdate(task.id, { name: name.trim(), everyNDays })
+    const ok = await onUpdate(task.id, { name: name.trim(), everyNDays, startDate: startDate || undefined })
     setIsSubmitting(false)
     if (ok) onClose()
     else setError('수정에 실패했습니다.')
@@ -66,6 +75,17 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
               min={1}
               value={everyNDays}
               onChange={(e) => setEveryNDays(Number(e.target.value))}
+              disabled={isSubmitting}
+            />
+          </div>
+
+          <div className="task-form__field">
+            <label htmlFor="edit-startDate">시작 날짜</label>
+            <input
+              id="edit-startDate"
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
               disabled={isSubmitting}
             />
           </div>
@@ -118,4 +138,3 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
     </div>
   )
 }
-

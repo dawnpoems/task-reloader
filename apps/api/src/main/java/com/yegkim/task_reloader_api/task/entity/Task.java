@@ -4,7 +4,9 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 
 @Entity
@@ -14,6 +16,8 @@ import java.time.ZoneOffset;
 @AllArgsConstructor
 @Builder
 public class Task {
+
+    private static final ZoneId DEFAULT_ZONE_ID = ZoneId.of("Asia/Seoul");
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -28,6 +32,9 @@ public class Task {
     @Column(nullable = false)
     @Builder.Default
     private String timezone = "Asia/Seoul";
+
+    @Column(name = "start_date")
+    private LocalDate startDate;
 
     @Column(name = "next_due_at", nullable = false)
     private OffsetDateTime nextDueAt;
@@ -48,10 +55,14 @@ public class Task {
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
 
-    public void update(String name, Integer everyNDays, Boolean isActive) {
+    public void update(String name, Integer everyNDays, Boolean isActive, LocalDate startDate) {
         if (name != null) this.name = name;
         if (everyNDays != null) this.everyNDays = everyNDays;
         if (isActive != null) this.isActive = isActive;
+        if (startDate != null) {
+            this.startDate = startDate;
+            this.nextDueAt = toStartOfDay(startDate);
+        }
     }
 
     public void complete(Instant now) {
@@ -66,8 +77,13 @@ public class Task {
         OffsetDateTime now = OffsetDateTime.now();
         this.createdAt = now;
         this.updatedAt = now;
+
+        ZoneId zoneId = resolveZoneId();
+        if (this.startDate == null) {
+            this.startDate = LocalDate.now(zoneId);
+        }
         if (this.nextDueAt == null) {
-            this.nextDueAt = now.plusDays(this.everyNDays);
+            this.nextDueAt = toStartOfDay(this.startDate);
         }
     }
 
@@ -75,5 +91,12 @@ public class Task {
     protected void onUpdate() {
         this.updatedAt = OffsetDateTime.now();
     }
-}
 
+    private OffsetDateTime toStartOfDay(LocalDate date) {
+        return date.atStartOfDay(resolveZoneId()).toOffsetDateTime();
+    }
+
+    private ZoneId resolveZoneId() {
+        return this.timezone != null ? ZoneId.of(this.timezone) : DEFAULT_ZONE_ID;
+    }
+}

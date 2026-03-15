@@ -8,6 +8,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDate;
+
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
@@ -20,5 +22,6 @@ public class CreateTaskRequest {
     @NotNull(message = "everyNDays는 필수입니다.")
     @Min(value = 1, message = "everyNDays는 1 이상이어야 합니다.")
     private Integer everyNDays;
-}
 
+    private LocalDate startDate;
+}

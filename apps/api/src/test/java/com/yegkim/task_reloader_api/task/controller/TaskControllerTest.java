@@ -28,11 +28,13 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 
 import static org.hamcrest.Matchers.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -298,6 +300,44 @@ class TaskControllerTest {
     }
 
     @Test
+    @DisplayName("작업 생성 - startDate 포함 시 요청/응답 반영")
+    void testCreateSuccessWithStartDate() throws Exception {
+        LocalDate startDate = LocalDate.of(2026, 4, 1);
+        OffsetDateTime initialDueAt = OffsetDateTime.parse("2026-04-01T00:00:00+09:00");
+
+        CreateTaskRequest request = CreateTaskRequest.builder()
+                .name("New Task")
+                .everyNDays(5)
+                .startDate(startDate)
+                .build();
+
+        TaskResponse createdResponse = TaskResponse.builder()
+                .id(2L)
+                .name("New Task")
+                .everyNDays(5)
+                .timezone("Asia/Seoul")
+                .startDate(startDate)
+                .status(TaskStatus.TODAY)
+                .nextDueAt(initialDueAt)
+                .isActive(true)
+                .createdAt(OffsetDateTime.now())
+                .updatedAt(OffsetDateTime.now())
+                .build();
+
+        when(taskService.create(any(CreateTaskRequest.class))).thenReturn(createdResponse);
+
+        mockMvc.perform(post("/api/tasks")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.data.startDate", is("2026-04-01")))
+                .andExpect(jsonPath("$.data.nextDueAt", org.hamcrest.Matchers.startsWith("2026-04-01T00:00:00+09:00")));
+
+        verify(taskService, times(1)).create(argThat(req -> startDate.equals(req.getStartDate())));
+    }
+
+    @Test
     @DisplayName("작업 수정 - 성공")
     void testUpdateSuccess() throws Exception {
         // given
@@ -373,6 +413,42 @@ class TaskControllerTest {
                 .andExpect(jsonPath("$.error.message", containsString("Task not found")));
 
         verify(taskService, times(1)).update(eq(999L), any(UpdateTaskRequest.class));
+    }
+
+    @Test
+    @DisplayName("작업 수정 - startDate 포함 시 요청/응답 반영")
+    void testUpdateSuccessWithStartDate() throws Exception {
+        LocalDate startDate = LocalDate.of(2026, 5, 10);
+        OffsetDateTime expectedDueAt = OffsetDateTime.parse("2026-05-10T00:00:00+09:00");
+
+        UpdateTaskRequest request = UpdateTaskRequest.builder()
+                .startDate(startDate)
+                .build();
+
+        TaskResponse updatedResponse = TaskResponse.builder()
+                .id(1L)
+                .name("Updated Task")
+                .everyNDays(3)
+                .timezone("Asia/Seoul")
+                .startDate(startDate)
+                .nextDueAt(expectedDueAt)
+                .isActive(false)
+                .createdAt(OffsetDateTime.now())
+                .updatedAt(OffsetDateTime.now())
+                .build();
+
+        when(taskService.update(eq(1L), any(UpdateTaskRequest.class))).thenReturn(updatedResponse);
+
+        mockMvc.perform(patch("/api/tasks/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.data.startDate", is("2026-05-10")))
+                .andExpect(jsonPath("$.data.nextDueAt", org.hamcrest.Matchers.startsWith("2026-05-10T00:00:00+09:00")));
+
+        verify(taskService, times(1))
+                .update(eq(1L), argThat(req -> startDate.equals(req.getStartDate())));
     }
 
     @Test
@@ -495,5 +571,4 @@ class TaskControllerTest {
         verify(taskService, times(1)).complete(1L);
     }
 }
-
 

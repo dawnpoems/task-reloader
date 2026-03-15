@@ -12,7 +12,10 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -100,5 +103,39 @@ class TaskRepositoryTest {
 
         assertThat(result).containsExactly(savedFirst, savedSecond);
     }
-}
 
+    @Test
+    @DisplayName("startDate가 있으면 nextDueAt을 시작일 00:00으로 초기화")
+    void saveWithStartDateInitializesNextDueAtFromStartDate() {
+        LocalDate startDate = LocalDate.of(2026, 4, 1);
+
+        Task task = Task.builder()
+                .name("Task with start date")
+                .everyNDays(3)
+                .startDate(startDate)
+                .isActive(true)
+                .build();
+
+        Task saved = taskRepository.saveAndFlush(task);
+
+        assertThat(saved.getStartDate()).isEqualTo(startDate);
+        assertThat(saved.getNextDueAt()).isEqualTo(OffsetDateTime.parse("2026-04-01T00:00:00+09:00"));
+    }
+
+    @Test
+    @DisplayName("startDate 미입력 시 오늘 날짜 기본값 + nextDueAt은 00:00")
+    void saveWithoutStartDateDefaultsToToday() {
+        Task task = Task.builder()
+                .name("Task without start date")
+                .everyNDays(3)
+                .isActive(true)
+                .build();
+
+        Task saved = taskRepository.saveAndFlush(task);
+
+        assertThat(saved.getStartDate()).isNotNull();
+        assertThat(saved.getNextDueAt().toLocalDate()).isEqualTo(saved.getStartDate());
+        assertThat(saved.getNextDueAt().toLocalTime()).isEqualTo(LocalTime.MIDNIGHT);
+        assertThat(saved.getNextDueAt().getOffset()).isEqualTo(ZoneOffset.ofHours(9));
+    }
+}
