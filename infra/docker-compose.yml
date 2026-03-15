@@ -18,6 +18,11 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   api:
     build:
@@ -42,6 +47,11 @@ services:
       timeout: 5s
       retries: 5
       start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   web:
     build:
@@ -54,6 +64,11 @@ services:
     depends_on:
       api:
         condition: service_healthy
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   postgres_data:
