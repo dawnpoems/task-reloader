@@ -53,7 +53,6 @@ apps/web/dist/
 # =========================
 # package-lock files
 # =========================
-package-lock.json
 yarn.lock
 pnpm-lock.yaml
 
@@ -106,4 +105,3 @@ docker-compose.override.yml
 *.temp
 *.bak
 *.orig
-
