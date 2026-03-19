@@ -1,5 +1,6 @@
 import { apiClient, ApiResponse } from './client'
 import type { Task, CreateTaskRequest, UpdateTaskRequest, TaskStatusFilter } from '../types/task'
+import type { DashboardSummary, RecentTaskCompletion } from '../types/insights'
 import type { TaskCompletion } from '../types/taskCompletion'
 
 export const tasksApi = {
@@ -11,6 +12,12 @@ export const tasksApi = {
 
   getCompletions: (id: number): Promise<ApiResponse<TaskCompletion[]>> =>
     apiClient.get<TaskCompletion[]>(`/tasks/${id}/completions`),
+
+  getDashboard: (): Promise<ApiResponse<DashboardSummary>> =>
+    apiClient.get<DashboardSummary>('/insights/dashboard'),
+
+  getRecentCompletions: (): Promise<ApiResponse<RecentTaskCompletion[]>> =>
+    apiClient.get<RecentTaskCompletion[]>('/insights/recent-completions'),
 
   create: (request: CreateTaskRequest): Promise<ApiResponse<Task>> =>
     apiClient.post<Task>('/tasks', request),

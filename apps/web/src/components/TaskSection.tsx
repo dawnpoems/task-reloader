@@ -5,6 +5,7 @@ interface TaskSectionProps {
   tasks: Task[]
   onComplete: (id: number) => Promise<boolean>
   onEdit: (task: Task) => void
+  onView: (task: Task) => void
 }
 
 const STATUS_LABEL: Record<TaskStatus, string> = {
@@ -19,7 +20,7 @@ const STATUS_CLASS: Record<TaskStatus, string> = {
   OVERDUE: 'task-card--overdue',
 }
 
-export function TaskSection({ tasks, onComplete, onEdit }: TaskSectionProps) {
+export function TaskSection({ tasks, onComplete, onEdit, onView }: TaskSectionProps) {
   if (tasks.length === 0) {
     return <p className="task-section__empty">등록된 Task가 없습니다.</p>
   }
@@ -36,6 +37,7 @@ export function TaskSection({ tasks, onComplete, onEdit }: TaskSectionProps) {
               {task.isActive && (
                 <button onClick={() => onComplete(task.id)} className="btn-complete">완료</button>
               )}
+              <button onClick={() => onView(task)} className="btn-secondary btn-detail">상세</button>
               <button onClick={() => onEdit(task)} className="btn-edit">수정</button>
             </div>
           </div>

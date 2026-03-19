@@ -11,3 +11,4 @@ export type {
 } from './task'
 
 export type { TaskCompletion } from './taskCompletion'
+export type { DashboardSummary, RecentTaskCompletion } from './insights'
