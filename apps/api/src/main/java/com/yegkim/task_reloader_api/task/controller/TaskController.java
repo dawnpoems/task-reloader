@@ -2,6 +2,7 @@ package com.yegkim.task_reloader_api.task.controller;
 
 import com.yegkim.task_reloader_api.common.response.ApiResponse;
 import com.yegkim.task_reloader_api.task.dto.CreateTaskRequest;
+import com.yegkim.task_reloader_api.task.dto.TaskCompletionResponse;
 import com.yegkim.task_reloader_api.task.dto.TaskResponse;
 import com.yegkim.task_reloader_api.task.dto.UpdateTaskRequest;
 import com.yegkim.task_reloader_api.task.entity.TaskStatus;
@@ -53,6 +54,12 @@ public class TaskController {
         return ApiResponse.success(taskService.findById(id));
     }
 
+    @Operation(summary = "작업 완료 이력 조회")
+    @GetMapping("/{id}/completions")
+    public ApiResponse<List<TaskCompletionResponse>> findCompletions(@PathVariable Long id) {
+        return ApiResponse.success(taskService.findCompletions(id));
+    }
+
     @Operation(summary = "작업 생성")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -80,4 +87,3 @@ public class TaskController {
         return ApiResponse.success(taskService.complete(id));
     }
 }
-

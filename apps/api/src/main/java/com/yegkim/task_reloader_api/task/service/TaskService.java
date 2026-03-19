@@ -6,10 +6,13 @@ import com.yegkim.task_reloader_api.common.exception.TaskRecentlyCompletedExcept
 import com.yegkim.task_reloader_api.common.time.TimeWindow;
 import com.yegkim.task_reloader_api.task.mapper.TaskMapper;
 import com.yegkim.task_reloader_api.task.dto.CreateTaskRequest;
+import com.yegkim.task_reloader_api.task.dto.TaskCompletionResponse;
 import com.yegkim.task_reloader_api.task.dto.UpdateTaskRequest;
 import com.yegkim.task_reloader_api.task.dto.TaskResponse;
+import com.yegkim.task_reloader_api.task.entity.TaskCompletion;
 import com.yegkim.task_reloader_api.task.entity.Task;
 import com.yegkim.task_reloader_api.task.entity.TaskStatus;
+import com.yegkim.task_reloader_api.task.repository.TaskCompletionRepository;
 import com.yegkim.task_reloader_api.task.repository.TaskRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -18,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.util.Comparator;
 import java.util.List;
 
@@ -31,6 +35,7 @@ public class TaskService {
             Comparator.comparing(Task::getNextDueAt);
 
     private final TaskRepository taskRepository;
+    private final TaskCompletionRepository taskCompletionRepository;
     private final TaskMapper taskMapper;
     private final TaskStatusResolver taskStatusResolver;
     private final Clock clock;
@@ -57,6 +62,16 @@ public class TaskService {
         Task task = taskRepository.findById(id)
                 .orElseThrow(() -> new TaskNotFoundException(id));
         return withStatus(taskMapper.toResponse(task), task, currentWindow());
+    }
+
+    public List<TaskCompletionResponse> findCompletions(Long id) {
+        if (!taskRepository.existsById(id)) {
+            throw new TaskNotFoundException(id);
+        }
+
+        return taskCompletionRepository.findByTaskIdOrderByCompletedAtDesc(id).stream()
+                .map(this::toCompletionResponse)
+                .toList();
     }
 
     @Transactional
@@ -93,6 +108,7 @@ public class TaskService {
         }
 
         Instant now = clock.instant();
+        OffsetDateTime previousDueAt = task.getNextDueAt();
 
         if (task.getLastCompletedAt() != null
                 && Duration.between(task.getLastCompletedAt().toInstant(), now).toSeconds() < COMPLETE_COOLDOWN_SECONDS) {
@@ -100,6 +116,12 @@ public class TaskService {
         }
 
         task.complete(now);
+        taskCompletionRepository.save(TaskCompletion.builder()
+                .task(task)
+                .completedAt(task.getCompletedAt())
+                .previousDueAt(previousDueAt)
+                .nextDueAt(task.getNextDueAt())
+                .build());
         return withStatus(taskMapper.toResponse(task), task, currentWindow());
     }
 
@@ -111,5 +133,14 @@ public class TaskService {
         TaskStatus status = taskStatusResolver.resolve(task.getNextDueAt().toInstant(), window);
         response.setStatus(status);
         return response;
+    }
+
+    private TaskCompletionResponse toCompletionResponse(TaskCompletion completion) {
+        return TaskCompletionResponse.builder()
+                .id(completion.getId())
+                .completedAt(completion.getCompletedAt())
+                .previousDueAt(completion.getPreviousDueAt())
+                .nextDueAt(completion.getNextDueAt())
+                .build();
     }
 }

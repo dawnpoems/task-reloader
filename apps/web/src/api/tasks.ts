@@ -1,5 +1,6 @@
 import { apiClient, ApiResponse } from './client'
 import type { Task, CreateTaskRequest, UpdateTaskRequest, TaskStatusFilter } from '../types/task'
+import type { TaskCompletion } from '../types/taskCompletion'
 
 export const tasksApi = {
   getAll: (filter: TaskStatusFilter = 'ALL'): Promise<ApiResponse<Task[]>> =>
@@ -7,6 +8,9 @@ export const tasksApi = {
 
   getById: (id: number): Promise<ApiResponse<Task>> =>
     apiClient.get<Task>(`/tasks/${id}`),
+
+  getCompletions: (id: number): Promise<ApiResponse<TaskCompletion[]>> =>
+    apiClient.get<TaskCompletion[]>(`/tasks/${id}/completions`),
 
   create: (request: CreateTaskRequest): Promise<ApiResponse<Task>> =>
     apiClient.post<Task>('/tasks', request),

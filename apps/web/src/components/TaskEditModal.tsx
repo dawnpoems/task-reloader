@@ -1,5 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { tasksApi } from '../api/tasks'
+import { extractErrorMessage } from '../api/client'
+import { formatDateTime } from '../lib/utils'
 import type { Task, UpdateTaskRequest } from '../types/task'
+import type { TaskCompletion } from '../types/taskCompletion'
 
 interface TaskEditModalProps {
   task: Task
@@ -24,6 +28,32 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
   const [isDeleting, setIsDeleting] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [completions, setCompletions] = useState<TaskCompletion[]>([])
+  const [isLoadingCompletions, setIsLoadingCompletions] = useState(true)
+  const [completionsError, setCompletionsError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+
+    const fetchCompletions = async () => {
+      setIsLoadingCompletions(true)
+      setCompletionsError(null)
+
+      const res = await tasksApi.getCompletions(task.id)
+      if (!active) return
+
+      if (res.success && res.data) {
+        setCompletions(res.data)
+      } else {
+        setCompletions([])
+        setCompletionsError(extractErrorMessage(res.error, '완료 이력을 불러오지 못했습니다.'))
+      }
+      setIsLoadingCompletions(false)
+    }
+
+    fetchCompletions()
+    return () => { active = false }
+  }, [task.id])
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -104,6 +134,35 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
             </button>
           </div>
         </form>
+
+        <section className="modal__history">
+          <div className="modal__history-header">
+            <h3>최근 완료 이력</h3>
+            <span>{completions.length}건</span>
+          </div>
+
+          {isLoadingCompletions ? (
+            <p className="modal__history-state">불러오는 중...</p>
+          ) : completionsError ? (
+            <p className="modal__history-error">{completionsError}</p>
+          ) : completions.length === 0 ? (
+            <p className="modal__history-state">아직 완료 이력이 없습니다.</p>
+          ) : (
+            <ul className="modal__history-list">
+              {completions.slice(0, 5).map((completion) => (
+                <li key={completion.id} className="modal__history-item">
+                  <div className="modal__history-item-top">
+                    <strong>{formatDateTime(completion.completedAt)} 완료</strong>
+                  </div>
+                  <div className="modal__history-item-meta">
+                    <span>이전 예정 {formatDateTime(completion.previousDueAt)}</span>
+                    <span>다음 예정 {formatDateTime(completion.nextDueAt)}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
 
         <div className="modal__danger-zone">
           {!confirmDelete ? (

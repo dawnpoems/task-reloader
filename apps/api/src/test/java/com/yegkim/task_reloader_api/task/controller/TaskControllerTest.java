@@ -7,6 +7,7 @@ import com.yegkim.task_reloader_api.common.exception.TaskInactiveException;
 import com.yegkim.task_reloader_api.common.exception.TaskNotFoundException;
 import com.yegkim.task_reloader_api.common.exception.TaskRecentlyCompletedException;
 import com.yegkim.task_reloader_api.task.dto.CreateTaskRequest;
+import com.yegkim.task_reloader_api.task.dto.TaskCompletionResponse;
 import com.yegkim.task_reloader_api.task.dto.TaskResponse;
 import com.yegkim.task_reloader_api.task.dto.UpdateTaskRequest;
 import com.yegkim.task_reloader_api.task.entity.TaskStatus;
@@ -186,6 +187,30 @@ class TaskControllerTest {
                 .andExpect(jsonPath("$.error").doesNotExist());
 
         verify(taskService, times(1)).findById(1L);
+    }
+
+    @Test
+    @DisplayName("작업 완료 이력 조회 - 성공")
+    void testFindCompletionsSuccess() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now();
+        TaskCompletionResponse response = TaskCompletionResponse.builder()
+                .id(10L)
+                .completedAt(now.minusDays(1))
+                .previousDueAt(now.minusDays(2))
+                .nextDueAt(now.plusDays(6))
+                .build();
+
+        when(taskService.findCompletions(1L)).thenReturn(List.of(response));
+
+        mockMvc.perform(get("/api/tasks/1/completions")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].id", is(10)))
+                .andExpect(jsonPath("$.error").doesNotExist());
+
+        verify(taskService, times(1)).findCompletions(1L);
     }
 
     @Test
@@ -571,4 +596,3 @@ class TaskControllerTest {
         verify(taskService, times(1)).complete(1L);
     }
 }
-

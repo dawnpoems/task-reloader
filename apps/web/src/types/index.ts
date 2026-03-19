@@ -10,3 +10,4 @@ export type {
   TaskListResponse,
 } from './task'
 
+export type { TaskCompletion } from './taskCompletion'

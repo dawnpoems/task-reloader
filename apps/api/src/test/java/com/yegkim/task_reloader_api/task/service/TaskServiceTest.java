@@ -4,11 +4,14 @@ import com.yegkim.task_reloader_api.common.exception.TaskInactiveException;
 import com.yegkim.task_reloader_api.common.exception.TaskNotFoundException;
 import com.yegkim.task_reloader_api.common.exception.TaskRecentlyCompletedException;
 import com.yegkim.task_reloader_api.task.dto.CreateTaskRequest;
+import com.yegkim.task_reloader_api.task.dto.TaskCompletionResponse;
 import com.yegkim.task_reloader_api.task.dto.TaskResponse;
 import com.yegkim.task_reloader_api.task.dto.UpdateTaskRequest;
+import com.yegkim.task_reloader_api.task.entity.TaskCompletion;
 import com.yegkim.task_reloader_api.task.entity.Task;
 import com.yegkim.task_reloader_api.task.entity.TaskStatus;
 import com.yegkim.task_reloader_api.task.mapper.TaskMapper;
+import com.yegkim.task_reloader_api.task.repository.TaskCompletionRepository;
 import com.yegkim.task_reloader_api.task.repository.TaskRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -28,6 +31,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -36,6 +40,9 @@ class TaskServiceTest {
 
     @Mock
     private TaskRepository taskRepository;
+
+    @Mock
+    private TaskCompletionRepository taskCompletionRepository;
 
     @Mock
     private TaskMapper taskMapper;
@@ -274,6 +281,51 @@ class TaskServiceTest {
         assertThat(result.getStatus()).isEqualTo(TaskStatus.UPCOMING);
         verify(taskRepository, times(1)).findById(1L);
         verify(taskMapper, times(1)).toResponse(task);
+    }
+
+    @Test
+    @DisplayName("작업 완료 이력 조회 - 최신 완료 시각 순으로 반환")
+    void testFindCompletionsSuccess() {
+        OffsetDateTime now = OffsetDateTime.now();
+        TaskCompletion newer = TaskCompletion.builder()
+                .id(2L)
+                .task(task)
+                .completedAt(now.minusDays(1))
+                .previousDueAt(now.minusDays(2))
+                .nextDueAt(now.plusDays(6))
+                .build();
+        TaskCompletion older = TaskCompletion.builder()
+                .id(1L)
+                .task(task)
+                .completedAt(now.minusDays(3))
+                .previousDueAt(now.minusDays(4))
+                .nextDueAt(now.plusDays(4))
+                .build();
+
+        when(taskRepository.existsById(1L)).thenReturn(true);
+        when(taskCompletionRepository.findByTaskIdOrderByCompletedAtDesc(1L)).thenReturn(List.of(newer, older));
+
+        List<TaskCompletionResponse> result = taskService.findCompletions(1L);
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).getId()).isEqualTo(2L);
+        assertThat(result.get(0).getCompletedAt()).isEqualTo(newer.getCompletedAt());
+        assertThat(result.get(1).getId()).isEqualTo(1L);
+        verify(taskRepository, times(1)).existsById(1L);
+        verify(taskCompletionRepository, times(1)).findByTaskIdOrderByCompletedAtDesc(1L);
+    }
+
+    @Test
+    @DisplayName("작업 완료 이력 조회 - Task가 없으면 예외")
+    void testFindCompletionsNotFound() {
+        when(taskRepository.existsById(999L)).thenReturn(false);
+
+        assertThatThrownBy(() -> taskService.findCompletions(999L))
+                .isInstanceOf(TaskNotFoundException.class)
+                .hasMessageContaining("999");
+
+        verify(taskRepository, times(1)).existsById(999L);
+        verify(taskCompletionRepository, never()).findByTaskIdOrderByCompletedAtDesc(anyLong());
     }
 
     @Test
@@ -578,6 +630,12 @@ class TaskServiceTest {
         assertThat(activeTask.getNextDueAt()).isEqualTo(fixedOdt.plusDays(7));
         // 응답 status 포함
         assertThat(result.getStatus()).isEqualTo(TaskStatus.UPCOMING);
+        verify(taskCompletionRepository, times(1)).save(argThat(completion ->
+                completion.getTask().equals(activeTask)
+                        && completion.getCompletedAt().isEqual(fixedOdt)
+                        && completion.getPreviousDueAt().isEqual(beforeNow)
+                        && completion.getNextDueAt().isEqual(fixedOdt.plusDays(7))
+        ));
         verify(clock, times(2)).instant();
         verify(taskRepository, times(1)).findByIdForUpdate(1L);
         verify(taskMapper, times(1)).toResponse(activeTask);
@@ -625,6 +683,7 @@ class TaskServiceTest {
         verify(taskRepository, times(1)).findByIdForUpdate(1L);
         // complete() 이후 로직은 실행되지 않아야 함
         verify(taskMapper, never()).toResponse(any());
+        verify(taskCompletionRepository, never()).save(any());
     }
 
     @Test
@@ -656,6 +715,7 @@ class TaskServiceTest {
 
         verify(taskRepository, times(1)).findByIdForUpdate(1L);
         verify(taskMapper, never()).toResponse(any());
+        verify(taskCompletionRepository, never()).save(any());
     }
 
     @Test
@@ -700,6 +760,7 @@ class TaskServiceTest {
         assertThat(previouslyCompletedTask.getCompletedAt()).isEqualTo(fixedOdt);
         assertThat(previouslyCompletedTask.getLastCompletedAt()).isEqualTo(fixedOdt);
         assertThat(previouslyCompletedTask.getNextDueAt()).isEqualTo(fixedOdt.plusDays(7));
+        verify(taskCompletionRepository, times(1)).save(any(TaskCompletion.class));
         verify(taskRepository, times(1)).findByIdForUpdate(1L);
         verify(taskMapper, times(1)).toResponse(previouslyCompletedTask);
     }
