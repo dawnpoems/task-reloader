@@ -6,6 +6,8 @@ import com.yegkim.task_reloader_api.common.exception.TaskRecentlyCompletedExcept
 import com.yegkim.task_reloader_api.common.time.TimeWindow;
 import com.yegkim.task_reloader_api.task.mapper.TaskMapper;
 import com.yegkim.task_reloader_api.task.dto.CreateTaskRequest;
+import com.yegkim.task_reloader_api.task.dto.DashboardSummaryResponse;
+import com.yegkim.task_reloader_api.task.dto.RecentTaskCompletionResponse;
 import com.yegkim.task_reloader_api.task.dto.TaskCompletionResponse;
 import com.yegkim.task_reloader_api.task.dto.UpdateTaskRequest;
 import com.yegkim.task_reloader_api.task.dto.TaskResponse;
@@ -22,6 +24,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Comparator;
 import java.util.List;
 
@@ -72,6 +75,40 @@ public class TaskService {
         return taskCompletionRepository.findByTaskIdOrderByCompletedAtDesc(id).stream()
                 .map(this::toCompletionResponse)
                 .toList();
+    }
+
+    public List<RecentTaskCompletionResponse> findRecentCompletions() {
+        return taskCompletionRepository.findTop5ByOrderByCompletedAtDesc().stream()
+                .map(this::toRecentCompletionResponse)
+                .toList();
+    }
+
+    public DashboardSummaryResponse getDashboardSummary() {
+        TimeWindow window = currentWindow();
+        OffsetDateTime todayStart = window.getTodayStartUtc().atOffset(ZoneOffset.UTC);
+        OffsetDateTime tomorrowStart = window.getTomorrowStartUtc().atOffset(ZoneOffset.UTC);
+        OffsetDateTime sevenDaysAgo = clock.instant().minus(Duration.ofDays(7)).atOffset(ZoneOffset.UTC);
+
+        List<Task> tasks = taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc();
+
+        long overdue = tasks.stream()
+                .filter(task -> taskStatusResolver.resolve(task.getNextDueAt().toInstant(), window) == TaskStatus.OVERDUE)
+                .count();
+        long today = tasks.stream()
+                .filter(task -> taskStatusResolver.resolve(task.getNextDueAt().toInstant(), window) == TaskStatus.TODAY)
+                .count();
+        long upcoming = tasks.stream()
+                .filter(task -> taskStatusResolver.resolve(task.getNextDueAt().toInstant(), window) == TaskStatus.UPCOMING)
+                .count();
+
+        return DashboardSummaryResponse.builder()
+                .totalTasks(tasks.size())
+                .overdueTasks(overdue)
+                .todayTasks(today)
+                .upcomingTasks(upcoming)
+                .completedToday(taskCompletionRepository.countByCompletedAtBetween(todayStart, tomorrowStart))
+                .completedLast7Days(taskCompletionRepository.countByCompletedAtGreaterThanEqual(sevenDaysAgo))
+                .build();
     }
 
     @Transactional
@@ -138,6 +175,17 @@ public class TaskService {
     private TaskCompletionResponse toCompletionResponse(TaskCompletion completion) {
         return TaskCompletionResponse.builder()
                 .id(completion.getId())
+                .completedAt(completion.getCompletedAt())
+                .previousDueAt(completion.getPreviousDueAt())
+                .nextDueAt(completion.getNextDueAt())
+                .build();
+    }
+
+    private RecentTaskCompletionResponse toRecentCompletionResponse(TaskCompletion completion) {
+        return RecentTaskCompletionResponse.builder()
+                .id(completion.getId())
+                .taskId(completion.getTask().getId())
+                .taskName(completion.getTask().getName())
                 .completedAt(completion.getCompletedAt())
                 .previousDueAt(completion.getPreviousDueAt())
                 .nextDueAt(completion.getNextDueAt())

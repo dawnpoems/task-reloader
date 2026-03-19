@@ -7,6 +7,8 @@ import com.yegkim.task_reloader_api.common.exception.TaskInactiveException;
 import com.yegkim.task_reloader_api.common.exception.TaskNotFoundException;
 import com.yegkim.task_reloader_api.common.exception.TaskRecentlyCompletedException;
 import com.yegkim.task_reloader_api.task.dto.CreateTaskRequest;
+import com.yegkim.task_reloader_api.task.dto.DashboardSummaryResponse;
+import com.yegkim.task_reloader_api.task.dto.RecentTaskCompletionResponse;
 import com.yegkim.task_reloader_api.task.dto.TaskCompletionResponse;
 import com.yegkim.task_reloader_api.task.dto.TaskResponse;
 import com.yegkim.task_reloader_api.task.dto.UpdateTaskRequest;
@@ -39,7 +41,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
-@WebMvcTest(TaskController.class)
+@WebMvcTest({TaskController.class, TaskInsightsController.class})
 @ImportAutoConfiguration({
 	JacksonAutoConfiguration.class,
 	HttpMessageConvertersAutoConfiguration.class
@@ -211,6 +213,58 @@ class TaskControllerTest {
                 .andExpect(jsonPath("$.error").doesNotExist());
 
         verify(taskService, times(1)).findCompletions(1L);
+    }
+
+    @Test
+    @DisplayName("대시보드 요약 조회 - 성공")
+    void testGetDashboardSuccess() throws Exception {
+        DashboardSummaryResponse response = DashboardSummaryResponse.builder()
+                .totalTasks(12)
+                .overdueTasks(2)
+                .todayTasks(4)
+                .upcomingTasks(6)
+                .completedToday(3)
+                .completedLast7Days(9)
+                .build();
+
+        when(taskService.getDashboardSummary()).thenReturn(response);
+
+        mockMvc.perform(get("/api/insights/dashboard")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.data.totalTasks", is(12)))
+                .andExpect(jsonPath("$.data.completedToday", is(3)))
+                .andExpect(jsonPath("$.error").doesNotExist());
+
+        verify(taskService, times(1)).getDashboardSummary();
+    }
+
+    @Test
+    @DisplayName("최근 완료 작업 조회 - 성공")
+    void testGetRecentCompletionsSuccess() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now();
+        RecentTaskCompletionResponse response = RecentTaskCompletionResponse.builder()
+                .id(100L)
+                .taskId(1L)
+                .taskName("Test Task")
+                .completedAt(now.minusHours(1))
+                .previousDueAt(now.minusDays(1))
+                .nextDueAt(now.plusDays(6))
+                .build();
+
+        when(taskService.findRecentCompletions()).thenReturn(List.of(response));
+
+        mockMvc.perform(get("/api/insights/recent-completions")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].taskId", is(1)))
+                .andExpect(jsonPath("$.data[0].taskName", is("Test Task")))
+                .andExpect(jsonPath("$.error").doesNotExist());
+
+        verify(taskService, times(1)).findRecentCompletions();
     }
 
     @Test

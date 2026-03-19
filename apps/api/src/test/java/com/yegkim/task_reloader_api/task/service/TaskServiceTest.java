@@ -4,6 +4,8 @@ import com.yegkim.task_reloader_api.common.exception.TaskInactiveException;
 import com.yegkim.task_reloader_api.common.exception.TaskNotFoundException;
 import com.yegkim.task_reloader_api.common.exception.TaskRecentlyCompletedException;
 import com.yegkim.task_reloader_api.task.dto.CreateTaskRequest;
+import com.yegkim.task_reloader_api.task.dto.DashboardSummaryResponse;
+import com.yegkim.task_reloader_api.task.dto.RecentTaskCompletionResponse;
 import com.yegkim.task_reloader_api.task.dto.TaskCompletionResponse;
 import com.yegkim.task_reloader_api.task.dto.TaskResponse;
 import com.yegkim.task_reloader_api.task.dto.UpdateTaskRequest;
@@ -326,6 +328,53 @@ class TaskServiceTest {
 
         verify(taskRepository, times(1)).existsById(999L);
         verify(taskCompletionRepository, never()).findByTaskIdOrderByCompletedAtDesc(anyLong());
+    }
+
+    @Test
+    @DisplayName("최근 완료 작업 조회 - 최신 완료 순으로 최대 5건 반환")
+    void testFindRecentCompletionsSuccess() {
+        OffsetDateTime now = OffsetDateTime.now();
+        TaskCompletion completion = TaskCompletion.builder()
+                .id(10L)
+                .task(task)
+                .completedAt(now.minusHours(1))
+                .previousDueAt(now.minusDays(1))
+                .nextDueAt(now.plusDays(6))
+                .build();
+
+        when(taskCompletionRepository.findTop5ByOrderByCompletedAtDesc()).thenReturn(List.of(completion));
+
+        List<RecentTaskCompletionResponse> result = taskService.findRecentCompletions();
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getTaskId()).isEqualTo(task.getId());
+        assertThat(result.get(0).getTaskName()).isEqualTo(task.getName());
+        verify(taskCompletionRepository, times(1)).findTop5ByOrderByCompletedAtDesc();
+    }
+
+    @Test
+    @DisplayName("대시보드 요약 조회 - 상태별 작업 수와 완료 통계를 계산")
+    void testGetDashboardSummarySuccess() {
+        OffsetDateTime now = OffsetDateTime.now();
+        Task overdueTask = Task.builder().id(1L).name("Overdue").everyNDays(2).nextDueAt(now.minusDays(2)).isActive(true).build();
+        Task todayTask = Task.builder().id(2L).name("Today").everyNDays(2).nextDueAt(now).isActive(true).build();
+        Task upcomingTask = Task.builder().id(3L).name("Upcoming").everyNDays(2).nextDueAt(now.plusDays(2)).isActive(true).build();
+
+        when(taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc()).thenReturn(List.of(overdueTask, todayTask, upcomingTask));
+        when(taskStatusResolver.resolve(eq(overdueTask.getNextDueAt().toInstant()), any())).thenReturn(TaskStatus.OVERDUE);
+        when(taskStatusResolver.resolve(eq(todayTask.getNextDueAt().toInstant()), any())).thenReturn(TaskStatus.TODAY);
+        when(taskStatusResolver.resolve(eq(upcomingTask.getNextDueAt().toInstant()), any())).thenReturn(TaskStatus.UPCOMING);
+        when(taskCompletionRepository.countByCompletedAtBetween(any(), any())).thenReturn(2L);
+        when(taskCompletionRepository.countByCompletedAtGreaterThanEqual(any())).thenReturn(8L);
+
+        DashboardSummaryResponse result = taskService.getDashboardSummary();
+
+        assertThat(result.getTotalTasks()).isEqualTo(3);
+        assertThat(result.getOverdueTasks()).isEqualTo(1);
+        assertThat(result.getTodayTasks()).isEqualTo(1);
+        assertThat(result.getUpcomingTasks()).isEqualTo(1);
+        assertThat(result.getCompletedToday()).isEqualTo(2);
+        assertThat(result.getCompletedLast7Days()).isEqualTo(8);
     }
 
     @Test
