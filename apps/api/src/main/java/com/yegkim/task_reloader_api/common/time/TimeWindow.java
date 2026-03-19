@@ -2,6 +2,7 @@ package com.yegkim.task_reloader_api.common.time;
 
 import lombok.Getter;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -14,8 +15,8 @@ public class TimeWindow {
     private final Instant todayStartUtc;
     private final Instant tomorrowStartUtc;
 
-    private TimeWindow(ZoneId zone) {
-        ZonedDateTime todayStart = ZonedDateTime.now(zone).toLocalDate().atStartOfDay(zone);
+    private TimeWindow(ZoneId zone, Clock clock) {
+        ZonedDateTime todayStart = ZonedDateTime.ofInstant(clock.instant(), zone).toLocalDate().atStartOfDay(zone);
         this.todayStartUtc = todayStart.toInstant();
         this.tomorrowStartUtc = todayStart.plusDays(1).toInstant();
     }
@@ -27,7 +28,11 @@ public class TimeWindow {
     }
 
     public static TimeWindow of(ZoneId zone) {
-        return new TimeWindow(zone);
+        return new TimeWindow(zone, Clock.system(zone));
+    }
+
+    public static TimeWindow of(ZoneId zone, Clock clock) {
+        return new TimeWindow(zone, clock);
     }
 
     /** 테스트용: 경계 Instant를 직접 주입 */
@@ -36,6 +41,10 @@ public class TimeWindow {
     }
 
     public static TimeWindow ofKst() {
-        return new TimeWindow(DEFAULT_ZONE);
+        return new TimeWindow(DEFAULT_ZONE, Clock.system(DEFAULT_ZONE));
+    }
+
+    public static TimeWindow ofKst(Clock clock) {
+        return new TimeWindow(DEFAULT_ZONE, clock);
     }
 }

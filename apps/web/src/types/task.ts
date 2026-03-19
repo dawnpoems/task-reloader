@@ -1,4 +1,4 @@
-export type TaskStatus = 'PENDING' | 'TODAY' | 'UPCOMING' | 'OVERDUE' | 'COMPLETED'
+export type TaskStatus = 'TODAY' | 'UPCOMING' | 'OVERDUE'
 
 // 백엔드 TaskResponse 필드명과 동일하게 유지
 export interface Task {

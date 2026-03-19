@@ -55,6 +55,8 @@ class TaskServiceTest {
     @BeforeEach
     void setUp() {
         OffsetDateTime now = OffsetDateTime.now();
+        lenient().when(clock.instant()).thenReturn(now.toInstant());
+
         task = Task.builder()
                 .id(1L)
                 .name("Test Task")
@@ -576,7 +578,7 @@ class TaskServiceTest {
         assertThat(activeTask.getNextDueAt()).isEqualTo(fixedOdt.plusDays(7));
         // 응답 status 포함
         assertThat(result.getStatus()).isEqualTo(TaskStatus.UPCOMING);
-        verify(clock, times(1)).instant();
+        verify(clock, times(2)).instant();
         verify(taskRepository, times(1)).findByIdForUpdate(1L);
         verify(taskMapper, times(1)).toResponse(activeTask);
     }

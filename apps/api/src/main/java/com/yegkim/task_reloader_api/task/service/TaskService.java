@@ -36,7 +36,7 @@ public class TaskService {
     private final Clock clock;
 
     public List<TaskResponse> findAll() {
-        TimeWindow window = TimeWindow.ofKst();
+        TimeWindow window = currentWindow();
         List<Task> tasks = taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc();
         return tasks.stream()
                 .map(task -> withStatus(taskMapper.toResponse(task), task, window))
@@ -45,7 +45,7 @@ public class TaskService {
 
     public List<TaskResponse> findAll(TaskStatus status) {
         List<Task> tasks = taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc();
-        TimeWindow window = TimeWindow.ofKst();
+        TimeWindow window = currentWindow();
         return tasks.stream()
                 .filter(task -> taskStatusResolver.resolve(task.getNextDueAt().toInstant(), window) == status)
                 .sorted(BY_NEXT_DUE_AT_ASC)   // OVERDUE·TODAY·UPCOMING 모두 next_due_at ASC
@@ -56,14 +56,14 @@ public class TaskService {
     public TaskResponse findById(Long id) {
         Task task = taskRepository.findById(id)
                 .orElseThrow(() -> new TaskNotFoundException(id));
-        return withStatus(taskMapper.toResponse(task), task, TimeWindow.ofKst());
+        return withStatus(taskMapper.toResponse(task), task, currentWindow());
     }
 
     @Transactional
     public TaskResponse create(CreateTaskRequest request) {
         Task task = taskMapper.toEntity(request);
         Task saved = taskRepository.save(task);
-        return withStatus(taskMapper.toResponse(saved), saved, TimeWindow.ofKst());
+        return withStatus(taskMapper.toResponse(saved), saved, currentWindow());
     }
 
     @Transactional
@@ -71,7 +71,7 @@ public class TaskService {
         Task task = taskRepository.findById(id)
                 .orElseThrow(() -> new TaskNotFoundException(id));
         task.update(request.getName(), request.getEveryNDays(), request.getIsActive(), request.getStartDate());
-        return withStatus(taskMapper.toResponse(task), task, TimeWindow.ofKst());
+        return withStatus(taskMapper.toResponse(task), task, currentWindow());
     }
 
     @Transactional
@@ -100,7 +100,11 @@ public class TaskService {
         }
 
         task.complete(now);
-        return withStatus(taskMapper.toResponse(task), task, TimeWindow.ofKst());
+        return withStatus(taskMapper.toResponse(task), task, currentWindow());
+    }
+
+    private TimeWindow currentWindow() {
+        return TimeWindow.ofKst(clock);
     }
 
     private TaskResponse withStatus(TaskResponse response, Task task, TimeWindow window) {

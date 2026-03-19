@@ -1,4 +1,4 @@
-import type { Task } from '../types/task'
+import type { Task, TaskStatus } from '../types/task'
 import { formatDate } from '../lib/utils'
 
 interface TaskSectionProps {
@@ -7,20 +7,16 @@ interface TaskSectionProps {
   onEdit: (task: Task) => void
 }
 
-const STATUS_LABEL: Record<string, string> = {
+const STATUS_LABEL: Record<TaskStatus, string> = {
   TODAY: '오늘 할 일',
   UPCOMING: '예정',
   OVERDUE: '기한 초과',
-  COMPLETED: '완료',
-  PENDING: '대기',
 }
 
-const STATUS_CLASS: Record<string, string> = {
+const STATUS_CLASS: Record<TaskStatus, string> = {
   TODAY: 'task-card--today',
   UPCOMING: 'task-card--upcoming',
   OVERDUE: 'task-card--overdue',
-  COMPLETED: 'task-card--completed',
-  PENDING: 'task-card--pending',
 }
 
 export function TaskSection({ tasks, onComplete, onEdit }: TaskSectionProps) {
@@ -37,7 +33,7 @@ export function TaskSection({ tasks, onComplete, onEdit }: TaskSectionProps) {
           <div className="task-card__top">
             <span className="task-card__status-badge">{STATUS_LABEL[task.status] ?? task.status}</span>
             <div className="task-card__actions">
-              {task.status !== 'COMPLETED' && task.isActive && (
+              {task.isActive && (
                 <button onClick={() => onComplete(task.id)} className="btn-complete">완료</button>
               )}
               <button onClick={() => onEdit(task)} className="btn-edit">수정</button>
