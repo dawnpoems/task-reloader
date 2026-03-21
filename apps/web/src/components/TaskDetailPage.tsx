@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { extractErrorMessage } from '../api/client'
 import { tasksApi } from '../api/tasks'
 import { formatDate, formatDateTime } from '../lib/utils'
+import { ErrorNotice } from './ErrorNotice'
 import type { Task } from '../types/task'
 import type { TaskCompletion } from '../types/taskCompletion'
 
@@ -12,9 +12,6 @@ interface TaskDetailPageProps {
   onEdit: (task: Task) => void
   onComplete: (id: number) => Promise<boolean>
 }
-
-const toActionableMessage = (prefix: string, reason: string, action = '잠시 후 다시 시도해 주세요.'): string =>
-  `${prefix} ${reason} ${action}`
 
 export function TaskDetailPage({ taskId, refreshToken = 0, onBack, onEdit, onComplete }: TaskDetailPageProps) {
   const [task, setTask] = useState<Task | null>(null)
@@ -90,8 +87,7 @@ export function TaskDetailPage({ taskId, refreshToken = 0, onBack, onEdit, onCom
         setTask(taskRes.data)
       } else {
         setTask(null)
-        const reason = extractErrorMessage(taskRes.error, '요청 중 오류가 발생했습니다.')
-        setLoadError(toActionableMessage('Task 상세 정보를 불러오지 못했습니다.', reason))
+        setLoadError('Task 상세 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.')
       }
       setIsLoading(false)
     }
@@ -116,8 +112,7 @@ export function TaskDetailPage({ taskId, refreshToken = 0, onBack, onEdit, onCom
         setCompletions(completionsRes.data)
       } else {
         setCompletions([])
-        const reason = extractErrorMessage(completionsRes.error, '요청 중 오류가 발생했습니다.')
-        setCompletionsError(toActionableMessage('완료 이력을 불러오지 못했습니다.', reason))
+        setCompletionsError('완료 이력을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.')
       }
       setIsCompletionsLoading(false)
     }
@@ -169,12 +164,10 @@ export function TaskDetailPage({ taskId, refreshToken = 0, onBack, onEdit, onCom
         <button type="button" className="btn-secondary detail-page__back" onClick={onBack}>
           목록으로
         </button>
-        <div className="app-error" role="alert" aria-live="assertive">
-          <p>{loadError ?? 'Task를 찾을 수 없습니다. 목록으로 돌아간 뒤 다시 열어 주세요.'}</p>
-          <button type="button" className="btn-secondary" onClick={() => setTaskRetryToken((prev) => prev + 1)}>
-            다시 시도
-          </button>
-        </div>
+        <ErrorNotice
+          message={loadError ?? 'Task를 찾을 수 없습니다. 목록으로 돌아간 뒤 다시 열어 주세요.'}
+          onRetry={() => setTaskRetryToken((prev) => prev + 1)}
+        />
       </section>
     )
   }
@@ -219,7 +212,7 @@ export function TaskDetailPage({ taskId, refreshToken = 0, onBack, onEdit, onCom
         <p>완료 시점 기준으로 다음 일정을 계산하는 반복 작업입니다.</p>
       </article>
 
-      {actionError && <p className="app-error" role="alert" aria-live="assertive">{actionError}</p>}
+      {actionError && <ErrorNotice message={actionError} />}
 
       <div className="detail-grid">
         <section className="detail-card">
@@ -291,12 +284,7 @@ export function TaskDetailPage({ taskId, refreshToken = 0, onBack, onEdit, onCom
             {isCompletionsLoading ? (
               <p className="section-state">완료 이력을 불러오는 중...</p>
             ) : completionsError ? (
-              <div className="app-error" role="alert" aria-live="assertive">
-                <p>{completionsError}</p>
-                <button type="button" className="btn-secondary" onClick={() => setCompletionsRetryToken((prev) => prev + 1)}>
-                  다시 시도
-                </button>
-              </div>
+              <ErrorNotice message={completionsError} onRetry={() => setCompletionsRetryToken((prev) => prev + 1)} />
             ) : !selectedDateKey ? (
               <p className="section-state">날짜를 선택하면 완료 이력을 확인할 수 있습니다.</p>
             ) : selectedCompletions.length === 0 ? (

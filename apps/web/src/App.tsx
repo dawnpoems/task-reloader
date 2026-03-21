@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTasks } from './hooks/useTasks'
 import { useInsights } from './hooks/useInsights'
 import { InsightsPage } from './components/InsightsPage'
+import { ErrorNotice } from './components/ErrorNotice'
 import { TaskSection } from './components/TaskSection'
 import { TaskDetailPage } from './components/TaskDetailPage'
 import { TaskCreateModal } from './components/TaskCreateModal'
@@ -32,12 +33,23 @@ function App() {
   const [completingTaskIds, setCompletingTaskIds] = useState<Set<number>>(new Set())
   const [completedTaskIds, setCompletedTaskIds] = useState<Set<number>>(new Set())
   const [detailRefreshToken, setDetailRefreshToken] = useState(0)
+  const [restoreCreateButtonFocus, setRestoreCreateButtonFocus] = useState(false)
+  const createTaskButtonRef = useRef<HTMLButtonElement | null>(null)
 
   useEffect(() => {
     const handlePopState = () => setPathname(window.location.pathname)
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
   }, [])
+
+  useEffect(() => {
+    if (!restoreCreateButtonFocus || showForm) return
+    const rafId = window.requestAnimationFrame(() => {
+      createTaskButtonRef.current?.focus()
+      setRestoreCreateButtonFocus(false)
+    })
+    return () => window.cancelAnimationFrame(rafId)
+  }, [restoreCreateButtonFocus, showForm])
 
   const navigateTo = (nextPath: string) => {
     if (nextPath === window.location.pathname) return
@@ -139,6 +151,11 @@ function App() {
     }
   }
 
+  const handleCloseCreateModal = () => {
+    setShowForm(false)
+    setRestoreCreateButtonFocus(true)
+  }
+
   return (
     <div className="app">
       <header className="app-header">
@@ -167,14 +184,7 @@ function App() {
       </header>
 
       <main className="app-main">
-        {shouldShowGlobalError && error && (
-          <div className="app-error" role="alert" aria-live="assertive">
-            <p>{error}</p>
-            <button type="button" className="btn-secondary" onClick={refreshAll}>
-              다시 시도
-            </button>
-          </div>
-        )}
+        {shouldShowGlobalError && error && <ErrorNotice message={error} onRetry={refreshAll} />}
         {toast && <p className="app-toast" role="status" aria-live="polite">{toast}</p>}
 
         {selectedTaskId ? (
@@ -204,6 +214,7 @@ function App() {
               </div>
               {!showForm && (
                 <button
+                  ref={createTaskButtonRef}
                   type="button"
                   className="btn-secondary section-header__task-toggle"
                   onClick={() => setShowForm(true)}
@@ -236,14 +247,7 @@ function App() {
 
               {isUpcomingOpen && (
                 <div className="section-collapse__content">
-                  {upcomingError && (
-                    <div className="app-error" role="alert" aria-live="assertive">
-                      <p>{upcomingError}</p>
-                      <button type="button" className="btn-secondary" onClick={fetchUpcomingTasks}>
-                        다시 시도
-                      </button>
-                    </div>
-                  )}
+                  {upcomingError && <ErrorNotice message={upcomingError} onRetry={fetchUpcomingTasks} />}
                   {isUpcomingLoading ? (
                     <p className="app-loading">남은 일정을 불러오는 중...</p>
                   ) : (
@@ -274,7 +278,7 @@ function App() {
       {!selectedTaskId && !isInsightsPage && showForm && (
         <TaskCreateModal
           onSubmit={handleCreateTask}
-          onClose={() => setShowForm(false)}
+          onClose={handleCloseCreateModal}
         />
       )}
     </div>

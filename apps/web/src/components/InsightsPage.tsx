@@ -1,3 +1,4 @@
+import { ErrorNotice } from './ErrorNotice'
 import { DashboardSummaryCards } from './DashboardSummaryCards'
 import { RecentCompletionsSection } from './RecentCompletionsSection'
 import type { DashboardSummary, RecentTaskCompletion } from '../types/insights'
@@ -22,12 +23,7 @@ export function InsightsPage({
   return (
     <>
       {error && (
-        <div className="app-error" role="alert" aria-live="assertive">
-          <p>{error}</p>
-          <button type="button" className="btn-secondary" onClick={onRetry}>
-            다시 시도
-          </button>
-        </div>
+        <ErrorNotice message={error} onRetry={onRetry} />
       )}
       <DashboardSummaryCards dashboard={dashboard} isLoading={isLoading} />
       <RecentCompletionsSection
