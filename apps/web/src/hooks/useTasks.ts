@@ -51,14 +51,14 @@ export function useTasks(filter: TaskStatusFilter = 'ALL'): UseTasksReturn {
 
   const createTask = async (request: CreateTaskRequest): Promise<boolean> => {
     const res = await tasksApi.create(request)
-    if (res.success) { await fetchTasks(); setToastWithTimeout('Task가 추가됐습니다 ✓'); return true }
+    if (res.success) { setToastWithTimeout('Task가 추가됐습니다 ✓'); return true }
     setErrorWithTimeout(extractErrorMessage(res.error, 'Task 생성에 실패했습니다.'))
     return false
   }
 
   const updateTask = async (id: number, request: UpdateTaskRequest): Promise<boolean> => {
     const res = await tasksApi.update(id, request)
-    if (res.success) { await fetchTasks(); setToastWithTimeout('Task가 수정됐습니다 ✓'); return true }
+    if (res.success) { setToastWithTimeout('Task가 수정됐습니다 ✓'); return true }
     setErrorWithTimeout(extractErrorMessage(res.error, 'Task 수정에 실패했습니다.'))
     return false
   }

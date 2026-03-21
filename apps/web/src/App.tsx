@@ -20,11 +20,12 @@ const getTaskIdFromPath = (pathname: string): number | null => {
 }
 
 function App() {
+  const [pathname, setPathname] = useState(window.location.pathname)
+  const isInsightsPage = pathname === INSIGHTS_PATH
   const { tasks: dueNowTasks, isLoading, error, toast, createTask, updateTask, completeTask, deleteTask, refetch } = useTasks('DUE_NOW')
-  const { dashboard, recentCompletions, isLoading: isInsightsLoading, error: insightsError, refetch: refetchInsights } = useInsights()
+  const { dashboard, recentCompletions, isLoading: isInsightsLoading, error: insightsError, refetch: refetchInsights } = useInsights(isInsightsPage)
   const [showForm, setShowForm] = useState(false)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
-  const [pathname, setPathname] = useState(window.location.pathname)
   const [upcomingTasks, setUpcomingTasks] = useState<Task[]>([])
   const [isUpcomingOpen, setIsUpcomingOpen] = useState(false)
   const [isUpcomingLoaded, setIsUpcomingLoaded] = useState(false)
@@ -58,7 +59,6 @@ function App() {
   }
 
   const selectedTaskId = getTaskIdFromPath(pathname)
-  const isInsightsPage = pathname === INSIGHTS_PATH
   const isHomePage = pathname === '/'
   const shouldShowGlobalError = isHomePage && !showForm && !selectedTask && !selectedTaskId
 
@@ -151,6 +151,20 @@ function App() {
     }
   }
 
+  const handleCompleteTaskFromDetail = async (id: number) => {
+    const ok = await completeTask(id)
+    if (!ok) return false
+
+    // 상세 화면 완료 후에는 전체 갱신(refreshAll) 대신,
+    // 홈 화면 동기화에 필요한 최소 데이터만 갱신한다.
+    const tasksToRefresh = [refetch()]
+    if (isUpcomingLoaded) {
+      tasksToRefresh.push(fetchUpcomingTasks())
+    }
+    await Promise.all(tasksToRefresh)
+    return true
+  }
+
   const handleCloseCreateModal = () => {
     setShowForm(false)
     setRestoreCreateButtonFocus(true)
@@ -193,7 +207,7 @@ function App() {
             refreshToken={detailRefreshToken}
             onBack={() => navigateTo('/')}
             onEdit={setSelectedTask}
-            onComplete={handleCompleteTask}
+            onComplete={handleCompleteTaskFromDetail}
           />
         ) : isInsightsPage ? (
           <InsightsPage

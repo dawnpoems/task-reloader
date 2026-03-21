@@ -10,13 +10,18 @@ interface UseInsightsReturn {
   refetch: () => Promise<void>
 }
 
-export function useInsights(): UseInsightsReturn {
+export function useInsights(enabled = true): UseInsightsReturn {
   const [dashboard, setDashboard] = useState<DashboardSummary | null>(null)
   const [recentCompletions, setRecentCompletions] = useState<RecentTaskCompletion[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(enabled)
   const [error, setError] = useState<string | null>(null)
 
   const fetchInsights = useCallback(async () => {
+    if (!enabled) {
+      setIsLoading(false)
+      return
+    }
+
     setIsLoading(true)
     setError(null)
 
@@ -40,11 +45,15 @@ export function useInsights(): UseInsightsReturn {
     }
 
     setIsLoading(false)
-  }, [])
+  }, [enabled])
 
   useEffect(() => {
+    if (!enabled) {
+      setIsLoading(false)
+      return
+    }
     fetchInsights()
-  }, [fetchInsights])
+  }, [enabled, fetchInsights])
 
   return { dashboard, recentCompletions, isLoading, error, refetch: fetchInsights }
 }
