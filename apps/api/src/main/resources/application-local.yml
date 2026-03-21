@@ -1,8 +1,8 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/task_reloader
-    username: task_reloader
-    password: change_me_in_production
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/task_reloader}
+    username: ${SPRING_DATASOURCE_USERNAME:task_reloader}
+    password: ${SPRING_DATASOURCE_PASSWORD:change_me_in_production}
   jpa:
     hibernate:
       ddl-auto: validate
