@@ -16,6 +16,7 @@ export function TaskDetailPage({ taskId, onBack, onEdit, onComplete }: TaskDetai
   const [task, setTask] = useState<Task | null>(null)
   const [completions, setCompletions] = useState<TaskCompletion[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isCompletionsLoading, setIsCompletionsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [viewMonth, setViewMonth] = useState(() => {
@@ -69,14 +70,11 @@ export function TaskDetailPage({ taskId, onBack, onEdit, onComplete }: TaskDetai
   useEffect(() => {
     let active = true
 
-    const fetchDetail = async () => {
+    const fetchTask = async () => {
       setIsLoading(true)
       setError(null)
 
-      const [taskRes, completionsRes] = await Promise.all([
-        tasksApi.getById(taskId),
-        tasksApi.getCompletions(taskId),
-      ])
+      const taskRes = await tasksApi.getById(taskId)
 
       if (!active) return
 
@@ -86,6 +84,23 @@ export function TaskDetailPage({ taskId, onBack, onEdit, onComplete }: TaskDetai
         setTask(null)
         setError(extractErrorMessage(taskRes.error, 'Task 상세 정보를 불러오지 못했습니다.'))
       }
+      setIsLoading(false)
+    }
+
+    fetchTask()
+    return () => { active = false }
+  }, [taskId])
+
+  useEffect(() => {
+    let active = true
+
+    const fetchMonthCompletions = async () => {
+      setIsCompletionsLoading(true)
+      const year = viewMonth.getFullYear()
+      const month = viewMonth.getMonth() + 1
+      const completionsRes = await tasksApi.getCompletions(taskId, { year, month })
+
+      if (!active) return
 
       if (completionsRes.success && completionsRes.data) {
         setCompletions(completionsRes.data)
@@ -93,13 +108,12 @@ export function TaskDetailPage({ taskId, onBack, onEdit, onComplete }: TaskDetai
         setCompletions([])
         setError((prev) => prev ?? extractErrorMessage(completionsRes.error, '완료 이력을 불러오지 못했습니다.'))
       }
-
-      setIsLoading(false)
+      setIsCompletionsLoading(false)
     }
 
-    fetchDetail()
+    fetchMonthCompletions()
     return () => { active = false }
-  }, [taskId])
+  }, [taskId, viewMonth])
 
   useEffect(() => {
     if (!selectedDateKey) return
@@ -116,9 +130,11 @@ export function TaskDetailPage({ taskId, onBack, onEdit, onComplete }: TaskDetai
       return
     }
 
+    const year = viewMonth.getFullYear()
+    const month = viewMonth.getMonth() + 1
     const [taskRes, completionsRes] = await Promise.all([
       tasksApi.getById(taskId),
-      tasksApi.getCompletions(taskId),
+      tasksApi.getCompletions(taskId, { year, month }),
     ])
 
     if (taskRes.success && taskRes.data) setTask(taskRes.data)
@@ -243,7 +259,9 @@ export function TaskDetailPage({ taskId, onBack, onEdit, onComplete }: TaskDetai
           </div>
 
           <div className="detail-calendar__selected">
-            {!selectedDateKey ? (
+            {isCompletionsLoading ? (
+              <p className="section-state">완료 이력을 불러오는 중...</p>
+            ) : !selectedDateKey ? (
               <p className="section-state">날짜를 선택하면 완료 이력을 확인할 수 있습니다.</p>
             ) : selectedCompletions.length === 0 ? (
               <p className="section-state">선택한 날짜에 완료 기록이 없습니다.</p>

@@ -3,6 +3,11 @@ import type { Task, CreateTaskRequest, UpdateTaskRequest, TaskStatusFilter } fro
 import type { DashboardSummary, RecentTaskCompletion } from '../types/insights'
 import type { TaskCompletion } from '../types/taskCompletion'
 
+interface CompletionsQuery {
+  year?: number
+  month?: number
+}
+
 export const tasksApi = {
   getAll: (filter: TaskStatusFilter = 'ALL'): Promise<ApiResponse<Task[]>> =>
     apiClient.get<Task[]>(`/tasks?status=${filter}`),
@@ -10,8 +15,15 @@ export const tasksApi = {
   getById: (id: number): Promise<ApiResponse<Task>> =>
     apiClient.get<Task>(`/tasks/${id}`),
 
-  getCompletions: (id: number): Promise<ApiResponse<TaskCompletion[]>> =>
-    apiClient.get<TaskCompletion[]>(`/tasks/${id}/completions`),
+  getCompletions: (id: number, query?: CompletionsQuery): Promise<ApiResponse<TaskCompletion[]>> => {
+    const hasYear = query?.year !== undefined
+    const hasMonth = query?.month !== undefined
+
+    if (hasYear && hasMonth) {
+      return apiClient.get<TaskCompletion[]>(`/tasks/${id}/completions?year=${query?.year}&month=${query?.month}`)
+    }
+    return apiClient.get<TaskCompletion[]>(`/tasks/${id}/completions`)
+  },
 
   getDashboard: (): Promise<ApiResponse<DashboardSummary>> =>
     apiClient.get<DashboardSummary>('/insights/dashboard'),
