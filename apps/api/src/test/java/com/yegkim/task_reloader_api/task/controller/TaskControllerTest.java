@@ -224,6 +224,20 @@ class TaskControllerTest {
     }
 
     @Test
+    @DisplayName("에러 응답에 requestId가 포함되고 헤더와 연계된다")
+    void testErrorResponseContainsRequestId() throws Exception {
+        String requestId = "err-req-777";
+
+        mockMvc.perform(get("/api/tasks").param("status", "INVALID")
+                        .header(RequestIdLoggingFilter.REQUEST_ID_HEADER, requestId)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string(RequestIdLoggingFilter.REQUEST_ID_HEADER, requestId))
+                .andExpect(jsonPath("$.error.code", is("BAD_REQUEST")))
+                .andExpect(jsonPath("$.error.requestId", is(requestId)));
+    }
+
+    @Test
     @DisplayName("작업 단건 조회 - 성공")
     void testFindByIdSuccess() throws Exception {
         // given
