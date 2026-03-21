@@ -31,7 +31,7 @@ export interface UpdateTaskRequest {
 }
 
 // tasksApi.getAll() 쿼리 파라미터용
-export type TaskStatusFilter = 'ALL' | 'OVERDUE' | 'TODAY' | 'UPCOMING'
+export type TaskStatusFilter = 'ALL' | 'DUE_NOW' | 'OVERDUE' | 'TODAY' | 'UPCOMING'
 
 // types/index.ts 에서 사용하던 TaskListResponse 제거 (백엔드는 List<TaskResponse> 직접 반환)
 export type TaskListResponse = Task[]

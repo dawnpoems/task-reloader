@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTasks } from './hooks/useTasks'
 import { useInsights } from './hooks/useInsights'
 import { InsightsPage } from './components/InsightsPage'
@@ -6,6 +6,8 @@ import { TaskSection } from './components/TaskSection'
 import { TaskDetailPage } from './components/TaskDetailPage'
 import { TaskForm } from './components/TaskForm'
 import { TaskEditModal } from './components/TaskEditModal'
+import { tasksApi } from './api/tasks'
+import { extractErrorMessage } from './api/client'
 import type { Task } from './types/task'
 import './App.css'
 
@@ -17,11 +19,16 @@ const getTaskIdFromPath = (pathname: string): number | null => {
 }
 
 function App() {
-  const { tasks, isLoading, error, toast, createTask, updateTask, completeTask, deleteTask, refetch } = useTasks()
+  const { tasks: dueNowTasks, isLoading, error, toast, createTask, updateTask, completeTask, deleteTask, refetch } = useTasks('DUE_NOW')
   const { dashboard, recentCompletions, isLoading: isInsightsLoading, error: insightsError, refetch: refetchInsights } = useInsights()
   const [showForm, setShowForm] = useState(false)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [pathname, setPathname] = useState(window.location.pathname)
+  const [upcomingTasks, setUpcomingTasks] = useState<Task[]>([])
+  const [isUpcomingOpen, setIsUpcomingOpen] = useState(false)
+  const [isUpcomingLoaded, setIsUpcomingLoaded] = useState(false)
+  const [isUpcomingLoading, setIsUpcomingLoading] = useState(false)
+  const [upcomingError, setUpcomingError] = useState<string | null>(null)
 
   useEffect(() => {
     const handlePopState = () => setPathname(window.location.pathname)
@@ -39,14 +46,37 @@ function App() {
   const isInsightsPage = pathname === INSIGHTS_PATH
   const isHomePage = pathname === '/'
 
+  const fetchUpcomingTasks = useCallback(async () => {
+    setIsUpcomingLoading(true)
+    setUpcomingError(null)
+    const res = await tasksApi.getAll('UPCOMING')
+    if (res.success && res.data) {
+      setUpcomingTasks(res.data)
+      setIsUpcomingLoaded(true)
+    } else {
+      setUpcomingError(extractErrorMessage(res.error, '남은 일정을 불러오지 못했습니다.'))
+    }
+    setIsUpcomingLoading(false)
+  }, [])
+
+  useEffect(() => {
+    if (isUpcomingOpen && !isUpcomingLoaded && !isUpcomingLoading) {
+      fetchUpcomingTasks()
+    }
+  }, [isUpcomingOpen, isUpcomingLoaded, isUpcomingLoading, fetchUpcomingTasks])
+
   const refreshAll = async () => {
-    await Promise.all([refetch(), refetchInsights()])
+    const tasksToRefresh = [refetch(), refetchInsights()]
+    if (isUpcomingLoaded) {
+      tasksToRefresh.push(fetchUpcomingTasks())
+    }
+    await Promise.all(tasksToRefresh)
   }
 
   const handleCreateTask = async (req: Parameters<typeof createTask>[0]) => {
     const ok = await createTask(req)
     if (ok) {
-      await refetchInsights()
+      await refreshAll()
       setShowForm(false)
     }
     return ok
@@ -145,11 +175,37 @@ function App() {
               )}
             </div>
             <TaskSection
-              tasks={tasks}
+              tasks={dueNowTasks}
               onComplete={handleCompleteTask}
               onEdit={setSelectedTask}
               onView={(task) => navigateTo(`/tasks/${task.id}`)}
             />
+
+            <div className="section-collapse">
+              <button
+                type="button"
+                className="btn-secondary section-collapse__trigger"
+                onClick={() => setIsUpcomingOpen((prev) => !prev)}
+              >
+                {isUpcomingOpen ? '남은 일정 접기' : `남은 일정 펼치기${dashboard ? ` (${dashboard.upcomingTasks})` : ''}`}
+              </button>
+
+              {isUpcomingOpen && (
+                <div className="section-collapse__content">
+                  {upcomingError && <p className="app-error">{upcomingError}</p>}
+                  {isUpcomingLoading ? (
+                    <p className="app-loading">남은 일정을 불러오는 중...</p>
+                  ) : (
+                    <TaskSection
+                      tasks={upcomingTasks}
+                      onComplete={handleCompleteTask}
+                      onEdit={setSelectedTask}
+                      onView={(task) => navigateTo(`/tasks/${task.id}`)}
+                    />
+                  )}
+                </div>
+              )}
+            </div>
           </section>
         )}
       </main>
