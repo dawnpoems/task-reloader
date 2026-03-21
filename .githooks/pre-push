@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -e
+
+echo "[pre-push] Running quality checks..."
+make check
+echo "[pre-push] Passed."
