@@ -56,8 +56,14 @@ public class TaskController {
 
     @Operation(summary = "작업 완료 이력 조회")
     @GetMapping("/{id}/completions")
-    public ApiResponse<List<TaskCompletionResponse>> findCompletions(@PathVariable Long id) {
-        return ApiResponse.success(taskService.findCompletions(id));
+    public ApiResponse<List<TaskCompletionResponse>> findCompletions(
+            @PathVariable Long id,
+            @Parameter(description = "연도(예: 2026)")
+            @RequestParam(required = false) Integer year,
+            @Parameter(description = "월(1~12)")
+            @RequestParam(required = false) Integer month
+    ) {
+        return ApiResponse.success(taskService.findCompletions(id, year, month));
     }
 
     @Operation(summary = "작업 생성")

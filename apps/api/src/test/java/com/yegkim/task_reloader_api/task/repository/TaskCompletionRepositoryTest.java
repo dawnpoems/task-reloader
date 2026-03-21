@@ -13,7 +13,9 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -81,5 +83,48 @@ class TaskCompletionRepositoryTest {
         List<TaskCompletion> result = taskCompletionRepository.findByTaskIdOrderByCompletedAtDesc(task.getId());
 
         assertThat(result).containsExactly(newer, older);
+    }
+
+    @Test
+    @DisplayName("특정 작업의 특정 월 완료 이력만 조회")
+    void findByTaskIdAndCompletedAtRangeOrderByCompletedAtDesc() {
+        OffsetDateTime now = OffsetDateTime.now();
+        Task task = taskRepository.save(Task.builder()
+                .name("Recurring Task")
+                .everyNDays(3)
+                .nextDueAt(now.plusDays(3))
+                .isActive(true)
+                .build());
+
+        OffsetDateTime marchStart = LocalDate.of(2026, 3, 1)
+                .atStartOfDay(ZoneId.of("Asia/Seoul"))
+                .toOffsetDateTime();
+        OffsetDateTime aprilStart = marchStart.plusMonths(1);
+
+        TaskCompletion inMarchOlder = taskCompletionRepository.save(TaskCompletion.builder()
+                .task(task)
+                .completedAt(marchStart.plusDays(1))
+                .previousDueAt(marchStart)
+                .nextDueAt(marchStart.plusDays(4))
+                .build());
+        TaskCompletion inMarchNewer = taskCompletionRepository.save(TaskCompletion.builder()
+                .task(task)
+                .completedAt(marchStart.plusDays(20))
+                .previousDueAt(marchStart.plusDays(19))
+                .nextDueAt(marchStart.plusDays(23))
+                .build());
+        taskCompletionRepository.save(TaskCompletion.builder()
+                .task(task)
+                .completedAt(aprilStart.plusDays(1))
+                .previousDueAt(aprilStart)
+                .nextDueAt(aprilStart.plusDays(4))
+                .build());
+
+        List<TaskCompletion> result = taskCompletionRepository
+                .findByTaskIdAndCompletedAtGreaterThanEqualAndCompletedAtLessThanOrderByCompletedAtDesc(
+                        task.getId(), marchStart, aprilStart
+                );
+
+        assertThat(result).containsExactly(inMarchNewer, inMarchOlder);
     }
 }

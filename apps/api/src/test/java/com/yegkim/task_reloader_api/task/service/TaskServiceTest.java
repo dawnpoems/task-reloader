@@ -27,6 +27,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
@@ -315,6 +316,56 @@ class TaskServiceTest {
         assertThat(result.get(1).getId()).isEqualTo(1L);
         verify(taskRepository, times(1)).existsById(1L);
         verify(taskCompletionRepository, times(1)).findByTaskIdOrderByCompletedAtDesc(1L);
+    }
+
+    @Test
+    @DisplayName("작업 완료 이력 조회 - year/month 전달 시 해당 월만 조회")
+    void testFindCompletionsByMonthSuccess() {
+        OffsetDateTime now = OffsetDateTime.now();
+        TaskCompletion completion = TaskCompletion.builder()
+                .id(10L)
+                .task(task)
+                .completedAt(now.minusDays(1))
+                .previousDueAt(now.minusDays(2))
+                .nextDueAt(now.plusDays(5))
+                .build();
+
+        OffsetDateTime monthStart = LocalDate.of(2026, 3, 1).atStartOfDay(ZoneId.of("Asia/Seoul")).toOffsetDateTime();
+        OffsetDateTime nextMonthStart = monthStart.plusMonths(1);
+
+        when(taskRepository.existsById(1L)).thenReturn(true);
+        when(taskCompletionRepository
+                .findByTaskIdAndCompletedAtGreaterThanEqualAndCompletedAtLessThanOrderByCompletedAtDesc(
+                        1L, monthStart, nextMonthStart))
+                .thenReturn(List.of(completion));
+
+        List<TaskCompletionResponse> result = taskService.findCompletions(1L, 2026, 3);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getId()).isEqualTo(10L);
+        verify(taskCompletionRepository, times(1))
+                .findByTaskIdAndCompletedAtGreaterThanEqualAndCompletedAtLessThanOrderByCompletedAtDesc(
+                        1L, monthStart, nextMonthStart);
+    }
+
+    @Test
+    @DisplayName("작업 완료 이력 조회 - year/month 중 하나만 전달하면 예외")
+    void testFindCompletionsByMonthRequiresBothYearAndMonth() {
+        when(taskRepository.existsById(1L)).thenReturn(true);
+
+        assertThatThrownBy(() -> taskService.findCompletions(1L, 2026, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("함께 전달");
+    }
+
+    @Test
+    @DisplayName("작업 완료 이력 조회 - month 범위가 잘못되면 예외")
+    void testFindCompletionsByMonthOutOfRange() {
+        when(taskRepository.existsById(1L)).thenReturn(true);
+
+        assertThatThrownBy(() -> taskService.findCompletions(1L, 2026, 13))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("1~12");
     }
 
     @Test

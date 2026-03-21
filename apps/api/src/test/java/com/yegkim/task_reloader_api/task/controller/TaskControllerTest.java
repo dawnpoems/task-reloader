@@ -202,7 +202,7 @@ class TaskControllerTest {
                 .nextDueAt(now.plusDays(6))
                 .build();
 
-        when(taskService.findCompletions(1L)).thenReturn(List.of(response));
+        when(taskService.findCompletions(1L, null, null)).thenReturn(List.of(response));
 
         mockMvc.perform(get("/api/tasks/1/completions")
                         .contentType(MediaType.APPLICATION_JSON))
@@ -212,7 +212,37 @@ class TaskControllerTest {
                 .andExpect(jsonPath("$.data[0].id", is(10)))
                 .andExpect(jsonPath("$.error").doesNotExist());
 
-        verify(taskService, times(1)).findCompletions(1L);
+        verify(taskService, times(1)).findCompletions(1L, null, null);
+    }
+
+    @Test
+    @DisplayName("작업 완료 이력 조회 - year/month 파라미터 전달")
+    void testFindCompletionsWithYearMonth() throws Exception {
+        when(taskService.findCompletions(1L, 2026, 3)).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/tasks/1/completions")
+                        .param("year", "2026")
+                        .param("month", "3")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.data", hasSize(0)));
+
+        verify(taskService, times(1)).findCompletions(1L, 2026, 3);
+    }
+
+    @Test
+    @DisplayName("작업 완료 이력 조회 - year만 전달하면 400")
+    void testFindCompletionsWithOnlyYearReturnsBadRequest() throws Exception {
+        when(taskService.findCompletions(1L, 2026, null))
+                .thenThrow(new IllegalArgumentException("year와 month는 함께 전달해야 합니다."));
+
+        mockMvc.perform(get("/api/tasks/1/completions")
+                        .param("year", "2026")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success", is(false)))
+                .andExpect(jsonPath("$.error.code", is("BAD_REQUEST")));
     }
 
     @Test

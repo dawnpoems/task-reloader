@@ -9,6 +9,11 @@ import java.util.List;
 public interface TaskCompletionRepository extends JpaRepository<TaskCompletion, Long> {
 
     List<TaskCompletion> findByTaskIdOrderByCompletedAtDesc(Long taskId);
+    List<TaskCompletion> findByTaskIdAndCompletedAtGreaterThanEqualAndCompletedAtLessThanOrderByCompletedAtDesc(
+            Long taskId,
+            OffsetDateTime startInclusive,
+            OffsetDateTime endExclusive
+    );
 
     List<TaskCompletion> findTop5ByOrderByCompletedAtDesc();
 

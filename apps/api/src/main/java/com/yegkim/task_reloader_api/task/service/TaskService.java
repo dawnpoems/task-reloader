@@ -23,7 +23,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Comparator;
 import java.util.List;
@@ -32,6 +34,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class TaskService {
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
     // OVERDUE / TODAY / UPCOMING 모두 오래된 것부터 (next_due_at ASC)
     private static final Comparator<Task> BY_NEXT_DUE_AT_ASC =
@@ -68,11 +71,33 @@ public class TaskService {
     }
 
     public List<TaskCompletionResponse> findCompletions(Long id) {
+        return findCompletions(id, null, null);
+    }
+
+    public List<TaskCompletionResponse> findCompletions(Long id, Integer year, Integer month) {
         if (!taskRepository.existsById(id)) {
             throw new TaskNotFoundException(id);
         }
 
-        return taskCompletionRepository.findByTaskIdOrderByCompletedAtDesc(id).stream()
+        List<TaskCompletion> completions;
+        if (year == null && month == null) {
+            completions = taskCompletionRepository.findByTaskIdOrderByCompletedAtDesc(id);
+        } else {
+            if (year == null || month == null) {
+                throw new IllegalArgumentException("year와 month는 함께 전달해야 합니다.");
+            }
+            if (month < 1 || month > 12) {
+                throw new IllegalArgumentException("month는 1~12 사이여야 합니다.");
+            }
+
+            OffsetDateTime monthStart = LocalDate.of(year, month, 1).atStartOfDay(KST).toOffsetDateTime();
+            OffsetDateTime nextMonthStart = monthStart.plusMonths(1);
+            completions = taskCompletionRepository
+                    .findByTaskIdAndCompletedAtGreaterThanEqualAndCompletedAtLessThanOrderByCompletedAtDesc(
+                            id, monthStart, nextMonthStart);
+        }
+
+        return completions.stream()
                 .map(this::toCompletionResponse)
                 .toList();
     }
