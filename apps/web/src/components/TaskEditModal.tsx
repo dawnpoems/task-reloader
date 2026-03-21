@@ -36,6 +36,7 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
   const [completions, setCompletions] = useState<TaskCompletion[]>([])
   const [isLoadingCompletions, setIsLoadingCompletions] = useState(true)
   const [completionsError, setCompletionsError] = useState<string | null>(null)
+  const isBusy = isSubmitting || isDeleting
 
   useLayoutEffect(() => {
     const previousFocusTarget = previouslyFocusedElementRef.current
@@ -80,11 +81,13 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
   }, [task.id])
 
   const requestClose = () => {
+    if (isBusy) return
     onClose()
   }
 
   const handleModalKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Escape') {
+      if (isBusy) return
       e.preventDefault()
       requestClose()
       return
@@ -136,6 +139,7 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
   const handleDelete = async () => {
     const confirmed = window.confirm('정말 삭제할까요?')
     if (!confirmed) return
+    if (isSubmitting) return
 
     setIsDeleting(true)
     const ok = await onDelete(task.id)
@@ -157,7 +161,7 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
       >
         <div className="modal__header">
           <h2 id={titleId}>Task 수정</h2>
-          <button className="modal__close" onClick={requestClose} aria-label="닫기">✕</button>
+          <button className="modal__close" onClick={requestClose} aria-label="닫기" disabled={isBusy}>✕</button>
         </div>
 
         <form onSubmit={handleUpdate} className="modal__body">
@@ -172,7 +176,7 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
               ref={nameInputRef}
               autoFocus
               onChange={(e) => setName(e.target.value)}
-              disabled={isSubmitting}
+              disabled={isBusy}
             />
           </div>
 
@@ -184,7 +188,7 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
               min={1}
               value={everyNDays}
               onChange={(e) => setEveryNDays(Number(e.target.value))}
-              disabled={isSubmitting}
+              disabled={isBusy}
             />
           </div>
 
@@ -195,7 +199,7 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              disabled={isSubmitting}
+              disabled={isBusy}
             />
           </div>
 
@@ -204,7 +208,7 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
               type="button"
               className="btn-delete"
               onClick={handleDelete}
-              disabled={isDeleting || isSubmitting}
+              disabled={isBusy}
             >
               {isDeleting ? '삭제 중...' : '삭제'}
             </button>
@@ -213,11 +217,11 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
                 type="button"
                 className="btn-secondary"
                 onClick={requestClose}
-                disabled={isSubmitting || isDeleting}
+                disabled={isBusy}
               >
                 취소
               </button>
-              <button type="submit" disabled={isSubmitting || isDeleting}>
+              <button type="submit" disabled={isBusy}>
                 {isSubmitting ? '저장 중...' : '저장'}
               </button>
             </div>

@@ -31,6 +31,7 @@ function App() {
   const [upcomingError, setUpcomingError] = useState<string | null>(null)
   const [completingTaskIds, setCompletingTaskIds] = useState<Set<number>>(new Set())
   const [completedTaskIds, setCompletedTaskIds] = useState<Set<number>>(new Set())
+  const [detailRefreshToken, setDetailRefreshToken] = useState(0)
 
   useEffect(() => {
     const handlePopState = () => setPathname(window.location.pathname)
@@ -86,7 +87,10 @@ function App() {
 
   const handleUpdateTask = async (id: number, request: Parameters<typeof updateTask>[1]) => {
     const ok = await updateTask(id, request)
-    if (ok) await refreshAll()
+    if (ok) {
+      await refreshAll()
+      setDetailRefreshToken((prev) => prev + 1)
+    }
     return ok
   }
 
@@ -175,6 +179,7 @@ function App() {
         {selectedTaskId ? (
           <TaskDetailPage
             taskId={selectedTaskId}
+            refreshToken={detailRefreshToken}
             onBack={() => navigateTo('/')}
             onEdit={setSelectedTask}
             onComplete={handleCompleteTask}

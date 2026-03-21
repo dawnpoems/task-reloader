@@ -7,16 +7,18 @@ import type { TaskCompletion } from '../types/taskCompletion'
 
 interface TaskDetailPageProps {
   taskId: number
+  refreshToken?: number
   onBack: () => void
   onEdit: (task: Task) => void
   onComplete: (id: number) => Promise<boolean>
 }
 
-export function TaskDetailPage({ taskId, onBack, onEdit, onComplete }: TaskDetailPageProps) {
+export function TaskDetailPage({ taskId, refreshToken = 0, onBack, onEdit, onComplete }: TaskDetailPageProps) {
   const [task, setTask] = useState<Task | null>(null)
   const [completions, setCompletions] = useState<TaskCompletion[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isCompletionsLoading, setIsCompletionsLoading] = useState(true)
+  const [isCompleting, setIsCompleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [viewMonth, setViewMonth] = useState(() => {
@@ -89,7 +91,7 @@ export function TaskDetailPage({ taskId, onBack, onEdit, onComplete }: TaskDetai
 
     fetchTask()
     return () => { active = false }
-  }, [taskId])
+  }, [taskId, refreshToken])
 
   useEffect(() => {
     let active = true
@@ -113,7 +115,7 @@ export function TaskDetailPage({ taskId, onBack, onEdit, onComplete }: TaskDetai
 
     fetchMonthCompletions()
     return () => { active = false }
-  }, [taskId, viewMonth])
+  }, [taskId, viewMonth, refreshToken])
 
   useEffect(() => {
     if (!selectedDateKey) return
@@ -123,22 +125,29 @@ export function TaskDetailPage({ taskId, onBack, onEdit, onComplete }: TaskDetai
   }, [monthPrefix, selectedDateKey])
 
   const handleComplete = async () => {
+    if (isCompleting) return
+
     setActionError(null)
-    const ok = await onComplete(taskId)
-    if (!ok) {
-      setActionError('완료 처리 후 상세 정보를 갱신하지 못했습니다.')
-      return
+    setIsCompleting(true)
+    try {
+      const ok = await onComplete(taskId)
+      if (!ok) {
+        setActionError('완료 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.')
+        return
+      }
+
+      const year = viewMonth.getFullYear()
+      const month = viewMonth.getMonth() + 1
+      const [taskRes, completionsRes] = await Promise.all([
+        tasksApi.getById(taskId),
+        tasksApi.getCompletions(taskId, { year, month }),
+      ])
+
+      if (taskRes.success && taskRes.data) setTask(taskRes.data)
+      if (completionsRes.success && completionsRes.data) setCompletions(completionsRes.data)
+    } finally {
+      setIsCompleting(false)
     }
-
-    const year = viewMonth.getFullYear()
-    const month = viewMonth.getMonth() + 1
-    const [taskRes, completionsRes] = await Promise.all([
-      tasksApi.getById(taskId),
-      tasksApi.getCompletions(taskId, { year, month }),
-    ])
-
-    if (taskRes.success && taskRes.data) setTask(taskRes.data)
-    if (completionsRes.success && completionsRes.data) setCompletions(completionsRes.data)
   }
 
   if (isLoading) {
@@ -168,14 +177,20 @@ export function TaskDetailPage({ taskId, onBack, onEdit, onComplete }: TaskDetai
               type="button"
               className="btn-complete detail-page__action-btn detail-page__action-btn--complete"
               onClick={handleComplete}
+              disabled={isCompleting}
+              aria-disabled={isCompleting}
+              title={isCompleting ? '완료 처리 중입니다.' : undefined}
             >
-              완료
+              {isCompleting ? '처리 중...' : '완료'}
             </button>
           )}
           <button
             type="button"
             className="btn-edit detail-page__action-btn detail-page__action-btn--edit"
             onClick={() => onEdit(task)}
+            disabled={isCompleting}
+            aria-disabled={isCompleting}
+            title={isCompleting ? '완료 처리 중에는 수정할 수 없습니다.' : undefined}
           >
             수정
           </button>
