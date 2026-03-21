@@ -134,13 +134,15 @@ function App() {
               <div>
                 <h2>현재 Task</h2>
               </div>
-              <button
-                type="button"
-                className={`btn-secondary section-header__task-toggle ${showForm ? 'section-header__task-toggle--active' : ''}`}
-                onClick={() => setShowForm((v) => !v)}
-              >
-                {showForm ? '닫기' : '+ 새 Task'}
-              </button>
+              {!showForm && (
+                <button
+                  type="button"
+                  className="btn-secondary section-header__task-toggle"
+                  onClick={() => setShowForm(true)}
+                >
+                  + 새 Task
+                </button>
+              )}
             </div>
             <TaskSection
               tasks={tasks}
