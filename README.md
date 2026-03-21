@@ -70,6 +70,17 @@ Base URL: `/api`
 
 Swagger UI: `http://localhost:8080/swagger-ui/index.html`
 
+## 운영 관측성(Observability)
+
+- Health: `/actuator/health`
+- Metrics: `/actuator/metrics`
+- Prometheus: `/actuator/prometheus`
+
+핵심 지표는 `http.server.requests`를 통해 확인할 수 있습니다.
+- 요청량: count
+- 에러율: status 태그(4xx/5xx) 기준 비율
+- 응답시간: max/percentile/histogram
+
 ## 로컬 실행
 
 ### 1. DB만 Docker로 실행
