@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { extractErrorMessage } from '../api/client'
 import { tasksApi } from '../api/tasks'
 import { formatDate, formatDateTime } from '../lib/utils'
@@ -18,6 +18,53 @@ export function TaskDetailPage({ taskId, onBack, onEdit, onComplete }: TaskDetai
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [viewMonth, setViewMonth] = useState(() => {
+    const now = new Date()
+    return new Date(now.getFullYear(), now.getMonth(), 1)
+  })
+  const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null)
+
+  const toKstDateKey = (dateTime: string): string =>
+    new Date(dateTime).toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' })
+
+  const completionsByDate = useMemo(() => {
+    const grouped = new Map<string, TaskCompletion[]>()
+    for (const completion of completions) {
+      const key = toKstDateKey(completion.completedAt)
+      const bucket = grouped.get(key)
+      if (bucket) {
+        bucket.push(completion)
+      } else {
+        grouped.set(key, [completion])
+      }
+    }
+    return grouped
+  }, [completions])
+
+  const monthPrefix = useMemo(
+    () => `${viewMonth.getFullYear()}-${String(viewMonth.getMonth() + 1).padStart(2, '0')}`,
+    [viewMonth]
+  )
+
+  const daysInMonth = useMemo(
+    () => new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 0).getDate(),
+    [viewMonth]
+  )
+
+  const leadingBlanks = useMemo(
+    () => new Date(viewMonth.getFullYear(), viewMonth.getMonth(), 1).getDay(),
+    [viewMonth]
+  )
+
+  const calendarDays = useMemo(
+    () => Array.from({ length: daysInMonth }, (_, i) => i + 1),
+    [daysInMonth]
+  )
+
+  const selectedCompletions = useMemo(
+    () => (selectedDateKey ? completionsByDate.get(selectedDateKey) ?? [] : []),
+    [completionsByDate, selectedDateKey]
+  )
 
   useEffect(() => {
     let active = true
@@ -53,6 +100,13 @@ export function TaskDetailPage({ taskId, onBack, onEdit, onComplete }: TaskDetai
     fetchDetail()
     return () => { active = false }
   }, [taskId])
+
+  useEffect(() => {
+    if (!selectedDateKey) return
+    if (!selectedDateKey.startsWith(monthPrefix)) {
+      setSelectedDateKey(null)
+    }
+  }, [monthPrefix, selectedDateKey])
 
   const handleComplete = async () => {
     setActionError(null)
@@ -94,11 +148,19 @@ export function TaskDetailPage({ taskId, onBack, onEdit, onComplete }: TaskDetai
         </button>
         <div className="detail-page__actions">
           {task.isActive && (
-            <button type="button" className="btn-complete" onClick={handleComplete}>
+            <button
+              type="button"
+              className="btn-complete detail-page__action-btn detail-page__action-btn--complete"
+              onClick={handleComplete}
+            >
               완료
             </button>
           )}
-          <button type="button" className="btn-edit" onClick={() => onEdit(task)}>
+          <button
+            type="button"
+            className="btn-edit detail-page__action-btn detail-page__action-btn--edit"
+            onClick={() => onEdit(task)}
+          >
             수정
           </button>
         </div>
@@ -127,20 +189,81 @@ export function TaskDetailPage({ taskId, onBack, onEdit, onComplete }: TaskDetai
         </section>
 
         <section className="detail-card">
-          <h3>완료 이력</h3>
-          {completions.length === 0 ? (
-            <p className="section-state">아직 완료 이력이 없습니다.</p>
-          ) : (
-            <ul className="detail-history">
-              {completions.map((completion) => (
-                <li key={completion.id} className="detail-history__item">
-                  <strong>{formatDateTime(completion.completedAt)} 완료</strong>
-                  <span>이전 예정 {formatDateTime(completion.previousDueAt)}</span>
-                  <span>다음 예정 {formatDateTime(completion.nextDueAt)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
+          <div className="detail-card__title-row">
+            <h3>완료 달력</h3>
+            <div className="detail-calendar__nav">
+              <button
+                type="button"
+                className="btn-secondary detail-calendar__nav-btn"
+                onClick={() => setViewMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
+              >
+                이전
+              </button>
+              <strong>{viewMonth.getFullYear()}년 {viewMonth.getMonth() + 1}월</strong>
+              <button
+                type="button"
+                className="btn-secondary detail-calendar__nav-btn"
+                onClick={() => setViewMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
+              >
+                다음
+              </button>
+            </div>
+          </div>
+
+          <div className="detail-calendar">
+            {['일', '월', '화', '수', '목', '금', '토'].map((weekday) => (
+              <span key={weekday} className="detail-calendar__weekday">{weekday}</span>
+            ))}
+
+            {Array.from({ length: leadingBlanks }).map((_, idx) => (
+              <span key={`blank-${idx}`} className="detail-calendar__blank" />
+            ))}
+
+            {calendarDays.map((day) => {
+              const dateKey = `${monthPrefix}-${String(day).padStart(2, '0')}`
+              const completionCount = completionsByDate.get(dateKey)?.length ?? 0
+              const isSelected = selectedDateKey === dateKey
+
+              return (
+                <button
+                  key={dateKey}
+                  type="button"
+                  className={`detail-calendar__day ${completionCount > 0 ? 'detail-calendar__day--has-data' : ''} ${isSelected ? 'detail-calendar__day--selected' : ''}`}
+                  onClick={() => setSelectedDateKey(dateKey)}
+                >
+                  <span>{day}</span>
+                  {completionCount > 0 && (
+                    <span className="detail-calendar__dot">
+                      {completionCount > 1 ? completionCount : ''}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="detail-calendar__selected">
+            {!selectedDateKey ? (
+              <p className="section-state">날짜를 선택하면 완료 이력을 확인할 수 있습니다.</p>
+            ) : selectedCompletions.length === 0 ? (
+              <p className="section-state">선택한 날짜에 완료 기록이 없습니다.</p>
+            ) : (
+              <>
+                <p className="detail-calendar__selected-title">
+                  {new Date(`${selectedDateKey}T00:00:00`).toLocaleDateString('ko-KR')} 완료 이력
+                </p>
+                <ul className="detail-history">
+                  {selectedCompletions.map((completion) => (
+                    <li key={completion.id} className="detail-history__item">
+                      <strong>{formatDateTime(completion.completedAt)} 완료</strong>
+                      <span>이전 예정 {formatDateTime(completion.previousDueAt)}</span>
+                      <span>다음 예정 {formatDateTime(completion.nextDueAt)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
         </section>
       </div>
     </section>
