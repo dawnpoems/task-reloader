@@ -11,12 +11,18 @@ import com.yegkim.task_reloader_api.task.dto.RecentTaskCompletionResponse;
 import com.yegkim.task_reloader_api.task.dto.TaskCompletionResponse;
 import com.yegkim.task_reloader_api.task.dto.UpdateTaskRequest;
 import com.yegkim.task_reloader_api.task.dto.TaskResponse;
+import com.yegkim.task_reloader_api.task.event.TaskCompleteRejectedEvent;
+import com.yegkim.task_reloader_api.task.event.TaskCompletedEvent;
+import com.yegkim.task_reloader_api.task.event.TaskCreatedEvent;
+import com.yegkim.task_reloader_api.task.event.TaskDeletedEvent;
+import com.yegkim.task_reloader_api.task.event.TaskUpdatedEvent;
 import com.yegkim.task_reloader_api.task.entity.TaskCompletion;
 import com.yegkim.task_reloader_api.task.entity.Task;
 import com.yegkim.task_reloader_api.task.entity.TaskStatus;
 import com.yegkim.task_reloader_api.task.repository.TaskCompletionRepository;
 import com.yegkim.task_reloader_api.task.repository.TaskRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,6 +51,7 @@ public class TaskService {
     private final TaskMapper taskMapper;
     private final TaskStatusResolver taskStatusResolver;
     private final Clock clock;
+    private final ApplicationEventPublisher eventPublisher;
 
     public List<TaskResponse> findAll() {
         TimeWindow window = currentWindow();
@@ -153,6 +160,7 @@ public class TaskService {
     public TaskResponse create(CreateTaskRequest request) {
         Task task = taskMapper.toEntity(request);
         Task saved = taskRepository.save(task);
+        eventPublisher.publishEvent(new TaskCreatedEvent(saved.getId(), saved.getEveryNDays(), saved.getIsActive()));
         return withStatus(taskMapper.toResponse(saved), saved, currentWindow());
     }
 
@@ -161,6 +169,9 @@ public class TaskService {
         Task task = taskRepository.findById(id)
                 .orElseThrow(() -> new TaskNotFoundException(id));
         task.update(request.getName(), request.getEveryNDays(), request.getIsActive(), request.getStartDate());
+        eventPublisher.publishEvent(
+                new TaskUpdatedEvent(task.getId(), task.getEveryNDays(), task.getIsActive(), task.getStartDate())
+        );
         return withStatus(taskMapper.toResponse(task), task, currentWindow());
     }
 
@@ -169,6 +180,7 @@ public class TaskService {
         Task task = taskRepository.findById(id)
                 .orElseThrow(() -> new TaskNotFoundException(id));
         taskRepository.delete(task);
+        eventPublisher.publishEvent(new TaskDeletedEvent(id));
     }
 
     private static final long COMPLETE_COOLDOWN_SECONDS = 2;
@@ -179,6 +191,7 @@ public class TaskService {
                 .orElseThrow(() -> new TaskNotFoundException(id));
 
         if (!task.getIsActive()) {
+            eventPublisher.publishEvent(new TaskCompleteRejectedEvent(id, "inactive"));
             throw new TaskInactiveException(id);
         }
 
@@ -187,6 +200,7 @@ public class TaskService {
 
         if (task.getLastCompletedAt() != null
                 && Duration.between(task.getLastCompletedAt().toInstant(), now).toSeconds() < COMPLETE_COOLDOWN_SECONDS) {
+            eventPublisher.publishEvent(new TaskCompleteRejectedEvent(id, "cooldown"));
             throw new TaskRecentlyCompletedException(id);
         }
 
@@ -197,6 +211,9 @@ public class TaskService {
                 .previousDueAt(previousDueAt)
                 .nextDueAt(task.getNextDueAt())
                 .build());
+        eventPublisher.publishEvent(
+                new TaskCompletedEvent(task.getId(), task.getCompletedAt(), previousDueAt, task.getNextDueAt())
+        );
         return withStatus(taskMapper.toResponse(task), task, currentWindow());
     }
 

@@ -10,13 +10,18 @@ interface UseInsightsReturn {
   refetch: () => Promise<void>
 }
 
-export function useInsights(): UseInsightsReturn {
+export function useInsights(enabled = true): UseInsightsReturn {
   const [dashboard, setDashboard] = useState<DashboardSummary | null>(null)
   const [recentCompletions, setRecentCompletions] = useState<RecentTaskCompletion[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(enabled)
   const [error, setError] = useState<string | null>(null)
 
   const fetchInsights = useCallback(async () => {
+    if (!enabled) {
+      setIsLoading(false)
+      return
+    }
+
     setIsLoading(true)
     setError(null)
 
@@ -29,22 +34,26 @@ export function useInsights(): UseInsightsReturn {
       setDashboard(dashboardRes.data)
     } else {
       setDashboard(null)
-      setError('대시보드를 불러오지 못했습니다.')
+      setError('인사이트를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.')
     }
 
     if (recentRes.success && recentRes.data) {
       setRecentCompletions(recentRes.data)
     } else {
       setRecentCompletions([])
-      setError((prev) => prev ?? '최근 완료 작업을 불러오지 못했습니다.')
+      setError((prev) => prev ?? '최근 완료 작업을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.')
     }
 
     setIsLoading(false)
-  }, [])
+  }, [enabled])
 
   useEffect(() => {
+    if (!enabled) {
+      setIsLoading(false)
+      return
+    }
     fetchInsights()
-  }, [fetchInsights])
+  }, [enabled, fetchInsights])
 
   return { dashboard, recentCompletions, isLoading, error, refetch: fetchInsights }
 }

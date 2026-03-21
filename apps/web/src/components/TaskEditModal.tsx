@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { tasksApi } from '../api/tasks'
 import { extractErrorMessage } from '../api/client'
 import { formatDateTime } from '../lib/utils'
@@ -36,6 +36,7 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
   const [completions, setCompletions] = useState<TaskCompletion[]>([])
   const [isLoadingCompletions, setIsLoadingCompletions] = useState(true)
   const [completionsError, setCompletionsError] = useState<string | null>(null)
+  const isBusy = isSubmitting || isDeleting
 
   useLayoutEffect(() => {
     const previousFocusTarget = previouslyFocusedElementRef.current
@@ -56,35 +57,32 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
     }
   }, [])
 
-  useEffect(() => {
-    let active = true
+  const fetchCompletions = useCallback(async () => {
+    setIsLoadingCompletions(true)
+    setCompletionsError(null)
 
-    const fetchCompletions = async () => {
-      setIsLoadingCompletions(true)
-      setCompletionsError(null)
-
-      const res = await tasksApi.getCompletions(task.id)
-      if (!active) return
-
-      if (res.success && res.data) {
-        setCompletions(res.data)
-      } else {
-        setCompletions([])
-        setCompletionsError(extractErrorMessage(res.error, '완료 이력을 불러오지 못했습니다.'))
-      }
-      setIsLoadingCompletions(false)
+    const res = await tasksApi.getCompletions(task.id)
+    if (res.success && res.data) {
+      setCompletions(res.data)
+    } else {
+      setCompletions([])
+      setCompletionsError(extractErrorMessage(res.error, '완료 이력을 불러오지 못했습니다. 다시 시도해 주세요.'))
     }
-
-    fetchCompletions()
-    return () => { active = false }
+    setIsLoadingCompletions(false)
   }, [task.id])
 
+  useEffect(() => {
+    fetchCompletions()
+  }, [fetchCompletions])
+
   const requestClose = () => {
+    if (isBusy) return
     onClose()
   }
 
   const handleModalKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Escape') {
+      if (isBusy) return
       e.preventDefault()
       requestClose()
       return
@@ -130,12 +128,13 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
     const ok = await onUpdate(task.id, { name: name.trim(), everyNDays, startDate: startDate || undefined })
     setIsSubmitting(false)
     if (ok) requestClose()
-    else setError('수정에 실패했습니다.')
+    else setError('수정에 실패했습니다. 잠시 후 다시 시도해 주세요.')
   }
 
   const handleDelete = async () => {
     const confirmed = window.confirm('정말 삭제할까요?')
     if (!confirmed) return
+    if (isSubmitting) return
 
     setIsDeleting(true)
     const ok = await onDelete(task.id)
@@ -157,11 +156,11 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
       >
         <div className="modal__header">
           <h2 id={titleId}>Task 수정</h2>
-          <button className="modal__close" onClick={requestClose} aria-label="닫기">✕</button>
+          <button className="modal__close" onClick={requestClose} aria-label="닫기" disabled={isBusy}>✕</button>
         </div>
 
         <form onSubmit={handleUpdate} className="modal__body">
-          {error && <p className="task-form__error">{error}</p>}
+          {error && <p className="task-form__error" role="alert" aria-live="assertive">{error}</p>}
 
           <div className="task-form__field">
             <label htmlFor="edit-name">이름 *</label>
@@ -172,7 +171,7 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
               ref={nameInputRef}
               autoFocus
               onChange={(e) => setName(e.target.value)}
-              disabled={isSubmitting}
+              disabled={isBusy}
             />
           </div>
 
@@ -184,7 +183,7 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
               min={1}
               value={everyNDays}
               onChange={(e) => setEveryNDays(Number(e.target.value))}
-              disabled={isSubmitting}
+              disabled={isBusy}
             />
           </div>
 
@@ -195,7 +194,7 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              disabled={isSubmitting}
+              disabled={isBusy}
             />
           </div>
 
@@ -204,7 +203,7 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
               type="button"
               className="btn-delete"
               onClick={handleDelete}
-              disabled={isDeleting || isSubmitting}
+              disabled={isBusy}
             >
               {isDeleting ? '삭제 중...' : '삭제'}
             </button>
@@ -213,11 +212,11 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
                 type="button"
                 className="btn-secondary"
                 onClick={requestClose}
-                disabled={isSubmitting || isDeleting}
+                disabled={isBusy}
               >
                 취소
               </button>
-              <button type="submit" disabled={isSubmitting || isDeleting}>
+              <button type="submit" disabled={isBusy}>
                 {isSubmitting ? '저장 중...' : '저장'}
               </button>
             </div>
@@ -233,7 +232,12 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
           {isLoadingCompletions ? (
             <p className="modal__history-state">불러오는 중...</p>
           ) : completionsError ? (
-            <p className="modal__history-error">{completionsError}</p>
+            <div>
+              <p className="modal__history-error" role="alert" aria-live="assertive">{completionsError}</p>
+              <button type="button" className="btn-secondary" onClick={fetchCompletions}>
+                다시 시도
+              </button>
+            </div>
           ) : completions.length === 0 ? (
             <p className="modal__history-state">아직 완료 이력이 없습니다.</p>
           ) : (

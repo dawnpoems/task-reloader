@@ -1,3 +1,4 @@
+import { ErrorNotice } from './ErrorNotice'
 import { DashboardSummaryCards } from './DashboardSummaryCards'
 import { RecentCompletionsSection } from './RecentCompletionsSection'
 import type { DashboardSummary, RecentTaskCompletion } from '../types/insights'
@@ -8,6 +9,7 @@ interface InsightsPageProps {
   isLoading: boolean
   error: string | null
   onOpenTask: (taskId: number) => void
+  onRetry: () => void
 }
 
 export function InsightsPage({
@@ -16,10 +18,13 @@ export function InsightsPage({
   isLoading,
   error,
   onOpenTask,
+  onRetry,
 }: InsightsPageProps) {
   return (
     <>
-      {error && <p className="app-error">{error}</p>}
+      {error && (
+        <ErrorNotice message={error} onRetry={onRetry} />
+      )}
       <DashboardSummaryCards dashboard={dashboard} isLoading={isLoading} />
       <RecentCompletionsSection
         recentCompletions={recentCompletions}

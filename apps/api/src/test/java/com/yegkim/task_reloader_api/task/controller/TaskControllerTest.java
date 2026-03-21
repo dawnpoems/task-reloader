@@ -6,6 +6,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.yegkim.task_reloader_api.common.exception.TaskInactiveException;
 import com.yegkim.task_reloader_api.common.exception.TaskNotFoundException;
 import com.yegkim.task_reloader_api.common.exception.TaskRecentlyCompletedException;
+import com.yegkim.task_reloader_api.common.web.RequestIdLoggingFilter;
 import com.yegkim.task_reloader_api.task.dto.CreateTaskRequest;
 import com.yegkim.task_reloader_api.task.dto.DashboardSummaryResponse;
 import com.yegkim.task_reloader_api.task.dto.RecentTaskCompletionResponse;
@@ -24,12 +25,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.http.converter.autoconfigure.HttpMessageConvertersAutoConfiguration;
 import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -46,6 +51,8 @@ import static org.mockito.Mockito.*;
 	JacksonAutoConfiguration.class,
 	HttpMessageConvertersAutoConfiguration.class
 })
+@Import(RequestIdLoggingFilter.class)
+@ExtendWith(OutputCaptureExtension.class)
 @DisplayName("TaskController 단위테스트")
 class TaskControllerTest {
 
@@ -108,6 +115,35 @@ class TaskControllerTest {
                 .andExpect(jsonPath("$.error").doesNotExist());
 
         verify(taskService, times(1)).findAll();
+    }
+
+    @Test
+    @DisplayName("Request ID 헤더 미전달 시 응답 헤더에 자동 생성")
+    void testRequestIdGeneratedWhenMissing() throws Exception {
+        when(taskService.findAll()).thenReturn(List.of(taskResponse));
+
+        mockMvc.perform(get("/api/tasks")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(header().exists(RequestIdLoggingFilter.REQUEST_ID_HEADER))
+                .andExpect(header().string(RequestIdLoggingFilter.REQUEST_ID_HEADER, not(isEmptyString())));
+    }
+
+    @Test
+    @DisplayName("Request ID 헤더 전달 시 동일 값을 응답 헤더와 access log에 사용")
+    void testRequestIdPropagatedAndLogged(CapturedOutput output) throws Exception {
+        when(taskService.findAll()).thenReturn(List.of(taskResponse));
+        String requestId = "test-req-123";
+
+        mockMvc.perform(get("/api/tasks")
+                        .header(RequestIdLoggingFilter.REQUEST_ID_HEADER, requestId)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(header().string(RequestIdLoggingFilter.REQUEST_ID_HEADER, requestId));
+
+        String logs = output.getOut();
+        org.assertj.core.api.Assertions.assertThat(logs).contains("access method=GET uri=/api/tasks status=200");
+        org.assertj.core.api.Assertions.assertThat(logs).contains("requestId=" + requestId);
     }
 
     @Test
@@ -185,6 +221,20 @@ class TaskControllerTest {
 
         verify(taskService, never()).findAll();
         verify(taskService, never()).findAll(any(TaskStatus.class));
+    }
+
+    @Test
+    @DisplayName("에러 응답에 requestId가 포함되고 헤더와 연계된다")
+    void testErrorResponseContainsRequestId() throws Exception {
+        String requestId = "err-req-777";
+
+        mockMvc.perform(get("/api/tasks").param("status", "INVALID")
+                        .header(RequestIdLoggingFilter.REQUEST_ID_HEADER, requestId)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().string(RequestIdLoggingFilter.REQUEST_ID_HEADER, requestId))
+                .andExpect(jsonPath("$.error.code", is("BAD_REQUEST")))
+                .andExpect(jsonPath("$.error.requestId", is(requestId)));
     }
 
     @Test
