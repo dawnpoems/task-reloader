@@ -4,6 +4,7 @@ import type { CreateTaskRequest } from '../types/task'
 interface TaskFormProps {
   onSubmit: (request: CreateTaskRequest) => Promise<boolean>
   onCancel?: () => void
+  hideTitle?: boolean
 }
 
 const todayDateInput = (): string => {
@@ -14,7 +15,7 @@ const todayDateInput = (): string => {
   return `${year}-${month}-${day}`
 }
 
-export function TaskForm({ onSubmit, onCancel }: TaskFormProps) {
+export function TaskForm({ onSubmit, onCancel, hideTitle = false }: TaskFormProps) {
   const [name, setName] = useState('')
   const [everyNDays, setEveryNDays] = useState(7)
   const [startDate, setStartDate] = useState(todayDateInput())
@@ -35,7 +36,7 @@ export function TaskForm({ onSubmit, onCancel }: TaskFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="task-form">
-      <h2>새 Task 추가</h2>
+      {!hideTitle && <h2>새 Task 추가</h2>}
       {error && <p className="task-form__error">{error}</p>}
 
       <div className="task-form__field">

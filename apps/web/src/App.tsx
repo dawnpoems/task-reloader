@@ -4,7 +4,7 @@ import { useInsights } from './hooks/useInsights'
 import { InsightsPage } from './components/InsightsPage'
 import { TaskSection } from './components/TaskSection'
 import { TaskDetailPage } from './components/TaskDetailPage'
-import { TaskForm } from './components/TaskForm'
+import { TaskCreateModal } from './components/TaskCreateModal'
 import { TaskEditModal } from './components/TaskEditModal'
 import { tasksApi } from './api/tasks'
 import { extractErrorMessage } from './api/client'
@@ -166,13 +166,6 @@ function App() {
       </header>
 
       <main className="app-main">
-        {!selectedTaskId && !isInsightsPage && showForm && (
-          <TaskForm
-            onSubmit={handleCreateTask}
-            onCancel={() => setShowForm(false)}
-          />
-        )}
-
         {error && <p className="app-error">{error}</p>}
         {toast && <p className="app-toast">{toast}</p>}
 
@@ -260,6 +253,12 @@ function App() {
           onUpdate={handleUpdateTask}
           onDelete={handleDeleteTask}
           onClose={() => setSelectedTask(null)}
+        />
+      )}
+      {!selectedTaskId && !isInsightsPage && showForm && (
+        <TaskCreateModal
+          onSubmit={handleCreateTask}
+          onClose={() => setShowForm(false)}
         />
       )}
     </div>
