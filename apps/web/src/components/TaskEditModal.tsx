@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { tasksApi } from '../api/tasks'
 import { extractErrorMessage } from '../api/client'
 import { formatDateTime } from '../lib/utils'
@@ -21,6 +21,12 @@ const todayDateInput = (): string => {
 }
 
 export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditModalProps) {
+  const titleId = useId()
+  const modalRef = useRef<HTMLDivElement | null>(null)
+  const nameInputRef = useRef<HTMLInputElement | null>(null)
+  const previouslyFocusedElementRef = useRef<HTMLElement | null>(
+    document.activeElement instanceof HTMLElement ? document.activeElement : null
+  )
   const [name, setName] = useState(task.name)
   const [everyNDays, setEveryNDays] = useState(task.everyNDays)
   const [startDate, setStartDate] = useState(task.startDate ?? todayDateInput())
@@ -30,6 +36,25 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
   const [completions, setCompletions] = useState<TaskCompletion[]>([])
   const [isLoadingCompletions, setIsLoadingCompletions] = useState(true)
   const [completionsError, setCompletionsError] = useState<string | null>(null)
+
+  useLayoutEffect(() => {
+    const previousFocusTarget = previouslyFocusedElementRef.current
+    const rafId = window.requestAnimationFrame(() => {
+      nameInputRef.current?.focus()
+    })
+    const timeoutId = window.setTimeout(() => {
+      nameInputRef.current?.focus()
+    }, 60)
+
+    return () => {
+      window.cancelAnimationFrame(rafId)
+      window.clearTimeout(timeoutId)
+      if (!previousFocusTarget) return
+      window.requestAnimationFrame(() => {
+        previousFocusTarget.focus()
+      })
+    }
+  }, [])
 
   useEffect(() => {
     let active = true
@@ -54,6 +79,48 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
     return () => { active = false }
   }, [task.id])
 
+  const requestClose = () => {
+    onClose()
+  }
+
+  const handleModalKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      requestClose()
+      return
+    }
+
+    if (e.key !== 'Tab') return
+
+    const modalEl = modalRef.current
+    if (!modalEl) return
+
+    const focusables = Array.from(
+      modalEl.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )
+    ).filter((el) => !el.hasAttribute('disabled') && el.tabIndex >= 0)
+
+    if (focusables.length === 0) return
+
+    const first = focusables[0]
+    const last = focusables[focusables.length - 1]
+    const active = document.activeElement as HTMLElement | null
+
+    if (e.shiftKey) {
+      if (active === first || !modalEl.contains(active)) {
+        e.preventDefault()
+        last.focus()
+      }
+      return
+    }
+
+    if (active === last) {
+      e.preventDefault()
+      first.focus()
+    }
+  }
+
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim()) { setError('이름을 입력해 주세요.'); return }
@@ -62,7 +129,7 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
     setError(null)
     const ok = await onUpdate(task.id, { name: name.trim(), everyNDays, startDate: startDate || undefined })
     setIsSubmitting(false)
-    if (ok) onClose()
+    if (ok) requestClose()
     else setError('수정에 실패했습니다.')
   }
 
@@ -73,16 +140,24 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
     setIsDeleting(true)
     const ok = await onDelete(task.id)
     setIsDeleting(false)
-    if (ok) onClose()
+    if (ok) requestClose()
   }
 
   return (
     // 백드롭 클릭 시 닫기
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-backdrop" onClick={requestClose}>
+      <div
+        ref={modalRef}
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={handleModalKeyDown}
+      >
         <div className="modal__header">
-          <h2>Task 수정</h2>
-          <button className="modal__close" onClick={onClose} aria-label="닫기">✕</button>
+          <h2 id={titleId}>Task 수정</h2>
+          <button className="modal__close" onClick={requestClose} aria-label="닫기">✕</button>
         </div>
 
         <form onSubmit={handleUpdate} className="modal__body">
@@ -94,6 +169,8 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
               id="edit-name"
               type="text"
               value={name}
+              ref={nameInputRef}
+              autoFocus
               onChange={(e) => setName(e.target.value)}
               disabled={isSubmitting}
             />
@@ -135,7 +212,7 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
               <button
                 type="button"
                 className="btn-secondary"
-                onClick={onClose}
+                onClick={requestClose}
                 disabled={isSubmitting || isDeleting}
               >
                 취소
