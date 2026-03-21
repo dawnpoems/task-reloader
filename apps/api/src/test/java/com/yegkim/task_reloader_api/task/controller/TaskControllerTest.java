@@ -160,6 +160,21 @@ class TaskControllerTest {
     }
 
     @Test
+    @DisplayName("전체 작업 목록 조회 - status=DUE_NOW이면 findDueNow() 호출")
+    void testFindAllWithStatusDueNow() throws Exception {
+        when(taskService.findDueNow()).thenReturn(List.of(taskResponse));
+
+        mockMvc.perform(get("/api/tasks").param("status", "DUE_NOW")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.data", hasSize(1)));
+
+        verify(taskService, times(1)).findDueNow();
+        verify(taskService, never()).findAll(any(TaskStatus.class));
+    }
+
+    @Test
     @DisplayName("전체 작업 목록 조회 - 잘못된 status 값이면 400")
     void testFindAllWithInvalidStatus() throws Exception {
         mockMvc.perform(get("/api/tasks").param("status", "INVALID")

@@ -64,6 +64,19 @@ public class TaskService {
                 .toList();
     }
 
+    public List<TaskResponse> findDueNow() {
+        List<Task> tasks = taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc();
+        TimeWindow window = currentWindow();
+        return tasks.stream()
+                .filter(task -> {
+                    TaskStatus status = taskStatusResolver.resolve(task.getNextDueAt().toInstant(), window);
+                    return status == TaskStatus.OVERDUE || status == TaskStatus.TODAY;
+                })
+                .sorted(BY_NEXT_DUE_AT_ASC)
+                .map(task -> withStatus(taskMapper.toResponse(task), task, window))
+                .toList();
+    }
+
     public TaskResponse findById(Long id) {
         Task task = taskRepository.findById(id)
                 .orElseThrow(() -> new TaskNotFoundException(id));

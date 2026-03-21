@@ -179,6 +179,35 @@ class TaskServiceTest {
     }
 
     @Test
+    @DisplayName("DUE_NOW 조회 - OVERDUE와 TODAY를 함께 반환하고 status 포함")
+    void testFindDueNow() {
+        OffsetDateTime now = OffsetDateTime.now();
+        Task overdueTask = Task.builder().id(1L).name("Overdue Task").everyNDays(1)
+                .nextDueAt(now.minusDays(2)).isActive(true).build();
+        Task todayTask = Task.builder().id(2L).name("Today Task").everyNDays(1)
+                .nextDueAt(now).isActive(true).build();
+        Task upcomingTask = Task.builder().id(3L).name("Upcoming Task").everyNDays(1)
+                .nextDueAt(now.plusDays(2)).isActive(true).build();
+
+        TaskResponse overdueResponse = TaskResponse.builder().id(1L).name("Overdue Task").build();
+        TaskResponse todayResponse = TaskResponse.builder().id(2L).name("Today Task").build();
+
+        when(taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc()).thenReturn(List.of(overdueTask, todayTask, upcomingTask));
+        when(taskStatusResolver.resolve(eq(overdueTask.getNextDueAt().toInstant()), any())).thenReturn(TaskStatus.OVERDUE);
+        when(taskStatusResolver.resolve(eq(todayTask.getNextDueAt().toInstant()), any())).thenReturn(TaskStatus.TODAY);
+        when(taskStatusResolver.resolve(eq(upcomingTask.getNextDueAt().toInstant()), any())).thenReturn(TaskStatus.UPCOMING);
+        when(taskMapper.toResponse(overdueTask)).thenReturn(overdueResponse);
+        when(taskMapper.toResponse(todayTask)).thenReturn(todayResponse);
+
+        List<TaskResponse> result = taskService.findDueNow();
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).getStatus()).isEqualTo(TaskStatus.OVERDUE);
+        assertThat(result.get(1).getStatus()).isEqualTo(TaskStatus.TODAY);
+        verify(taskMapper, never()).toResponse(upcomingTask);
+    }
+
+    @Test
     @DisplayName("status 필터링 - 해당 상태의 작업이 없으면 빈 리스트 반환")
     void testFindAllWithStatusReturnsEmpty() {
         // given

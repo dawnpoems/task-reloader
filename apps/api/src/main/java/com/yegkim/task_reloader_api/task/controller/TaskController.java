@@ -28,11 +28,14 @@ public class TaskController {
     @Operation(summary = "작업 목록 조회")
     @GetMapping
     public ApiResponse<List<TaskResponse>> findAll(
-            @Parameter(description = "상태 필터 (ALL | OVERDUE | TODAY | UPCOMING)")
+            @Parameter(description = "상태 필터 (ALL | DUE_NOW | OVERDUE | TODAY | UPCOMING)")
             @RequestParam(defaultValue = "ALL") String status
     ) {
         if ("ALL".equalsIgnoreCase(status)) {
             return ApiResponse.success(taskService.findAll());
+        }
+        if ("DUE_NOW".equalsIgnoreCase(status)) {
+            return ApiResponse.success(taskService.findDueNow());
         }
         TaskStatus taskStatus = parseStatus(status);
         return ApiResponse.success(taskService.findAll(taskStatus));
@@ -43,7 +46,7 @@ public class TaskController {
             return TaskStatus.valueOf(status.toUpperCase());
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException(
-                    String.format("'%s'은(는) 올바르지 않은 status 값입니다. (ALL | OVERDUE | TODAY | UPCOMING)", status)
+                    String.format("'%s'은(는) 올바르지 않은 status 값입니다. (ALL | DUE_NOW | OVERDUE | TODAY | UPCOMING)", status)
             );
         }
     }
