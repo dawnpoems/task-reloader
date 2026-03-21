@@ -26,7 +26,6 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
   const [startDate, setStartDate] = useState(task.startDate ?? todayDateInput())
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [completions, setCompletions] = useState<TaskCompletion[]>([])
   const [isLoadingCompletions, setIsLoadingCompletions] = useState(true)
@@ -68,6 +67,9 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
   }
 
   const handleDelete = async () => {
+    const confirmed = window.confirm('정말 삭제할까요?')
+    if (!confirmed) return
+
     setIsDeleting(true)
     const ok = await onDelete(task.id)
     setIsDeleting(false)
@@ -123,15 +125,25 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
           <div className="modal__actions">
             <button
               type="button"
-              className="btn-secondary"
-              onClick={onClose}
-              disabled={isSubmitting}
+              className="btn-delete"
+              onClick={handleDelete}
+              disabled={isDeleting || isSubmitting}
             >
-              취소
+              {isDeleting ? '삭제 중...' : '삭제'}
             </button>
-            <button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? '저장 중...' : '저장'}
-            </button>
+            <div className="modal__actions-main">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={onClose}
+                disabled={isSubmitting || isDeleting}
+              >
+                취소
+              </button>
+              <button type="submit" disabled={isSubmitting || isDeleting}>
+                {isSubmitting ? '저장 중...' : '저장'}
+              </button>
+            </div>
           </div>
         </form>
 
@@ -163,36 +175,6 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
             </ul>
           )}
         </section>
-
-        <div className="modal__danger-zone">
-          {!confirmDelete ? (
-            <button
-              className="btn-delete"
-              onClick={() => setConfirmDelete(true)}
-              disabled={isDeleting}
-            >
-              삭제
-            </button>
-          ) : (
-            <div className="modal__confirm-delete">
-              <span>정말 삭제할까요?</span>
-              <button
-                className="btn-delete"
-                onClick={handleDelete}
-                disabled={isDeleting}
-              >
-                {isDeleting ? '삭제 중...' : '확인'}
-              </button>
-              <button
-                className="btn-secondary"
-                onClick={() => setConfirmDelete(false)}
-                disabled={isDeleting}
-              >
-                취소
-              </button>
-            </div>
-          )}
-        </div>
       </div>
     </div>
   )

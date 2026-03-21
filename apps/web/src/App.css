@@ -381,9 +381,24 @@
 
 .modal__actions {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  width: 100%;
+}
+
+.modal__actions-main {
+  display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
-  margin-top: 0.5rem;
+}
+
+.modal__actions .btn-delete,
+.modal__actions .btn-secondary,
+.modal__actions button[type="submit"] {
+  min-height: 2.35rem;
+  padding: 0.5rem 0.95rem;
+  font-size: 0.9rem;
 }
 
 .modal__history {
@@ -855,6 +870,24 @@
     flex-wrap: wrap;
     justify-content: flex-start;
   }
+  .detail-page__header {
+    width: 100%;
+    gap: 0.65rem;
+  }
+  .detail-page__actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+  .detail-page__action-btn {
+    width: 100%;
+    min-width: 0;
+    min-height: 2.8rem;
+  }
+  .detail-page__actions > .detail-page__action-btn:only-child {
+    grid-column: 1 / -1;
+  }
   .detail-card__title-row {
     flex-direction: column;
     align-items: flex-start;
@@ -862,5 +895,18 @@
   .detail-calendar__nav {
     width: 100%;
     justify-content: space-between;
+    gap: 0.6rem;
+  }
+  .detail-calendar__nav-btn {
+    min-height: 2.35rem;
+    min-width: 4.1rem;
+    padding: 0.45rem 0.8rem;
+    font-size: 0.86rem;
+    border-radius: 9px;
+  }
+  .detail-calendar__nav strong {
+    flex: 1;
+    text-align: center;
+    font-size: 0.9rem;
   }
 }
