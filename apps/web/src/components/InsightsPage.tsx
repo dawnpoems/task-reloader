@@ -8,6 +8,7 @@ interface InsightsPageProps {
   isLoading: boolean
   error: string | null
   onOpenTask: (taskId: number) => void
+  onRetry: () => void
 }
 
 export function InsightsPage({
@@ -16,10 +17,18 @@ export function InsightsPage({
   isLoading,
   error,
   onOpenTask,
+  onRetry,
 }: InsightsPageProps) {
   return (
     <>
-      {error && <p className="app-error">{error}</p>}
+      {error && (
+        <div className="app-error" role="alert" aria-live="assertive">
+          <p>{error}</p>
+          <button type="button" className="btn-secondary" onClick={onRetry}>
+            다시 시도
+          </button>
+        </div>
+      )}
       <DashboardSummaryCards dashboard={dashboard} isLoading={isLoading} />
       <RecentCompletionsSection
         recentCompletions={recentCompletions}

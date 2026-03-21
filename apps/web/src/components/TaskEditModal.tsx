@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { tasksApi } from '../api/tasks'
 import { extractErrorMessage } from '../api/client'
 import { formatDateTime } from '../lib/utils'
@@ -57,28 +57,23 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
     }
   }, [])
 
-  useEffect(() => {
-    let active = true
+  const fetchCompletions = useCallback(async () => {
+    setIsLoadingCompletions(true)
+    setCompletionsError(null)
 
-    const fetchCompletions = async () => {
-      setIsLoadingCompletions(true)
-      setCompletionsError(null)
-
-      const res = await tasksApi.getCompletions(task.id)
-      if (!active) return
-
-      if (res.success && res.data) {
-        setCompletions(res.data)
-      } else {
-        setCompletions([])
-        setCompletionsError(extractErrorMessage(res.error, '완료 이력을 불러오지 못했습니다.'))
-      }
-      setIsLoadingCompletions(false)
+    const res = await tasksApi.getCompletions(task.id)
+    if (res.success && res.data) {
+      setCompletions(res.data)
+    } else {
+      setCompletions([])
+      setCompletionsError(extractErrorMessage(res.error, '완료 이력을 불러오지 못했습니다. 다시 시도해 주세요.'))
     }
-
-    fetchCompletions()
-    return () => { active = false }
+    setIsLoadingCompletions(false)
   }, [task.id])
+
+  useEffect(() => {
+    fetchCompletions()
+  }, [fetchCompletions])
 
   const requestClose = () => {
     if (isBusy) return
@@ -133,7 +128,7 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
     const ok = await onUpdate(task.id, { name: name.trim(), everyNDays, startDate: startDate || undefined })
     setIsSubmitting(false)
     if (ok) requestClose()
-    else setError('수정에 실패했습니다.')
+    else setError('수정에 실패했습니다. 잠시 후 다시 시도해 주세요.')
   }
 
   const handleDelete = async () => {
@@ -165,7 +160,7 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
         </div>
 
         <form onSubmit={handleUpdate} className="modal__body">
-          {error && <p className="task-form__error">{error}</p>}
+          {error && <p className="task-form__error" role="alert" aria-live="assertive">{error}</p>}
 
           <div className="task-form__field">
             <label htmlFor="edit-name">이름 *</label>
@@ -237,7 +232,12 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
           {isLoadingCompletions ? (
             <p className="modal__history-state">불러오는 중...</p>
           ) : completionsError ? (
-            <p className="modal__history-error">{completionsError}</p>
+            <div>
+              <p className="modal__history-error" role="alert" aria-live="assertive">{completionsError}</p>
+              <button type="button" className="btn-secondary" onClick={fetchCompletions}>
+                다시 시도
+              </button>
+            </div>
           ) : completions.length === 0 ? (
             <p className="modal__history-state">아직 완료 이력이 없습니다.</p>
           ) : (

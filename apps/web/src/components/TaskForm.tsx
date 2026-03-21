@@ -37,7 +37,7 @@ export function TaskForm({ onSubmit, onCancel, hideTitle = false }: TaskFormProp
   return (
     <form onSubmit={handleSubmit} className="task-form">
       {!hideTitle && <h2>새 Task 추가</h2>}
-      {error && <p className="task-form__error">{error}</p>}
+      {error && <p className="task-form__error" role="alert" aria-live="assertive">{error}</p>}
 
       <div className="task-form__field">
         <label htmlFor="name">이름 *</label>

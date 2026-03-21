@@ -48,6 +48,7 @@ function App() {
   const selectedTaskId = getTaskIdFromPath(pathname)
   const isInsightsPage = pathname === INSIGHTS_PATH
   const isHomePage = pathname === '/'
+  const shouldShowGlobalError = isHomePage && !showForm && !selectedTask && !selectedTaskId
 
   const fetchUpcomingTasks = useCallback(async () => {
     setIsUpcomingLoading(true)
@@ -166,8 +167,15 @@ function App() {
       </header>
 
       <main className="app-main">
-        {error && <p className="app-error">{error}</p>}
-        {toast && <p className="app-toast">{toast}</p>}
+        {shouldShowGlobalError && error && (
+          <div className="app-error" role="alert" aria-live="assertive">
+            <p>{error}</p>
+            <button type="button" className="btn-secondary" onClick={refreshAll}>
+              다시 시도
+            </button>
+          </div>
+        )}
+        {toast && <p className="app-toast" role="status" aria-live="polite">{toast}</p>}
 
         {selectedTaskId ? (
           <TaskDetailPage
@@ -184,6 +192,7 @@ function App() {
             isLoading={isInsightsLoading}
             error={insightsError}
             onOpenTask={(taskId) => navigateTo(`/tasks/${taskId}`)}
+            onRetry={refetchInsights}
           />
         ) : isLoading ? (
           <p className="app-loading">불러오는 중...</p>
@@ -203,7 +212,7 @@ function App() {
                 </button>
               )}
             </div>
-            {dueNowTasks.length === 0 ? (
+            {error ? null : dueNowTasks.length === 0 ? (
               <p className="today-all-done">오늘 할일을 모두 마쳤어요!</p>
             ) : (
               <TaskSection
@@ -227,7 +236,14 @@ function App() {
 
               {isUpcomingOpen && (
                 <div className="section-collapse__content">
-                  {upcomingError && <p className="app-error">{upcomingError}</p>}
+                  {upcomingError && (
+                    <div className="app-error" role="alert" aria-live="assertive">
+                      <p>{upcomingError}</p>
+                      <button type="button" className="btn-secondary" onClick={fetchUpcomingTasks}>
+                        다시 시도
+                      </button>
+                    </div>
+                  )}
                   {isUpcomingLoading ? (
                     <p className="app-loading">남은 일정을 불러오는 중...</p>
                   ) : (

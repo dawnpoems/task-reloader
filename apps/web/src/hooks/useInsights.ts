@@ -29,14 +29,14 @@ export function useInsights(): UseInsightsReturn {
       setDashboard(dashboardRes.data)
     } else {
       setDashboard(null)
-      setError('대시보드를 불러오지 못했습니다.')
+      setError('인사이트를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.')
     }
 
     if (recentRes.success && recentRes.data) {
       setRecentCompletions(recentRes.data)
     } else {
       setRecentCompletions([])
-      setError((prev) => prev ?? '최근 완료 작업을 불러오지 못했습니다.')
+      setError((prev) => prev ?? '최근 완료 작업을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.')
     }
 
     setIsLoading(false)
