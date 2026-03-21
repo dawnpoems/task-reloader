@@ -29,6 +29,8 @@ function App() {
   const [isUpcomingLoaded, setIsUpcomingLoaded] = useState(false)
   const [isUpcomingLoading, setIsUpcomingLoading] = useState(false)
   const [upcomingError, setUpcomingError] = useState<string | null>(null)
+  const [completingTaskIds, setCompletingTaskIds] = useState<Set<number>>(new Set())
+  const [completedTaskIds, setCompletedTaskIds] = useState<Set<number>>(new Set())
 
   useEffect(() => {
     const handlePopState = () => setPathname(window.location.pathname)
@@ -98,9 +100,38 @@ function App() {
   }
 
   const handleCompleteTask = async (id: number) => {
-    const ok = await completeTask(id)
-    if (ok) await refreshAll()
-    return ok
+    setCompletingTaskIds((prev) => {
+      const next = new Set(prev)
+      next.add(id)
+      return next
+    })
+
+    try {
+      const ok = await completeTask(id)
+      if (ok) {
+        setCompletedTaskIds((prev) => {
+          const next = new Set(prev)
+          next.add(id)
+          return next
+        })
+
+        await new Promise((resolve) => setTimeout(resolve, 1150))
+        await refreshAll()
+      }
+      return ok
+    } finally {
+      setCompletingTaskIds((prev) => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
+      setCompletedTaskIds((prev) => {
+        if (!prev.has(id)) return prev
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
+    }
   }
 
   return (
@@ -162,7 +193,7 @@ function App() {
           <section className="insights-section">
             <div className="section-header">
               <div>
-                <h2>현재 Task</h2>
+                <h2>오늘 할 일</h2>
               </div>
               {!showForm && (
                 <button
@@ -174,12 +205,18 @@ function App() {
                 </button>
               )}
             </div>
-            <TaskSection
-              tasks={dueNowTasks}
-              onComplete={handleCompleteTask}
-              onEdit={setSelectedTask}
-              onView={(task) => navigateTo(`/tasks/${task.id}`)}
-            />
+            {dueNowTasks.length === 0 ? (
+              <p className="today-all-done">오늘 할일을 모두 마쳤어요!</p>
+            ) : (
+              <TaskSection
+                tasks={dueNowTasks}
+                onComplete={handleCompleteTask}
+                onEdit={setSelectedTask}
+                onView={(task) => navigateTo(`/tasks/${task.id}`)}
+                completingTaskIds={completingTaskIds}
+                completedTaskIds={completedTaskIds}
+              />
+            )}
 
             <div className="section-collapse">
               <button
@@ -201,6 +238,8 @@ function App() {
                       onComplete={handleCompleteTask}
                       onEdit={setSelectedTask}
                       onView={(task) => navigateTo(`/tasks/${task.id}`)}
+                      completingTaskIds={completingTaskIds}
+                      completedTaskIds={completedTaskIds}
                     />
                   )}
                 </div>

@@ -6,6 +6,8 @@ interface TaskSectionProps {
   onComplete: (id: number) => Promise<boolean>
   onEdit: (task: Task) => void
   onView: (task: Task) => void
+  completingTaskIds?: Set<number>
+  completedTaskIds?: Set<number>
 }
 
 const STATUS_LABEL: Record<TaskStatus, string> = {
@@ -20,51 +22,76 @@ const STATUS_CLASS: Record<TaskStatus, string> = {
   OVERDUE: 'task-card--overdue',
 }
 
-export function TaskSection({ tasks, onComplete, onEdit, onView }: TaskSectionProps) {
+export function TaskSection({
+  tasks,
+  onComplete,
+  onEdit,
+  onView,
+  completingTaskIds = new Set<number>(),
+  completedTaskIds = new Set<number>(),
+}: TaskSectionProps) {
   if (tasks.length === 0) {
     return <p className="task-section__empty">등록된 Task가 없습니다.</p>
   }
 
   return (
     <ul className="task-section">
-      {tasks.map((task) => (
-        <li key={task.id} className={`task-card ${STATUS_CLASS[task.status] ?? ''}`}>
-          <div className="task-card__layout">
-            <div className="task-card__content">
-              {/* 상단: 상태 배지 */}
-              <div className="task-card__top">
-                <span className="task-card__status-badge">{STATUS_LABEL[task.status] ?? task.status}</span>
+      {tasks.map((task) => {
+        const isJustCompleted = completedTaskIds.has(task.id)
+        return (
+          <li
+            key={task.id}
+            className={`task-card ${STATUS_CLASS[task.status] ?? ''} ${isJustCompleted ? 'task-card--completion-visible' : ''}`}
+          >
+            <div className="task-card__layout">
+              <div className="task-card__content">
+                {/* 상단: 상태 배지 */}
+                <div className="task-card__top">
+                  <span className="task-card__status-badge">{STATUS_LABEL[task.status] ?? task.status}</span>
+                </div>
+
+                {/* 메인: Task 이름 */}
+                <h3 className="task-card__title">{task.name}</h3>
+
+                {/* 다음 예정일 - 눈에 띄게 */}
+                <div className="task-card__due">
+                  <span className="task-card__due-label">다음 예정</span>
+                  <span className="task-card__due-date">{formatDate(task.nextDueAt)}</span>
+                </div>
+
+                {/* 부가 정보 - 구석에 작게 */}
+                <div className="task-card__meta">
+                  <span>매 {task.everyNDays}일마다</span>
+                  {task.startDate && <span>시작 {task.startDate}</span>}
+                  <span>생성 {formatDate(task.createdAt)}</span>
+                </div>
               </div>
 
-              {/* 메인: Task 이름 */}
-              <h3 className="task-card__title">{task.name}</h3>
-
-              {/* 다음 예정일 - 눈에 띄게 */}
-              <div className="task-card__due">
-                <span className="task-card__due-label">다음 예정</span>
-                <span className="task-card__due-date">{formatDate(task.nextDueAt)}</span>
-              </div>
-
-              {/* 부가 정보 - 구석에 작게 */}
-              <div className="task-card__meta">
-                <span>매 {task.everyNDays}일마다</span>
-                {task.startDate && <span>시작 {task.startDate}</span>}
-                <span>생성 {formatDate(task.createdAt)}</span>
+              <div className="task-card__actions-panel">
+                {task.isActive && (
+                  <button
+                    onClick={() => onComplete(task.id)}
+                    className="btn-complete"
+                    disabled={completingTaskIds.has(task.id)}
+                  >
+                    {completingTaskIds.has(task.id) ? '처리 중...' : '완료'}
+                  </button>
+                )}
+                <div className="task-card__utility-actions">
+                  <button onClick={() => onView(task)} className="btn-secondary btn-detail">상세</button>
+                  <button onClick={() => onEdit(task)} className="btn-edit">수정</button>
+                </div>
               </div>
             </div>
 
-            <div className="task-card__actions-panel">
-              {task.isActive && (
-                <button onClick={() => onComplete(task.id)} className="btn-complete">완료</button>
-              )}
-              <div className="task-card__utility-actions">
-                <button onClick={() => onView(task)} className="btn-secondary btn-detail">상세</button>
-                <button onClick={() => onEdit(task)} className="btn-edit">수정</button>
+            {isJustCompleted && (
+              <div className="task-card__complete-overlay">
+                <span>완료 처리됨</span>
               </div>
-            </div>
-          </div>
-        </li>
-      ))}
+            )}
+          </li>
+        )
+      })}
     </ul>
   )
 }

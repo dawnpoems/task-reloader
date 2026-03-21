@@ -72,7 +72,7 @@ export function useTasks(filter: TaskStatusFilter = 'ALL'): UseTasksReturn {
 
   const completeTask = async (id: number): Promise<boolean> => {
     const res = await tasksApi.complete(id)
-    if (res.success) { await fetchTasks(); setToastWithTimeout('완료 처리됐습니다 ✓'); return true }
+    if (res.success) { setToastWithTimeout('완료 처리됐습니다 ✓'); return true }
     setErrorWithTimeout(extractErrorMessage(res.error, 'Task 완료 처리에 실패했습니다.'))
     return false
   }
