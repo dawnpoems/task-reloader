@@ -5,9 +5,11 @@ import com.yegkim.task_reloader_api.common.exception.TaskNotFoundException;
 import com.yegkim.task_reloader_api.common.exception.TaskRecentlyCompletedException;
 import com.yegkim.task_reloader_api.task.dto.CreateTaskRequest;
 import com.yegkim.task_reloader_api.task.dto.DashboardSummaryResponse;
+import com.yegkim.task_reloader_api.task.dto.InsightsOverviewResponse;
 import com.yegkim.task_reloader_api.task.dto.RecentTaskCompletionResponse;
 import com.yegkim.task_reloader_api.task.dto.TaskCompletionResponse;
 import com.yegkim.task_reloader_api.task.dto.TaskResponse;
+import com.yegkim.task_reloader_api.task.dto.TaskTrendInsightResponse;
 import com.yegkim.task_reloader_api.task.dto.UpdateTaskRequest;
 import com.yegkim.task_reloader_api.task.entity.TaskCompletion;
 import com.yegkim.task_reloader_api.task.entity.Task;
@@ -459,6 +461,101 @@ class TaskServiceTest {
         assertThat(result.getUpcomingTasks()).isEqualTo(1);
         assertThat(result.getCompletedToday()).isEqualTo(2);
         assertThat(result.getCompletedLast7Days()).isEqualTo(8);
+    }
+
+    @Test
+    @DisplayName("인사이트 overview 조회 - 완료율/지연률/평균지연/리스크/작업추세를 계산")
+    void testGetInsightsOverviewSuccess() {
+        Instant fixedNow = Instant.parse("2026-03-25T00:00:00Z");
+        OffsetDateTime now = fixedNow.atOffset(ZoneOffset.UTC);
+
+        Task task1 = Task.builder()
+                .id(1L)
+                .name("Alpha")
+                .everyNDays(7)
+                .nextDueAt(now.minusDays(8))     // overdue 7일 초과
+                .lastCompletedAt(now.minusDays(2))
+                .isActive(true)
+                .build();
+        Task task2 = Task.builder()
+                .id(2L)
+                .name("Beta")
+                .everyNDays(7)
+                .nextDueAt(now.plusDays(1))
+                .lastCompletedAt(now.minusDays(40)) // 최근 30일 완료 없음
+                .isActive(true)
+                .build();
+        Task task3 = Task.builder()
+                .id(3L)
+                .name("Gamma")
+                .everyNDays(7)
+                .nextDueAt(now.plusDays(1))
+                .lastCompletedAt(now.minusDays(1))
+                .isActive(true)
+                .build();
+
+        TaskCompletion c1 = TaskCompletion.builder()
+                .id(101L)
+                .task(task1)
+                .completedAt(now.minusDays(1))
+                .previousDueAt(now.minusDays(2))
+                .nextDueAt(now.plusDays(6))
+                .build(); // delayed
+        TaskCompletion c2 = TaskCompletion.builder()
+                .id(102L)
+                .task(task2)
+                .completedAt(now.minusDays(2))
+                .previousDueAt(now.minusDays(2))
+                .nextDueAt(now.plusDays(5))
+                .build(); // on-time
+        TaskCompletion c3 = TaskCompletion.builder()
+                .id(103L)
+                .task(task1)
+                .completedAt(now.minusDays(3))
+                .previousDueAt(now.minusDays(4))
+                .nextDueAt(now.plusDays(4))
+                .build(); // delayed
+
+        when(clock.instant()).thenReturn(fixedNow);
+        when(taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc()).thenReturn(List.of(task1, task2, task3));
+        when(taskCompletionRepository.findByCompletedAtGreaterThanEqualAndCompletedAtLessThan(any(), any()))
+                .thenReturn(List.of(c1, c2, c3));
+
+        InsightsOverviewResponse result = taskService.getInsightsOverview(30, 5);
+
+        assertThat(result.getPeriodDays()).isEqualTo(30);
+        assertThat(result.getActiveTaskCount()).isEqualTo(3);
+        assertThat(result.getCompletedTaskCount()).isEqualTo(2);
+        assertThat(result.getCompletionCount()).isEqualTo(3);
+        assertThat(result.getDelayedCompletionCount()).isEqualTo(2);
+        assertThat(result.getCompletionRatePct()).isEqualTo(66.7);
+        assertThat(result.getDelayRatePct()).isEqualTo(66.7);
+        assertThat(result.getAverageDelayMinutes()).isEqualTo(1440.0);
+        assertThat(result.getRiskyTaskCount()).isEqualTo(2);
+
+        assertThat(result.getTaskTrends()).hasSize(2);
+        TaskTrendInsightResponse first = result.getTaskTrends().get(0);
+        assertThat(first.getTaskId()).isEqualTo(1L);
+        assertThat(first.getTaskName()).isEqualTo("Alpha");
+        assertThat(first.getCompletionCount()).isEqualTo(2);
+        assertThat(first.getDelayedCount()).isEqualTo(2);
+        assertThat(first.getDelayRatePct()).isEqualTo(100.0);
+    }
+
+    @Test
+    @DisplayName("인사이트 overview 조회 - days 범위를 벗어나면 예외")
+    void testGetInsightsOverviewInvalidDays() {
+        assertThatThrownBy(() -> taskService.getInsightsOverview(0, 5))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("days는 1~365");
+    }
+
+    @Test
+    @DisplayName("인사이트 overview 조회 - top 범위를 벗어나면 예외")
+    void testGetInsightsOverviewInvalidTop() {
+        assertThatThrownBy(() -> taskService.getInsightsOverview(30, 21))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("top은 1~20");
     }
 
     @Test

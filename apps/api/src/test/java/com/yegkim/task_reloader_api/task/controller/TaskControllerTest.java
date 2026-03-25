@@ -9,9 +9,11 @@ import com.yegkim.task_reloader_api.common.exception.TaskRecentlyCompletedExcept
 import com.yegkim.task_reloader_api.common.web.RequestIdLoggingFilter;
 import com.yegkim.task_reloader_api.task.dto.CreateTaskRequest;
 import com.yegkim.task_reloader_api.task.dto.DashboardSummaryResponse;
+import com.yegkim.task_reloader_api.task.dto.InsightsOverviewResponse;
 import com.yegkim.task_reloader_api.task.dto.RecentTaskCompletionResponse;
 import com.yegkim.task_reloader_api.task.dto.TaskCompletionResponse;
 import com.yegkim.task_reloader_api.task.dto.TaskResponse;
+import com.yegkim.task_reloader_api.task.dto.TaskTrendInsightResponse;
 import com.yegkim.task_reloader_api.task.dto.UpdateTaskRequest;
 import com.yegkim.task_reloader_api.task.entity.TaskStatus;
 import com.yegkim.task_reloader_api.task.service.TaskService;
@@ -360,6 +362,61 @@ class TaskControllerTest {
                 .andExpect(jsonPath("$.error").doesNotExist());
 
         verify(taskService, times(1)).findRecentCompletions();
+    }
+
+    @Test
+    @DisplayName("인사이트 overview 조회 - 성공")
+    void testGetInsightsOverviewSuccess() throws Exception {
+        InsightsOverviewResponse response = InsightsOverviewResponse.builder()
+                .periodDays(30)
+                .activeTaskCount(10)
+                .completedTaskCount(8)
+                .completionCount(20)
+                .delayedCompletionCount(5)
+                .completionRatePct(80.0)
+                .delayRatePct(25.0)
+                .averageDelayMinutes(120.5)
+                .riskyTaskCount(2)
+                .taskTrends(List.of(
+                        TaskTrendInsightResponse.builder()
+                                .taskId(1L)
+                                .taskName("Test Task")
+                                .completionCount(7)
+                                .delayedCount(2)
+                                .delayRatePct(28.6)
+                                .build()
+                ))
+                .build();
+
+        when(taskService.getInsightsOverview(30, 3)).thenReturn(response);
+
+        mockMvc.perform(get("/api/insights/overview")
+                        .param("days", "30")
+                        .param("top", "3")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.data.periodDays", is(30)))
+                .andExpect(jsonPath("$.data.completionRatePct", is(80.0)))
+                .andExpect(jsonPath("$.data.delayRatePct", is(25.0)))
+                .andExpect(jsonPath("$.data.taskTrends", hasSize(1)))
+                .andExpect(jsonPath("$.data.taskTrends[0].taskId", is(1)));
+
+        verify(taskService, times(1)).getInsightsOverview(30, 3);
+    }
+
+    @Test
+    @DisplayName("인사이트 overview 조회 - 유효하지 않은 days면 400")
+    void testGetInsightsOverviewInvalidDays() throws Exception {
+        when(taskService.getInsightsOverview(0, 5))
+                .thenThrow(new IllegalArgumentException("days는 1~365 사이여야 합니다."));
+
+        mockMvc.perform(get("/api/insights/overview")
+                        .param("days", "0")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success", is(false)))
+                .andExpect(jsonPath("$.error.code", is("BAD_REQUEST")));
     }
 
     @Test
