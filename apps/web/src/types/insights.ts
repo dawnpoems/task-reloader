@@ -15,6 +15,16 @@ export interface TaskTrendInsight {
   delayRatePct: number
 }
 
+export type RiskyTaskReason = 'OVERDUE_7D_PLUS' | 'NO_COMPLETION_30D'
+
+export interface RiskyTaskInsight {
+  taskId: number
+  taskName: string
+  nextDueAt: string
+  lastCompletedAt: string | null
+  reasons: RiskyTaskReason[]
+}
+
 export interface InsightsOverview {
   periodDays: number
   periodStart: string
@@ -28,6 +38,7 @@ export interface InsightsOverview {
   delayRatePct: number
   averageDelayMinutes: number
   riskyTaskCount: number
+  riskyTasks: RiskyTaskInsight[]
   taskTrends: TaskTrendInsight[]
 }
 

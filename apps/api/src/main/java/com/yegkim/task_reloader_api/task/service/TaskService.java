@@ -9,6 +9,7 @@ import com.yegkim.task_reloader_api.task.dto.CreateTaskRequest;
 import com.yegkim.task_reloader_api.task.dto.DashboardSummaryResponse;
 import com.yegkim.task_reloader_api.task.dto.InsightsOverviewResponse;
 import com.yegkim.task_reloader_api.task.dto.RecentTaskCompletionResponse;
+import com.yegkim.task_reloader_api.task.dto.RiskyTaskInsightResponse;
 import com.yegkim.task_reloader_api.task.dto.TaskCompletionResponse;
 import com.yegkim.task_reloader_api.task.dto.TaskTrendInsightResponse;
 import com.yegkim.task_reloader_api.task.dto.UpdateTaskRequest;
@@ -35,11 +36,13 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 @Service
@@ -184,14 +187,33 @@ public class TaskService {
                 .findByCompletedAtGreaterThanEqualAndCompletedAtLessThan(periodStart, nowUtc);
 
         long activeTaskCount = activeTasks.size();
-        long riskyTaskCount = activeTasks.stream()
-                .filter(task -> {
+        List<RiskyTaskInsightResponse> riskyTasks = activeTasks.stream()
+                .map(task -> {
                     boolean overdueTooLong = task.getNextDueAt().isBefore(overdueThreshold);
                     boolean noRecentCompletion = task.getLastCompletedAt() == null
                             || task.getLastCompletedAt().isBefore(recentCompletionThreshold);
-                    return overdueTooLong || noRecentCompletion;
+                    if (!overdueTooLong && !noRecentCompletion) {
+                        return null;
+                    }
+
+                    List<String> reasons = new ArrayList<>(2);
+                    if (overdueTooLong) {
+                        reasons.add("OVERDUE_7D_PLUS");
+                    }
+                    if (noRecentCompletion) {
+                        reasons.add("NO_COMPLETION_30D");
+                    }
+
+                    return RiskyTaskInsightResponse.builder()
+                            .taskId(task.getId())
+                            .taskName(task.getName())
+                            .nextDueAt(task.getNextDueAt())
+                            .lastCompletedAt(task.getLastCompletedAt())
+                            .reasons(reasons)
+                            .build();
                 })
-                .count();
+                .filter(Objects::nonNull)
+                .toList();
 
         Set<Long> completedTaskIds = new HashSet<>();
         long delayedCompletionCount = 0L;
@@ -261,7 +283,8 @@ public class TaskService {
                 .averageDelayMinutes(
                         delayedCompletionCount == 0 ? 0.0 : round1((double) totalDelayMinutes / delayedCompletionCount)
                 )
-                .riskyTaskCount(riskyTaskCount)
+                .riskyTaskCount(riskyTasks.size())
+                .riskyTasks(riskyTasks)
                 .taskTrends(taskTrends)
                 .build();
     }

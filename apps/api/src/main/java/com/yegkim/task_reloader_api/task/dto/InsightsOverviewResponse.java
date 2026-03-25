@@ -22,5 +22,6 @@ public class InsightsOverviewResponse {
     private double delayRatePct;
     private double averageDelayMinutes;
     private long riskyTaskCount;
+    private List<RiskyTaskInsightResponse> riskyTasks;
     private List<TaskTrendInsightResponse> taskTrends;
 }

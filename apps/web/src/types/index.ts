@@ -14,6 +14,8 @@ export type { TaskCompletion } from './taskCompletion'
 export type {
   DashboardSummary,
   InsightsOverview,
+  RiskyTaskInsight,
+  RiskyTaskReason,
   TaskTrendInsight,
   RecentTaskCompletion,
 } from './insights'

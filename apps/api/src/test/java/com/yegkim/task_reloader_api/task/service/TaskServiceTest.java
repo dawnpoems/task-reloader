@@ -7,6 +7,7 @@ import com.yegkim.task_reloader_api.task.dto.CreateTaskRequest;
 import com.yegkim.task_reloader_api.task.dto.DashboardSummaryResponse;
 import com.yegkim.task_reloader_api.task.dto.InsightsOverviewResponse;
 import com.yegkim.task_reloader_api.task.dto.RecentTaskCompletionResponse;
+import com.yegkim.task_reloader_api.task.dto.RiskyTaskInsightResponse;
 import com.yegkim.task_reloader_api.task.dto.TaskCompletionResponse;
 import com.yegkim.task_reloader_api.task.dto.TaskResponse;
 import com.yegkim.task_reloader_api.task.dto.TaskTrendInsightResponse;
@@ -535,6 +536,12 @@ class TaskServiceTest {
         assertThat(result.getDelayRatePct()).isEqualTo(66.7);
         assertThat(result.getAverageDelayMinutes()).isEqualTo(1440.0);
         assertThat(result.getRiskyTaskCount()).isEqualTo(2);
+        assertThat(result.getRiskyTasks()).hasSize(2);
+        assertThat(result.getRiskyTasks())
+                .extracting(RiskyTaskInsightResponse::getTaskId)
+                .containsExactly(1L, 2L);
+        assertThat(result.getRiskyTasks().get(0).getReasons()).containsExactly("OVERDUE_7D_PLUS");
+        assertThat(result.getRiskyTasks().get(1).getReasons()).containsExactly("NO_COMPLETION_30D");
 
         assertThat(result.getTaskTrends()).hasSize(2);
         TaskTrendInsightResponse first = result.getTaskTrends().get(0);
@@ -569,6 +576,7 @@ class TaskServiceTest {
         assertThat(result.getDelayRatePct()).isEqualTo(0.0);
         assertThat(result.getAverageDelayMinutes()).isEqualTo(0.0);
         assertThat(result.getRiskyTaskCount()).isZero();
+        assertThat(result.getRiskyTasks()).isEmpty();
         assertThat(result.getTaskTrends()).isEmpty();
     }
 
@@ -646,6 +654,8 @@ class TaskServiceTest {
         assertThat(result.getCompletionRatePct()).isEqualTo(100.0);
         assertThat(result.getDelayRatePct()).isEqualTo(33.3);
         assertThat(result.getAverageDelayMinutes()).isEqualTo(1440.0);
+        assertThat(result.getRiskyTaskCount()).isZero();
+        assertThat(result.getRiskyTasks()).isEmpty();
         assertThat(result.getTaskTrends()).hasSize(2);
         assertThat(result.getTaskTrends())
                 .extracting(TaskTrendInsightResponse::getTaskId)
@@ -701,6 +711,11 @@ class TaskServiceTest {
 
         assertThat(result.getActiveTaskCount()).isEqualTo(4);
         assertThat(result.getRiskyTaskCount()).isEqualTo(2);
+        assertThat(result.getRiskyTasks())
+                .extracting(RiskyTaskInsightResponse::getTaskId)
+                .containsExactly(3L, 4L);
+        assertThat(result.getRiskyTasks().get(0).getReasons()).containsExactly("OVERDUE_7D_PLUS");
+        assertThat(result.getRiskyTasks().get(1).getReasons()).containsExactly("NO_COMPLETION_30D");
     }
 
     @Test

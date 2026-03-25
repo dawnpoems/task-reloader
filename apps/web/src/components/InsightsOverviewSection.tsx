@@ -1,4 +1,4 @@
-import { formatDate } from '../lib/utils'
+import { formatDate, formatDateTime } from '../lib/utils'
 import type { InsightsOverview } from '../types/insights'
 
 interface InsightsOverviewSectionProps {
@@ -20,6 +20,7 @@ const EMPTY_OVERVIEW: InsightsOverview = {
   delayRatePct: 0,
   averageDelayMinutes: 0,
   riskyTaskCount: 0,
+  riskyTasks: [],
   taskTrends: [],
 }
 
@@ -36,12 +37,20 @@ function formatDelayMinutes(minutes: number): string {
   return `${hours}시간 ${remains}분`
 }
 
+function toRiskReasonLabel(reason: string): string {
+  if (reason === 'OVERDUE_7D_PLUS') return '7일 이상 지연'
+  if (reason === 'NO_COMPLETION_30D') return '30일 무완료'
+  return reason
+}
+
 export function InsightsOverviewSection({
   overview,
   isLoading,
   onOpenTask,
 }: InsightsOverviewSectionProps) {
   const data = overview ?? EMPTY_OVERVIEW
+  const riskyTasks = data.riskyTasks ?? []
+  const taskTrends = data.taskTrends ?? []
 
   return (
     <section className="insights-section">
@@ -82,14 +91,6 @@ export function InsightsOverviewSection({
           </strong>
           <small className="summary-card__meta">지연된 완료만 기준</small>
         </article>
-
-        <article className="summary-card summary-card--upcoming">
-          <span className="summary-card__label">리스크 작업</span>
-          <strong className="summary-card__value">
-            {isLoading ? '-' : data.riskyTaskCount}
-          </strong>
-          <small className="summary-card__meta">7일+ overdue 또는 30일 무완료</small>
-        </article>
       </div>
 
       <div className="insights-overview-footnote">
@@ -97,20 +98,56 @@ export function InsightsOverviewSection({
           <span>집계 기간 계산 중...</span>
         ) : (
           <span>
-            집계 기간: {formatDate(data.periodStart)} ~ {formatDate(data.periodEnd)} ({data.timezone})
+            집계 기간: {formatDate(data.periodStart)} ~ {formatDate(data.periodEnd)} ({data.timezone}) · 리스크 작업 {data.riskyTaskCount}개
           </span>
         )}
       </div>
 
-      <div className="insights-trend">
-        <h3>작업별 추세 Top {isLoading ? '-' : data.taskTrends.length}</h3>
+      <div className="insights-risky">
+        <h3>리스크 작업</h3>
         {isLoading ? (
           <p className="section-state">불러오는 중...</p>
-        ) : data.taskTrends.length === 0 ? (
+        ) : riskyTasks.length === 0 ? (
+          <p className="section-state">현재 리스크 작업이 없습니다.</p>
+        ) : (
+          <ul className="insights-risky-list">
+            {riskyTasks.map((task) => (
+              <li key={task.taskId} className="insights-risky-item">
+                <div className="insights-risky-item__title">
+                  <button
+                    type="button"
+                    className="link-button"
+                    onClick={() => onOpenTask(task.taskId)}
+                  >
+                    {task.taskName}
+                  </button>
+                  <div className="insights-risky-item__reasons">
+                    {task.reasons.map((reason) => (
+                      <span key={reason} className="insights-risky-item__reason-chip">
+                        {toRiskReasonLabel(reason)}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="insights-risky-item__meta">
+                  <span>다음 예정 {formatDateTime(task.nextDueAt)}</span>
+                  <span>마지막 완료 {formatDateTime(task.lastCompletedAt ?? undefined)}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="insights-trend">
+        <h3>작업별 추세 Top {isLoading ? '-' : taskTrends.length}</h3>
+        {isLoading ? (
+          <p className="section-state">불러오는 중...</p>
+        ) : taskTrends.length === 0 ? (
           <p className="section-state">해당 기간 완료 이력이 없습니다.</p>
         ) : (
           <ol className="insights-trend-list">
-            {data.taskTrends.map((trend) => (
+            {taskTrends.map((trend) => (
               <li key={trend.taskId} className="insight-trend-item">
                 <div className="insight-trend-item__title">
                   <button
