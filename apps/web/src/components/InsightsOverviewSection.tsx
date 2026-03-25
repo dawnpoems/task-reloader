@@ -1,5 +1,5 @@
 import { formatDate, formatDateTime } from '../lib/utils'
-import type { InsightsOverview } from '../types/insights'
+import type { InsightsOverview, TaskTrendInsight } from '../types/insights'
 
 interface InsightsOverviewSectionProps {
   overview: InsightsOverview | null
@@ -39,6 +39,31 @@ function toRiskReasonLabel(reason: string): string {
   return reason
 }
 
+function sortByCompletion(a: TaskTrendInsight, b: TaskTrendInsight): number {
+  return (
+    b.completionCount - a.completionCount
+    || b.delayedCount - a.delayedCount
+    || a.taskId - b.taskId
+  )
+}
+
+function sortByDelayed(a: TaskTrendInsight, b: TaskTrendInsight): number {
+  return (
+    b.delayedCount - a.delayedCount
+    || b.completionCount - a.completionCount
+    || a.taskId - b.taskId
+  )
+}
+
+function sortByDelayRate(a: TaskTrendInsight, b: TaskTrendInsight): number {
+  return (
+    b.delayRatePct - a.delayRatePct
+    || b.delayedCount - a.delayedCount
+    || b.completionCount - a.completionCount
+    || a.taskId - b.taskId
+  )
+}
+
 export function InsightsOverviewSection({
   overview,
   isLoading,
@@ -47,6 +72,12 @@ export function InsightsOverviewSection({
   const data = overview ?? EMPTY_OVERVIEW
   const riskyTasks = data.riskyTasks ?? []
   const taskTrends = data.taskTrends ?? []
+  const topByCompletion = [...taskTrends].sort(sortByCompletion).slice(0, 5)
+  const topByDelayed = [...taskTrends].sort(sortByDelayed).slice(0, 5)
+  const topByDelayRate = [...taskTrends]
+    .filter((trend) => trend.completionCount > 0)
+    .sort(sortByDelayRate)
+    .slice(0, 5)
 
   return (
     <section className="insights-section">
@@ -136,32 +167,67 @@ export function InsightsOverviewSection({
       </div>
 
       <div className="insights-trend">
-        <h3>작업별 추세 Top {isLoading ? '-' : taskTrends.length}</h3>
+        <h3>작업별 추세 Top 5</h3>
         {isLoading ? (
           <p className="section-state">불러오는 중...</p>
         ) : taskTrends.length === 0 ? (
           <p className="section-state">해당 기간 완료 이력이 없습니다.</p>
         ) : (
-          <ol className="insights-trend-list">
-            {taskTrends.map((trend) => (
-              <li key={trend.taskId} className="insight-trend-item">
-                <div className="insight-trend-item__title">
-                  <button
-                    type="button"
-                    className="link-button"
-                    onClick={() => onOpenTask(trend.taskId)}
-                  >
-                    {trend.taskName}
-                  </button>
-                  <span className="insight-trend-item__rate">{formatPercent(trend.delayRatePct)}</span>
-                </div>
-                <div className="insight-trend-item__meta">
-                  <span>완료 {trend.completionCount}회</span>
-                  <span>지연 {trend.delayedCount}회</span>
-                </div>
-              </li>
-            ))}
-          </ol>
+          <div className="insights-trend-grid">
+            <article className="insights-trend-card">
+              <h4>완료 건수</h4>
+              <ol className="insights-trend-ranking">
+                {topByCompletion.map((trend, index) => (
+                  <li key={`completion-${trend.taskId}`}>
+                    <button
+                      type="button"
+                      className="link-button insight-rank__task"
+                      onClick={() => onOpenTask(trend.taskId)}
+                    >
+                      {index + 1}. {trend.taskName}
+                    </button>
+                    <span className="insight-rank__value">{trend.completionCount}회</span>
+                  </li>
+                ))}
+              </ol>
+            </article>
+
+            <article className="insights-trend-card">
+              <h4>지연 건수</h4>
+              <ol className="insights-trend-ranking">
+                {topByDelayed.map((trend, index) => (
+                  <li key={`delayed-${trend.taskId}`}>
+                    <button
+                      type="button"
+                      className="link-button insight-rank__task"
+                      onClick={() => onOpenTask(trend.taskId)}
+                    >
+                      {index + 1}. {trend.taskName}
+                    </button>
+                    <span className="insight-rank__value">{trend.delayedCount}회</span>
+                  </li>
+                ))}
+              </ol>
+            </article>
+
+            <article className="insights-trend-card">
+              <h4>지연률</h4>
+              <ol className="insights-trend-ranking">
+                {topByDelayRate.map((trend, index) => (
+                  <li key={`delay-rate-${trend.taskId}`}>
+                    <button
+                      type="button"
+                      className="link-button insight-rank__task"
+                      onClick={() => onOpenTask(trend.taskId)}
+                    >
+                      {index + 1}. {trend.taskName}
+                    </button>
+                    <span className="insight-rank__value">{formatPercent(trend.delayRatePct)}</span>
+                  </li>
+                ))}
+              </ol>
+            </article>
+          </div>
         )}
       </div>
     </section>
