@@ -276,6 +276,16 @@ Base URL: `/api`
 | `POST` | `/tasks/{id}/complete` | Task 완료 처리 |
 | `GET` | `/tasks/{id}/completions` | 완료 이력 조회 |
 | `GET` | `/tasks/{id}/completions?year=YYYY&month=MM` | 월별 완료 이력 조회 |
+| `GET` | `/insights/overview?days=30&top=5` | 인사이트 요약(완료율/지연률/평균지연/리스크/작업별 추세) |
+
+## 인사이트 지표 정의 (1차)
+
+- 기간: `periodStart <= completed_at < periodEnd` (rolling window, UTC 응답 + timezone 필드 제공)
+- 완료율(`completionRatePct`): `기간 내 완료한 활성 Task 수 / 활성 Task 수 * 100`
+- 지연률(`delayRatePct`): `기간 내 완료 이력 중 delayed 건수 / 기간 내 완료 이력 건수 * 100`
+- 평균 지연시간(`averageDelayMinutes`): `delayed 건의 (completed_at - previous_due_at) 평균(분)`
+- 방치 위험 작업 수(`riskyTaskCount`): 활성 Task 중 `7일+ overdue` 또는 `최근 30일 완료 없음`인 작업 수
+- 작업별 추세(`taskTrends`): task별 완료 건수/지연 건수/지연률 Top N
 
 ## 관측성 엔드포인트
 

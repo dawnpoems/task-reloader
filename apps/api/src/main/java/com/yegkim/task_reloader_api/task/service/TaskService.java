@@ -177,11 +177,13 @@ public class TaskService {
         OffsetDateTime recentCompletionThreshold = now.minus(Duration.ofDays(30)).atOffset(ZoneOffset.UTC);
 
         List<Task> activeTasks = taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc();
+        Set<Long> activeTaskIds = activeTasks.stream()
+                .map(Task::getId)
+                .collect(java.util.stream.Collectors.toSet());
         List<TaskCompletion> completions = taskCompletionRepository
                 .findByCompletedAtGreaterThanEqualAndCompletedAtLessThan(periodStart, nowUtc);
 
         long activeTaskCount = activeTasks.size();
-        long completionCount = completions.size();
         long riskyTaskCount = activeTasks.stream()
                 .filter(task -> {
                     boolean overdueTooLong = task.getNextDueAt().isBefore(overdueThreshold);
@@ -199,6 +201,9 @@ public class TaskService {
 
         for (TaskCompletion completion : completions) {
             Long taskId = completion.getTask().getId();
+            if (!activeTaskIds.contains(taskId)) {
+                continue;
+            }
             String taskName = completion.getTask().getName();
             completedTaskIds.add(taskId);
 
@@ -216,6 +221,9 @@ public class TaskService {
                 acc.delayedCount++;
             }
         }
+        long completionCount = trendByTask.values().stream()
+                .mapToLong(acc -> acc.completionCount)
+                .sum();
 
         List<TaskTrendInsightResponse> taskTrends = trendByTask.values().stream()
                 .map(acc -> TaskTrendInsightResponse.builder()
@@ -237,6 +245,9 @@ public class TaskService {
 
         return InsightsOverviewResponse.builder()
                 .periodDays(days)
+                .periodStart(periodStart)
+                .periodEnd(nowUtc)
+                .timezone(KST.getId())
                 .activeTaskCount(activeTaskCount)
                 .completedTaskCount(completedTaskIds.size())
                 .completionCount(completionCount)

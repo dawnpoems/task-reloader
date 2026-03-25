@@ -524,6 +524,9 @@ class TaskServiceTest {
         InsightsOverviewResponse result = taskService.getInsightsOverview(30, 5);
 
         assertThat(result.getPeriodDays()).isEqualTo(30);
+        assertThat(result.getPeriodStart()).isEqualTo(now.minusDays(30));
+        assertThat(result.getPeriodEnd()).isEqualTo(now);
+        assertThat(result.getTimezone()).isEqualTo("Asia/Seoul");
         assertThat(result.getActiveTaskCount()).isEqualTo(3);
         assertThat(result.getCompletedTaskCount()).isEqualTo(2);
         assertThat(result.getCompletionCount()).isEqualTo(3);

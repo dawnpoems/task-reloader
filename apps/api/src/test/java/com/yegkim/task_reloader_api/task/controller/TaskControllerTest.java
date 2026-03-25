@@ -367,8 +367,12 @@ class TaskControllerTest {
     @Test
     @DisplayName("인사이트 overview 조회 - 성공")
     void testGetInsightsOverviewSuccess() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now();
         InsightsOverviewResponse response = InsightsOverviewResponse.builder()
                 .periodDays(30)
+                .periodStart(now.minusDays(30))
+                .periodEnd(now)
+                .timezone("Asia/Seoul")
                 .activeTaskCount(10)
                 .completedTaskCount(8)
                 .completionCount(20)
@@ -397,6 +401,7 @@ class TaskControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success", is(true)))
                 .andExpect(jsonPath("$.data.periodDays", is(30)))
+                .andExpect(jsonPath("$.data.timezone", is("Asia/Seoul")))
                 .andExpect(jsonPath("$.data.completionRatePct", is(80.0)))
                 .andExpect(jsonPath("$.data.delayRatePct", is(25.0)))
                 .andExpect(jsonPath("$.data.taskTrends", hasSize(1)))
