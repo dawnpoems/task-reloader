@@ -7,8 +7,10 @@ import com.yegkim.task_reloader_api.common.time.TimeWindow;
 import com.yegkim.task_reloader_api.task.mapper.TaskMapper;
 import com.yegkim.task_reloader_api.task.dto.CreateTaskRequest;
 import com.yegkim.task_reloader_api.task.dto.DashboardSummaryResponse;
+import com.yegkim.task_reloader_api.task.dto.InsightsOverviewResponse;
 import com.yegkim.task_reloader_api.task.dto.RecentTaskCompletionResponse;
 import com.yegkim.task_reloader_api.task.dto.TaskCompletionResponse;
+import com.yegkim.task_reloader_api.task.dto.TaskTrendInsightResponse;
 import com.yegkim.task_reloader_api.task.dto.UpdateTaskRequest;
 import com.yegkim.task_reloader_api.task.dto.TaskResponse;
 import com.yegkim.task_reloader_api.task.event.TaskCompleteRejectedEvent;
@@ -34,7 +36,11 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -156,6 +162,99 @@ public class TaskService {
                 .build();
     }
 
+    public InsightsOverviewResponse getInsightsOverview(int days, int top) {
+        if (days <= 0 || days > 365) {
+            throw new IllegalArgumentException("days는 1~365 사이여야 합니다.");
+        }
+        if (top <= 0 || top > 20) {
+            throw new IllegalArgumentException("top은 1~20 사이여야 합니다.");
+        }
+
+        Instant now = clock.instant();
+        OffsetDateTime nowUtc = now.atOffset(ZoneOffset.UTC);
+        OffsetDateTime periodStart = now.minus(Duration.ofDays(days)).atOffset(ZoneOffset.UTC);
+        OffsetDateTime overdueThreshold = now.minus(Duration.ofDays(7)).atOffset(ZoneOffset.UTC);
+        OffsetDateTime recentCompletionThreshold = now.minus(Duration.ofDays(30)).atOffset(ZoneOffset.UTC);
+
+        List<Task> activeTasks = taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc();
+        List<TaskCompletion> completions = taskCompletionRepository
+                .findByCompletedAtGreaterThanEqualAndCompletedAtLessThan(periodStart, nowUtc);
+
+        long activeTaskCount = activeTasks.size();
+        long completionCount = completions.size();
+        long riskyTaskCount = activeTasks.stream()
+                .filter(task -> {
+                    boolean overdueTooLong = task.getNextDueAt().isBefore(overdueThreshold);
+                    boolean noRecentCompletion = task.getLastCompletedAt() == null
+                            || task.getLastCompletedAt().isBefore(recentCompletionThreshold);
+                    return overdueTooLong || noRecentCompletion;
+                })
+                .count();
+
+        Set<Long> completedTaskIds = new HashSet<>();
+        long delayedCompletionCount = 0L;
+        long totalDelayMinutes = 0L;
+
+        Map<Long, TrendAccumulator> trendByTask = new HashMap<>();
+
+        for (TaskCompletion completion : completions) {
+            Long taskId = completion.getTask().getId();
+            String taskName = completion.getTask().getName();
+            completedTaskIds.add(taskId);
+
+            boolean delayed = completion.getCompletedAt().isAfter(completion.getPreviousDueAt());
+            if (delayed) {
+                delayedCompletionCount++;
+                totalDelayMinutes += Duration
+                        .between(completion.getPreviousDueAt().toInstant(), completion.getCompletedAt().toInstant())
+                        .toMinutes();
+            }
+
+            TrendAccumulator acc = trendByTask.computeIfAbsent(taskId, ignored -> new TrendAccumulator(taskId, taskName));
+            acc.completionCount++;
+            if (delayed) {
+                acc.delayedCount++;
+            }
+        }
+
+        List<TaskTrendInsightResponse> taskTrends = trendByTask.values().stream()
+                .map(acc -> TaskTrendInsightResponse.builder()
+                        .taskId(acc.taskId)
+                        .taskName(acc.taskName)
+                        .completionCount(acc.completionCount)
+                        .delayedCount(acc.delayedCount)
+                        .delayRatePct(acc.completionCount == 0
+                                ? 0.0
+                                : round1((double) acc.delayedCount * 100.0 / acc.completionCount))
+                        .build())
+                .sorted(
+                        Comparator.comparing(TaskTrendInsightResponse::getCompletionCount).reversed()
+                                .thenComparing(TaskTrendInsightResponse::getDelayedCount, Comparator.reverseOrder())
+                                .thenComparing(TaskTrendInsightResponse::getTaskId)
+                )
+                .limit(top)
+                .toList();
+
+        return InsightsOverviewResponse.builder()
+                .periodDays(days)
+                .activeTaskCount(activeTaskCount)
+                .completedTaskCount(completedTaskIds.size())
+                .completionCount(completionCount)
+                .delayedCompletionCount(delayedCompletionCount)
+                .completionRatePct(
+                        activeTaskCount == 0 ? 0.0 : round1((double) completedTaskIds.size() * 100.0 / activeTaskCount)
+                )
+                .delayRatePct(
+                        completionCount == 0 ? 0.0 : round1((double) delayedCompletionCount * 100.0 / completionCount)
+                )
+                .averageDelayMinutes(
+                        delayedCompletionCount == 0 ? 0.0 : round1((double) totalDelayMinutes / delayedCompletionCount)
+                )
+                .riskyTaskCount(riskyTaskCount)
+                .taskTrends(taskTrends)
+                .build();
+    }
+
     @Transactional
     public TaskResponse create(CreateTaskRequest request) {
         Task task = taskMapper.toEntity(request);
@@ -245,5 +344,23 @@ public class TaskService {
                 .previousDueAt(completion.getPreviousDueAt())
                 .nextDueAt(completion.getNextDueAt())
                 .build();
+    }
+
+    private double round1(double value) {
+        return Math.round(value * 10.0) / 10.0;
+    }
+
+    private static final class TrendAccumulator {
+        private final long taskId;
+        private final String taskName;
+        private long completionCount;
+        private long delayedCount;
+
+        private TrendAccumulator(long taskId, String taskName) {
+            this.taskId = taskId;
+            this.taskName = taskName;
+            this.completionCount = 0L;
+            this.delayedCount = 0L;
+        }
     }
 }
