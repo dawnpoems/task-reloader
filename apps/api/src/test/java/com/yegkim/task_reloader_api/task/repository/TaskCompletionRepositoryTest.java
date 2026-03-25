@@ -127,4 +127,61 @@ class TaskCompletionRepositoryTest {
 
         assertThat(result).containsExactly(inMarchNewer, inMarchOlder);
     }
+
+    @Test
+    @DisplayName("완료 시각 기간 조회는 시작 포함/종료 제외 경계를 지킨다")
+    void findByCompletedAtRangeStartInclusiveEndExclusive() {
+        OffsetDateTime now = OffsetDateTime.now();
+        Task taskA = taskRepository.save(Task.builder()
+                .name("Task A")
+                .everyNDays(3)
+                .nextDueAt(now.plusDays(3))
+                .isActive(true)
+                .build());
+        Task taskB = taskRepository.save(Task.builder()
+                .name("Task B")
+                .everyNDays(5)
+                .nextDueAt(now.plusDays(5))
+                .isActive(true)
+                .build());
+
+        OffsetDateTime start = OffsetDateTime.parse("2026-03-01T00:00:00+00:00");
+        OffsetDateTime end = OffsetDateTime.parse("2026-03-02T00:00:00+00:00");
+
+        taskCompletionRepository.save(TaskCompletion.builder()
+                .task(taskA)
+                .completedAt(start.minusSeconds(1))
+                .previousDueAt(start.minusDays(1))
+                .nextDueAt(start.plusDays(2))
+                .build());
+        TaskCompletion atStart = taskCompletionRepository.save(TaskCompletion.builder()
+                .task(taskA)
+                .completedAt(start)
+                .previousDueAt(start.minusDays(1))
+                .nextDueAt(start.plusDays(2))
+                .build());
+        TaskCompletion inBetween = taskCompletionRepository.save(TaskCompletion.builder()
+                .task(taskB)
+                .completedAt(start.plusHours(12))
+                .previousDueAt(start.plusHours(10))
+                .nextDueAt(start.plusDays(2))
+                .build());
+        taskCompletionRepository.save(TaskCompletion.builder()
+                .task(taskA)
+                .completedAt(end)
+                .previousDueAt(end.minusDays(1))
+                .nextDueAt(end.plusDays(2))
+                .build());
+        taskCompletionRepository.save(TaskCompletion.builder()
+                .task(taskB)
+                .completedAt(end.plusSeconds(1))
+                .previousDueAt(end.minusDays(1))
+                .nextDueAt(end.plusDays(2))
+                .build());
+
+        List<TaskCompletion> result = taskCompletionRepository
+                .findByCompletedAtGreaterThanEqualAndCompletedAtLessThan(start, end);
+
+        assertThat(result).containsExactlyInAnyOrder(atStart, inBetween);
+    }
 }

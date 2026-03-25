@@ -44,6 +44,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -411,6 +412,36 @@ class TaskControllerTest {
     }
 
     @Test
+    @DisplayName("인사이트 overview 조회 - 파라미터 생략 시 기본값(days=30, top=5) 사용")
+    void testGetInsightsOverviewDefaultParams() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now();
+        InsightsOverviewResponse response = InsightsOverviewResponse.builder()
+                .periodDays(30)
+                .periodStart(now.minusDays(30))
+                .periodEnd(now)
+                .timezone("Asia/Seoul")
+                .activeTaskCount(0)
+                .completedTaskCount(0)
+                .completionCount(0)
+                .delayedCompletionCount(0)
+                .completionRatePct(0.0)
+                .delayRatePct(0.0)
+                .averageDelayMinutes(0.0)
+                .riskyTaskCount(0)
+                .taskTrends(List.of())
+                .build();
+        when(taskService.getInsightsOverview(30, 5)).thenReturn(response);
+
+        mockMvc.perform(get("/api/insights/overview")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.data.periodDays", is(30)));
+
+        verify(taskService, times(1)).getInsightsOverview(30, 5);
+    }
+
+    @Test
     @DisplayName("인사이트 overview 조회 - 유효하지 않은 days면 400")
     void testGetInsightsOverviewInvalidDays() throws Exception {
         when(taskService.getInsightsOverview(0, 5))
@@ -422,6 +453,33 @@ class TaskControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success", is(false)))
                 .andExpect(jsonPath("$.error.code", is("BAD_REQUEST")));
+    }
+
+    @Test
+    @DisplayName("인사이트 overview 조회 - 유효하지 않은 top이면 400")
+    void testGetInsightsOverviewInvalidTop() throws Exception {
+        when(taskService.getInsightsOverview(30, 0))
+                .thenThrow(new IllegalArgumentException("top은 1~20 사이여야 합니다."));
+
+        mockMvc.perform(get("/api/insights/overview")
+                        .param("top", "0")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success", is(false)))
+                .andExpect(jsonPath("$.error.code", is("BAD_REQUEST")));
+    }
+
+    @Test
+    @DisplayName("인사이트 overview 조회 - days 타입이 잘못되면 400(INVALID_PARAMETER)")
+    void testGetInsightsOverviewInvalidDaysType() throws Exception {
+        mockMvc.perform(get("/api/insights/overview")
+                        .param("days", "abc")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success", is(false)))
+                .andExpect(jsonPath("$.error.code", is("INVALID_PARAMETER")));
+
+        verify(taskService, never()).getInsightsOverview(anyInt(), anyInt());
     }
 
     @Test
