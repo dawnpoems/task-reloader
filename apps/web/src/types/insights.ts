@@ -36,7 +36,7 @@ export interface InsightsOverview {
   delayedCompletionCount: number
   completionRatePct: number
   delayRatePct: number
-  averageDelayMinutes: number
+  averageDelayDays: number
   riskyTaskCount: number
   riskyTasks: RiskyTaskInsight[]
   taskTrends: TaskTrendInsight[]

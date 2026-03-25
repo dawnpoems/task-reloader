@@ -18,7 +18,7 @@ const EMPTY_OVERVIEW: InsightsOverview = {
   delayedCompletionCount: 0,
   completionRatePct: 0,
   delayRatePct: 0,
-  averageDelayMinutes: 0,
+  averageDelayDays: 0,
   riskyTaskCount: 0,
   riskyTasks: [],
   taskTrends: [],
@@ -28,13 +28,9 @@ function formatPercent(value: number): string {
   return `${value.toFixed(1)}%`
 }
 
-function formatDelayMinutes(minutes: number): string {
-  if (minutes <= 0) return '0분'
-  const hours = Math.floor(minutes / 60)
-  const remains = Math.round(minutes % 60)
-  if (hours === 0) return `${Math.round(minutes)}분`
-  if (remains === 0) return `${hours}시간`
-  return `${hours}시간 ${remains}분`
+function formatDelayDays(days: number): string {
+  if (days <= 0) return '0.00일'
+  return `${days.toFixed(2)}일`
 }
 
 function toRiskReasonLabel(reason: string): string {
@@ -85,9 +81,9 @@ export function InsightsOverviewSection({
         </article>
 
         <article className="summary-card">
-          <span className="summary-card__label">평균 지연 시간</span>
+          <span className="summary-card__label">평균 지연날짜</span>
           <strong className="summary-card__value">
-            {isLoading ? '-' : formatDelayMinutes(data.averageDelayMinutes)}
+            {isLoading ? '-' : formatDelayDays(data.averageDelayDays)}
           </strong>
           <small className="summary-card__meta">지연된 완료만 기준</small>
         </article>

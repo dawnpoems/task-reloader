@@ -380,7 +380,7 @@ class TaskControllerTest {
                 .delayedCompletionCount(5)
                 .completionRatePct(80.0)
                 .delayRatePct(25.0)
-                .averageDelayMinutes(120.5)
+                .averageDelayDays(0.08)
                 .riskyTaskCount(2)
                 .taskTrends(List.of(
                         TaskTrendInsightResponse.builder()
@@ -426,7 +426,7 @@ class TaskControllerTest {
                 .delayedCompletionCount(0)
                 .completionRatePct(0.0)
                 .delayRatePct(0.0)
-                .averageDelayMinutes(0.0)
+                .averageDelayDays(0.0)
                 .riskyTaskCount(0)
                 .taskTrends(List.of())
                 .build();

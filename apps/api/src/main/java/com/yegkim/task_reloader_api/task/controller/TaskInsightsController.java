@@ -29,7 +29,7 @@ public class TaskInsightsController {
         return ApiResponse.success(taskService.getDashboardSummary());
     }
 
-    @Operation(summary = "인사이트 요약 조회 (완료율/지연률/평균 지연시간/작업별 추세)")
+    @Operation(summary = "인사이트 요약 조회 (완료율/지연률/평균 지연날짜/작업별 추세)")
     @GetMapping("/overview")
     public ApiResponse<InsightsOverviewResponse> getOverview(
             @RequestParam(defaultValue = "30") int days,

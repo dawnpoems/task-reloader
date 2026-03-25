@@ -280,8 +280,10 @@ public class TaskService {
                 .delayRatePct(
                         completionCount == 0 ? 0.0 : round1((double) delayedCompletionCount * 100.0 / completionCount)
                 )
-                .averageDelayMinutes(
-                        delayedCompletionCount == 0 ? 0.0 : round1((double) totalDelayMinutes / delayedCompletionCount)
+                .averageDelayDays(
+                        delayedCompletionCount == 0
+                                ? 0.0
+                                : round2(((double) totalDelayMinutes / delayedCompletionCount) / (24.0 * 60.0))
                 )
                 .riskyTaskCount(riskyTasks.size())
                 .riskyTasks(riskyTasks)
@@ -382,6 +384,10 @@ public class TaskService {
 
     private double round1(double value) {
         return Math.round(value * 10.0) / 10.0;
+    }
+
+    private double round2(double value) {
+        return Math.round(value * 100.0) / 100.0;
     }
 
     private static final class TrendAccumulator {

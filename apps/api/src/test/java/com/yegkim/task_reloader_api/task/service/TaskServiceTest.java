@@ -534,7 +534,7 @@ class TaskServiceTest {
         assertThat(result.getDelayedCompletionCount()).isEqualTo(2);
         assertThat(result.getCompletionRatePct()).isEqualTo(66.7);
         assertThat(result.getDelayRatePct()).isEqualTo(66.7);
-        assertThat(result.getAverageDelayMinutes()).isEqualTo(1440.0);
+        assertThat(result.getAverageDelayDays()).isEqualTo(1.0);
         assertThat(result.getRiskyTaskCount()).isEqualTo(2);
         assertThat(result.getRiskyTasks()).hasSize(2);
         assertThat(result.getRiskyTasks())
@@ -574,7 +574,7 @@ class TaskServiceTest {
         assertThat(result.getDelayedCompletionCount()).isZero();
         assertThat(result.getCompletionRatePct()).isEqualTo(0.0);
         assertThat(result.getDelayRatePct()).isEqualTo(0.0);
-        assertThat(result.getAverageDelayMinutes()).isEqualTo(0.0);
+        assertThat(result.getAverageDelayDays()).isEqualTo(0.0);
         assertThat(result.getRiskyTaskCount()).isZero();
         assertThat(result.getRiskyTasks()).isEmpty();
         assertThat(result.getTaskTrends()).isEmpty();
@@ -653,7 +653,7 @@ class TaskServiceTest {
         assertThat(result.getDelayedCompletionCount()).isEqualTo(1);
         assertThat(result.getCompletionRatePct()).isEqualTo(100.0);
         assertThat(result.getDelayRatePct()).isEqualTo(33.3);
-        assertThat(result.getAverageDelayMinutes()).isEqualTo(1440.0);
+        assertThat(result.getAverageDelayDays()).isEqualTo(1.0);
         assertThat(result.getRiskyTaskCount()).isZero();
         assertThat(result.getRiskyTasks()).isEmpty();
         assertThat(result.getTaskTrends()).hasSize(2);

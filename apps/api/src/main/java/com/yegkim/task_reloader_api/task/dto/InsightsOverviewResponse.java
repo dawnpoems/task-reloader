@@ -20,7 +20,7 @@ public class InsightsOverviewResponse {
     private long delayedCompletionCount;
     private double completionRatePct;
     private double delayRatePct;
-    private double averageDelayMinutes;
+    private double averageDelayDays;
     private long riskyTaskCount;
     private List<RiskyTaskInsightResponse> riskyTasks;
     private List<TaskTrendInsightResponse> taskTrends;
