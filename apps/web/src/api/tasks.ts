@@ -1,11 +1,16 @@
 import { apiClient, ApiResponse } from './client'
 import type { Task, CreateTaskRequest, UpdateTaskRequest, TaskStatusFilter } from '../types/task'
-import type { DashboardSummary, RecentTaskCompletion } from '../types/insights'
+import type { DashboardSummary, InsightsOverview, RecentTaskCompletion } from '../types/insights'
 import type { TaskCompletion } from '../types/taskCompletion'
 
 interface CompletionsQuery {
   year?: number
   month?: number
+}
+
+interface InsightsOverviewQuery {
+  days?: number
+  top?: number
 }
 
 export const tasksApi = {
@@ -27,6 +32,12 @@ export const tasksApi = {
 
   getDashboard: (): Promise<ApiResponse<DashboardSummary>> =>
     apiClient.get<DashboardSummary>('/insights/dashboard'),
+
+  getOverview: (query: InsightsOverviewQuery = {}): Promise<ApiResponse<InsightsOverview>> => {
+    const days = query.days ?? 30
+    const top = query.top ?? 5
+    return apiClient.get<InsightsOverview>(`/insights/overview?days=${days}&top=${top}`)
+  },
 
   getRecentCompletions: (): Promise<ApiResponse<RecentTaskCompletion[]>> =>
     apiClient.get<RecentTaskCompletion[]>('/insights/recent-completions'),

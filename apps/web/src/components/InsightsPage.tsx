@@ -1,10 +1,12 @@
 import { ErrorNotice } from './ErrorNotice'
 import { DashboardSummaryCards } from './DashboardSummaryCards'
+import { InsightsOverviewSection } from './InsightsOverviewSection'
 import { RecentCompletionsSection } from './RecentCompletionsSection'
-import type { DashboardSummary, RecentTaskCompletion } from '../types/insights'
+import type { DashboardSummary, InsightsOverview, RecentTaskCompletion } from '../types/insights'
 
 interface InsightsPageProps {
   dashboard: DashboardSummary | null
+  overview: InsightsOverview | null
   recentCompletions: RecentTaskCompletion[]
   isLoading: boolean
   error: string | null
@@ -14,6 +16,7 @@ interface InsightsPageProps {
 
 export function InsightsPage({
   dashboard,
+  overview,
   recentCompletions,
   isLoading,
   error,
@@ -26,6 +29,11 @@ export function InsightsPage({
         <ErrorNotice message={error} onRetry={onRetry} />
       )}
       <DashboardSummaryCards dashboard={dashboard} isLoading={isLoading} />
+      <InsightsOverviewSection
+        overview={overview}
+        isLoading={isLoading}
+        onOpenTask={onOpenTask}
+      />
       <RecentCompletionsSection
         recentCompletions={recentCompletions}
         isLoading={isLoading}
