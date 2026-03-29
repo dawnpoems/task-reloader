@@ -1,5 +1,5 @@
 import { formatDate, formatDateTime } from '../lib/utils'
-import type { InsightsOverview, TaskTrendInsight } from '../types/insights'
+import type { InsightsOverview } from '../types/insights'
 
 interface InsightsOverviewSectionProps {
   overview: InsightsOverview | null
@@ -21,6 +21,9 @@ const EMPTY_OVERVIEW: InsightsOverview = {
   averageDelayDays: 0,
   riskyTaskCount: 0,
   riskyTasks: [],
+  topCompletionTrends: [],
+  topDelayedTrends: [],
+  topDelayRateTrends: [],
   taskTrends: [],
 }
 
@@ -39,31 +42,6 @@ function toRiskReasonLabel(reason: string): string {
   return reason
 }
 
-function sortByCompletion(a: TaskTrendInsight, b: TaskTrendInsight): number {
-  return (
-    b.completionCount - a.completionCount
-    || b.delayedCount - a.delayedCount
-    || a.taskId - b.taskId
-  )
-}
-
-function sortByDelayed(a: TaskTrendInsight, b: TaskTrendInsight): number {
-  return (
-    b.delayedCount - a.delayedCount
-    || b.completionCount - a.completionCount
-    || a.taskId - b.taskId
-  )
-}
-
-function sortByDelayRate(a: TaskTrendInsight, b: TaskTrendInsight): number {
-  return (
-    b.delayRatePct - a.delayRatePct
-    || b.delayedCount - a.delayedCount
-    || b.completionCount - a.completionCount
-    || a.taskId - b.taskId
-  )
-}
-
 export function InsightsOverviewSection({
   overview,
   isLoading,
@@ -71,13 +49,9 @@ export function InsightsOverviewSection({
 }: InsightsOverviewSectionProps) {
   const data = overview ?? EMPTY_OVERVIEW
   const riskyTasks = data.riskyTasks ?? []
-  const taskTrends = data.taskTrends ?? []
-  const topByCompletion = [...taskTrends].sort(sortByCompletion).slice(0, 5)
-  const topByDelayed = [...taskTrends].sort(sortByDelayed).slice(0, 5)
-  const topByDelayRate = [...taskTrends]
-    .filter((trend) => trend.completionCount > 0)
-    .sort(sortByDelayRate)
-    .slice(0, 5)
+  const topByCompletion = data.topCompletionTrends ?? []
+  const topByDelayed = data.topDelayedTrends ?? []
+  const topByDelayRate = data.topDelayRateTrends ?? []
 
   return (
     <section className="insights-section">
@@ -170,7 +144,7 @@ export function InsightsOverviewSection({
         <h3>작업별 추세 Top 5</h3>
         {isLoading ? (
           <p className="section-state">불러오는 중...</p>
-        ) : taskTrends.length === 0 ? (
+        ) : topByCompletion.length === 0 && topByDelayed.length === 0 && topByDelayRate.length === 0 ? (
           <p className="section-state">해당 기간 완료 이력이 없습니다.</p>
         ) : (
           <div className="insights-trend-grid">

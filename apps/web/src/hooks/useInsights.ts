@@ -29,7 +29,7 @@ export function useInsights(enabled = true): UseInsightsReturn {
 
     const [dashboardRes, overviewRes, recentRes] = await Promise.all([
       tasksApi.getDashboard(),
-      tasksApi.getOverview({ days: 30, top: 20 }),
+      tasksApi.getOverview({ days: 30, top: 5 }),
       tasksApi.getRecentCompletions(),
     ])
 

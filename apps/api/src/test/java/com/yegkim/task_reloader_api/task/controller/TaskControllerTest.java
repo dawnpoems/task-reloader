@@ -382,6 +382,33 @@ class TaskControllerTest {
                 .delayRatePct(25.0)
                 .averageDelayDays(0.08)
                 .riskyTaskCount(2)
+                .topCompletionTrends(List.of(
+                        TaskTrendInsightResponse.builder()
+                                .taskId(1L)
+                                .taskName("Test Task")
+                                .completionCount(7)
+                                .delayedCount(2)
+                                .delayRatePct(28.6)
+                                .build()
+                ))
+                .topDelayedTrends(List.of(
+                        TaskTrendInsightResponse.builder()
+                                .taskId(2L)
+                                .taskName("Delayed Task")
+                                .completionCount(4)
+                                .delayedCount(3)
+                                .delayRatePct(75.0)
+                                .build()
+                ))
+                .topDelayRateTrends(List.of(
+                        TaskTrendInsightResponse.builder()
+                                .taskId(3L)
+                                .taskName("High Rate Task")
+                                .completionCount(2)
+                                .delayedCount(2)
+                                .delayRatePct(100.0)
+                                .build()
+                ))
                 .taskTrends(List.of(
                         TaskTrendInsightResponse.builder()
                                 .taskId(1L)
@@ -406,7 +433,10 @@ class TaskControllerTest {
                 .andExpect(jsonPath("$.data.completionRatePct", is(80.0)))
                 .andExpect(jsonPath("$.data.delayRatePct", is(25.0)))
                 .andExpect(jsonPath("$.data.taskTrends", hasSize(1)))
-                .andExpect(jsonPath("$.data.taskTrends[0].taskId", is(1)));
+                .andExpect(jsonPath("$.data.taskTrends[0].taskId", is(1)))
+                .andExpect(jsonPath("$.data.topCompletionTrends[0].taskId", is(1)))
+                .andExpect(jsonPath("$.data.topDelayedTrends[0].taskId", is(2)))
+                .andExpect(jsonPath("$.data.topDelayRateTrends[0].taskId", is(3)));
 
         verify(taskService, times(1)).getInsightsOverview(30, 3);
     }
@@ -428,6 +458,9 @@ class TaskControllerTest {
                 .delayRatePct(0.0)
                 .averageDelayDays(0.0)
                 .riskyTaskCount(0)
+                .topCompletionTrends(List.of())
+                .topDelayedTrends(List.of())
+                .topDelayRateTrends(List.of())
                 .taskTrends(List.of())
                 .build();
         when(taskService.getInsightsOverview(30, 5)).thenReturn(response);

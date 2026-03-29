@@ -247,7 +247,7 @@ public class TaskService {
                 .mapToLong(acc -> acc.completionCount)
                 .sum();
 
-        List<TaskTrendInsightResponse> taskTrends = trendByTask.values().stream()
+        List<TaskTrendInsightResponse> allTrends = trendByTask.values().stream()
                 .map(acc -> TaskTrendInsightResponse.builder()
                         .taskId(acc.taskId)
                         .taskName(acc.taskName)
@@ -257,11 +257,36 @@ public class TaskService {
                                 ? 0.0
                                 : round1((double) acc.delayedCount * 100.0 / acc.completionCount))
                         .build())
-                .sorted(
-                        Comparator.comparing(TaskTrendInsightResponse::getCompletionCount).reversed()
-                                .thenComparing(TaskTrendInsightResponse::getDelayedCount, Comparator.reverseOrder())
-                                .thenComparing(TaskTrendInsightResponse::getTaskId)
-                )
+                .toList();
+
+        Comparator<TaskTrendInsightResponse> byCompletion = Comparator
+                .comparing(TaskTrendInsightResponse::getCompletionCount).reversed()
+                .thenComparing(TaskTrendInsightResponse::getDelayedCount, Comparator.reverseOrder())
+                .thenComparing(TaskTrendInsightResponse::getTaskId);
+
+        Comparator<TaskTrendInsightResponse> byDelayed = Comparator
+                .comparing(TaskTrendInsightResponse::getDelayedCount).reversed()
+                .thenComparing(TaskTrendInsightResponse::getCompletionCount, Comparator.reverseOrder())
+                .thenComparing(TaskTrendInsightResponse::getTaskId);
+
+        Comparator<TaskTrendInsightResponse> byDelayRate = Comparator
+                .comparing(TaskTrendInsightResponse::getDelayRatePct).reversed()
+                .thenComparing(TaskTrendInsightResponse::getDelayedCount, Comparator.reverseOrder())
+                .thenComparing(TaskTrendInsightResponse::getCompletionCount, Comparator.reverseOrder())
+                .thenComparing(TaskTrendInsightResponse::getTaskId);
+
+        List<TaskTrendInsightResponse> topCompletionTrends = allTrends.stream()
+                .sorted(byCompletion)
+                .limit(top)
+                .toList();
+
+        List<TaskTrendInsightResponse> topDelayedTrends = allTrends.stream()
+                .sorted(byDelayed)
+                .limit(top)
+                .toList();
+
+        List<TaskTrendInsightResponse> topDelayRateTrends = allTrends.stream()
+                .sorted(byDelayRate)
                 .limit(top)
                 .toList();
 
@@ -287,7 +312,11 @@ public class TaskService {
                 )
                 .riskyTaskCount(riskyTasks.size())
                 .riskyTasks(riskyTasks)
-                .taskTrends(taskTrends)
+                .topCompletionTrends(topCompletionTrends)
+                .topDelayedTrends(topDelayedTrends)
+                .topDelayRateTrends(topDelayRateTrends)
+                // 하위 호환: 기존 프론트는 taskTrends를 completion 기준 Top으로 사용
+                .taskTrends(topCompletionTrends)
                 .build();
     }
 

@@ -543,6 +543,16 @@ class TaskServiceTest {
         assertThat(result.getRiskyTasks().get(0).getReasons()).containsExactly("OVERDUE_7D_PLUS");
         assertThat(result.getRiskyTasks().get(1).getReasons()).containsExactly("NO_COMPLETION_30D");
 
+        assertThat(result.getTopCompletionTrends())
+                .extracting(TaskTrendInsightResponse::getTaskId)
+                .containsExactly(1L, 2L);
+        assertThat(result.getTopDelayedTrends())
+                .extracting(TaskTrendInsightResponse::getTaskId)
+                .containsExactly(1L, 2L);
+        assertThat(result.getTopDelayRateTrends())
+                .extracting(TaskTrendInsightResponse::getTaskId)
+                .containsExactly(1L, 2L);
+
         assertThat(result.getTaskTrends()).hasSize(2);
         TaskTrendInsightResponse first = result.getTaskTrends().get(0);
         assertThat(first.getTaskId()).isEqualTo(1L);
@@ -577,6 +587,9 @@ class TaskServiceTest {
         assertThat(result.getAverageDelayDays()).isEqualTo(0.0);
         assertThat(result.getRiskyTaskCount()).isZero();
         assertThat(result.getRiskyTasks()).isEmpty();
+        assertThat(result.getTopCompletionTrends()).isEmpty();
+        assertThat(result.getTopDelayedTrends()).isEmpty();
+        assertThat(result.getTopDelayRateTrends()).isEmpty();
         assertThat(result.getTaskTrends()).isEmpty();
     }
 
@@ -719,7 +732,7 @@ class TaskServiceTest {
     }
 
     @Test
-    @DisplayName("인사이트 overview 조회 - 작업 추세는 completion/delayed/taskId 순으로 정렬하고 top으로 제한")
+    @DisplayName("인사이트 overview 조회 - 작업 추세 랭킹(완료/지연/지연률)을 각각 정렬하고 top으로 제한")
     void testGetInsightsOverviewTrendSortAndTopLimit() {
         Instant fixedNow = Instant.parse("2026-03-25T00:00:00Z");
         OffsetDateTime now = fixedNow.atOffset(ZoneOffset.UTC);
@@ -787,13 +800,22 @@ class TaskServiceTest {
 
         InsightsOverviewResponse result = taskService.getInsightsOverview(30, 2);
 
-        assertThat(result.getTaskTrends()).hasSize(2);
+        assertThat(result.getTopCompletionTrends()).hasSize(2);
+        assertThat(result.getTopCompletionTrends())
+                .extracting(TaskTrendInsightResponse::getTaskId)
+                .containsExactly(1L, 2L);
+        assertThat(result.getTopCompletionTrends())
+                .extracting(TaskTrendInsightResponse::getCompletionCount)
+                .containsExactly(2L, 2L);
+        assertThat(result.getTopDelayedTrends())
+                .extracting(TaskTrendInsightResponse::getTaskId)
+                .containsExactly(1L, 2L);
+        assertThat(result.getTopDelayRateTrends())
+                .extracting(TaskTrendInsightResponse::getTaskId)
+                .containsExactly(3L, 1L);
         assertThat(result.getTaskTrends())
                 .extracting(TaskTrendInsightResponse::getTaskId)
                 .containsExactly(1L, 2L);
-        assertThat(result.getTaskTrends())
-                .extracting(TaskTrendInsightResponse::getCompletionCount)
-                .containsExactly(2L, 2L);
     }
 
     @Test

@@ -39,6 +39,9 @@ export interface InsightsOverview {
   averageDelayDays: number
   riskyTaskCount: number
   riskyTasks: RiskyTaskInsight[]
+  topCompletionTrends: TaskTrendInsight[]
+  topDelayedTrends: TaskTrendInsight[]
+  topDelayRateTrends: TaskTrendInsight[]
   taskTrends: TaskTrendInsight[]
 }
 

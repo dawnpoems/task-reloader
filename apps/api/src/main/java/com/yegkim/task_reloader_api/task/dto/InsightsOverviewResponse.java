@@ -23,5 +23,8 @@ public class InsightsOverviewResponse {
     private double averageDelayDays;
     private long riskyTaskCount;
     private List<RiskyTaskInsightResponse> riskyTasks;
+    private List<TaskTrendInsightResponse> topCompletionTrends;
+    private List<TaskTrendInsightResponse> topDelayedTrends;
+    private List<TaskTrendInsightResponse> topDelayRateTrends;
     private List<TaskTrendInsightResponse> taskTrends;
 }
