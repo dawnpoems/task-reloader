@@ -68,10 +68,14 @@ docker-compose up --build -d
 
 | 서비스 | URL |
 |--------|-----|
-| Web (nginx) | http://localhost:80 |
+| Web (nginx) | http://localhost:3000 |
 | API | http://localhost:8080 |
 | Swagger UI | http://localhost:8080/swagger-ui.html |
+| Prometheus | http://localhost:9090 |
+| Grafana | http://localhost:3001 |
 | PostgreSQL | localhost:5432 |
+
+Grafana 기본 계정은 `.env`의 `GRAFANA_ADMIN_USER`, `GRAFANA_ADMIN_PASSWORD`를 사용합니다.
 
 ### 종료
 
@@ -81,6 +85,48 @@ docker-compose down
 
 # 볼륨(DB 데이터)까지 삭제
 docker-compose down -v
+```
+
+### 모니터링 확인
+
+```bash
+# Prometheus 지표 확인
+curl -s http://localhost:9090/api/v1/targets | jq '.data.activeTargets[].health'
+
+# API가 지표를 노출하는지 확인
+curl -s http://localhost:8080/actuator/prometheus | head -n 20
+```
+
+Grafana 접속 후:
+- URL: `http://localhost:3001`
+- 대시보드: `Task Reloader - API Overview` (자동 프로비저닝)
+
+### 권장 임계치 (홈서버/포트폴리오 기준)
+
+| 지표 | Warning | Critical | 확인 창 |
+|------|---------|----------|---------|
+| 5xx 에러율 | 1% 초과 | 3% 초과 | 5분 |
+| p95 Latency | 300ms 초과 | 800ms 초과 | 5분 |
+| API 가용성(`up`) | - | 0 (DOWN) | 2분 |
+
+참고 PromQL:
+
+```promql
+# 5xx 에러율 (%)
+100 * (
+  sum(rate(http_server_requests_seconds_count{uri!~"/actuator.*|/healthz|/favicon.ico",status=~"5.."}[5m]))
+  /
+  clamp_min(sum(rate(http_server_requests_seconds_count{uri!~"/actuator.*|/healthz|/favicon.ico"}[5m])), 0.000001)
+)
+
+# p95 latency (sec)
+histogram_quantile(
+  0.95,
+  sum(rate(http_server_requests_seconds_bucket{uri!~"/actuator.*|/healthz|/favicon.ico"}[5m])) by (le)
+)
+
+# API down
+up{job="task-reloader-api"} == 0
 ```
 
 ---
@@ -243,5 +289,3 @@ WARN: healthcheck failed
 ### Multi-stage Docker Build
 - **Stage 1**: JDK 이미지로 빌드
 - **Stage 2**: JRE 이미지로 실행 (이미지 크기 최소화)
-
-
