@@ -115,6 +115,32 @@ BASE_URL=http://localhost:8080 k6 run infra/load/k6-read-suite.js
 - `/api/insights/recent-completions`
 - (Task 존재 시) `/api/tasks/{id}`, `/api/tasks/{id}/completions?year=YYYY&month=MM`
 
+### 확장 버전 (batch + 환경변수 + fallback taskId)
+
+`k6-read-suite-extended.js`는 아래 기능을 추가로 제공합니다.
+
+- `http.batch` 기반 병렬 GET 호출
+- 환경변수로 부하 세기 조정 (`VUS`, `DURATION`, `SLEEP_SECONDS`)
+- Task 목록이 비어도 `TASK_ID`를 지정하면 상세/완료이력 API 강제 검증
+
+기본 실행:
+
+```bash
+BASE_URL=http://localhost:8080 k6 run infra/load/k6-read-suite-extended.js
+```
+
+부하 강도 조정:
+
+```bash
+BASE_URL=http://localhost:8080 VUS=30 DURATION=3m SLEEP_SECONDS=0.5 k6 run infra/load/k6-read-suite-extended.js
+```
+
+목록이 비어 있을 때 fallback taskId 지정:
+
+```bash
+BASE_URL=http://localhost:8080 TASK_ID=1 k6 run infra/load/k6-read-suite-extended.js
+```
+
 ## 로컬 개발 모드 (DB만 Docker)
 
 백엔드/프론트를 IDE/로컬 서버로 실행하고 DB만 Docker로 띄우는 방식입니다.
