@@ -79,6 +79,42 @@ curl -s http://localhost:9090/api/v1/targets | jq '.data.activeTargets[] | {job:
 curl -s http://localhost:8080/actuator/prometheus | head -n 20
 ```
 
+## k6 부하 테스트 (스모크)
+
+1. k6 설치 (macOS)
+
+```bash
+brew install k6
+```
+
+2. 스모크 테스트 실행
+
+```bash
+BASE_URL=http://localhost:8080 k6 run infra/load/k6-smoke.js
+```
+
+3. 결과 확인 포인트
+
+- `http_req_failed`: 실패율 (기본 목표 `< 1%`)
+- `http_req_duration p(95)`: 95퍼센타일 응답시간 (기본 목표 `< 800ms`)
+- `checks`: 응답 검증 성공률 (기본 목표 `> 99%`)
+
+### 여러 GET API를 함께 검증하고 싶을 때
+
+아래 스크립트는 목록/인사이트 GET API를 한 번에 호출하고, Task가 존재하면 상세/월별 완료이력 GET까지 함께 확인합니다.
+
+```bash
+BASE_URL=http://localhost:8080 k6 run infra/load/k6-read-suite.js
+```
+
+주요 확인 대상:
+- `/api/tasks?status=DUE_NOW`
+- `/api/tasks?status=UPCOMING`
+- `/api/insights/dashboard`
+- `/api/insights/overview?days=30&top=5`
+- `/api/insights/recent-completions`
+- (Task 존재 시) `/api/tasks/{id}`, `/api/tasks/{id}/completions?year=YYYY&month=MM`
+
 ## 로컬 개발 모드 (DB만 Docker)
 
 백엔드/프론트를 IDE/로컬 서버로 실행하고 DB만 Docker로 띄우는 방식입니다.
