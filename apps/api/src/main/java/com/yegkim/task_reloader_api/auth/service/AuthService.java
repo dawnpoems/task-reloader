@@ -4,6 +4,7 @@ import com.yegkim.task_reloader_api.auth.dto.AccessTokenResponse;
 import com.yegkim.task_reloader_api.auth.dto.LoginRequest;
 import com.yegkim.task_reloader_api.auth.dto.LoginResponse;
 import com.yegkim.task_reloader_api.auth.dto.MeResponse;
+import com.yegkim.task_reloader_api.auth.dto.PendingUserResponse;
 import com.yegkim.task_reloader_api.auth.dto.SignupRequest;
 import com.yegkim.task_reloader_api.auth.dto.SignupResponse;
 import com.yegkim.task_reloader_api.auth.entity.RefreshToken;
@@ -149,6 +150,62 @@ public class AuthService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new AuthException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "사용자 정보를 찾을 수 없습니다."));
         return new MeResponse(user.getId(), user.getEmail(), user.getRole(), user.getStatus());
+    }
+
+    public List<PendingUserResponse> getPendingUsers(Long adminUserId) {
+        validateAdminUser(adminUserId);
+        return userRepository.findAllByStatusOrderByCreatedAtAsc(UserStatus.PENDING).stream()
+                .map(this::toPendingUserResponse)
+                .toList();
+    }
+
+    @Transactional
+    public PendingUserResponse approvePendingUser(Long adminUserId, Long targetUserId) {
+        User adminUser = validateAdminUser(adminUserId);
+        User targetUser = userRepository.findById(targetUserId)
+                .orElseThrow(() -> new AuthException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "사용자 정보를 찾을 수 없습니다."));
+
+        if (targetUser.getStatus() != UserStatus.PENDING) {
+            throw new AuthException(HttpStatus.CONFLICT, "ACCOUNT_NOT_PENDING", "승인 대기 상태 계정만 승인할 수 있습니다.");
+        }
+
+        targetUser.approve(adminUser, nowUtc());
+        log.info("User approved adminUserId={} targetUserId={}", adminUserId, targetUserId);
+        return toPendingUserResponse(targetUser);
+    }
+
+    @Transactional
+    public PendingUserResponse rejectPendingUser(Long adminUserId, Long targetUserId) {
+        validateAdminUser(adminUserId);
+        User targetUser = userRepository.findById(targetUserId)
+                .orElseThrow(() -> new AuthException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "사용자 정보를 찾을 수 없습니다."));
+
+        if (targetUser.getStatus() != UserStatus.PENDING) {
+            throw new AuthException(HttpStatus.CONFLICT, "ACCOUNT_NOT_PENDING", "승인 대기 상태 계정만 거절할 수 있습니다.");
+        }
+
+        targetUser.reject();
+        log.info("User rejected adminUserId={} targetUserId={}", adminUserId, targetUserId);
+        return toPendingUserResponse(targetUser);
+    }
+
+    private User validateAdminUser(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new AuthException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "사용자 정보를 찾을 수 없습니다."));
+        if (user.getRole() != UserRole.ADMIN) {
+            throw new AuthException(HttpStatus.FORBIDDEN, "ADMIN_ONLY", "관리자 권한이 필요합니다.");
+        }
+        return user;
+    }
+
+    private PendingUserResponse toPendingUserResponse(User user) {
+        return new PendingUserResponse(
+                user.getId(),
+                user.getEmail(),
+                user.getRole(),
+                user.getStatus(),
+                user.getCreatedAt()
+        );
     }
 
     private TokenBundle issueTokens(User user) {

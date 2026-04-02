@@ -52,6 +52,12 @@ public class User {
         this.approvedAt = approvedAt;
     }
 
+    public void reject() {
+        this.status = UserStatus.REJECTED;
+        this.approvedBy = null;
+        this.approvedAt = null;
+    }
+
     @PrePersist
     protected void onCreate() {
         OffsetDateTime now = OffsetDateTime.now();
