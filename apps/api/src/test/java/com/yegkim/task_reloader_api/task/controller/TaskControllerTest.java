@@ -7,6 +7,8 @@ import com.yegkim.task_reloader_api.common.exception.TaskInactiveException;
 import com.yegkim.task_reloader_api.common.exception.TaskNotFoundException;
 import com.yegkim.task_reloader_api.common.exception.TaskRecentlyCompletedException;
 import com.yegkim.task_reloader_api.common.web.RequestIdLoggingFilter;
+import com.yegkim.task_reloader_api.auth.jwt.JwtTokenProvider;
+import com.yegkim.task_reloader_api.auth.security.SecurityErrorResponseWriter;
 import com.yegkim.task_reloader_api.task.dto.CreateTaskRequest;
 import com.yegkim.task_reloader_api.task.dto.DashboardSummaryResponse;
 import com.yegkim.task_reloader_api.task.dto.InsightsOverviewResponse;
@@ -78,6 +80,12 @@ class TaskControllerTest {
 
     @MockitoBean
     private TaskService taskService;
+
+    @MockitoBean
+    private JwtTokenProvider jwtTokenProvider;
+
+    @MockitoBean
+    private SecurityErrorResponseWriter securityErrorResponseWriter;
 
     private TaskResponse taskResponse;
 
