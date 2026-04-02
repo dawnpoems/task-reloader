@@ -1,6 +1,7 @@
 package com.yegkim.task_reloader_api.auth.controller;
 
-import com.yegkim.task_reloader_api.auth.dto.PendingUserResponse;
+import com.yegkim.task_reloader_api.auth.dto.AuthCookieConfig;
+import com.yegkim.task_reloader_api.auth.dto.MeResponse;
 import com.yegkim.task_reloader_api.auth.entity.UserRole;
 import com.yegkim.task_reloader_api.auth.entity.UserStatus;
 import com.yegkim.task_reloader_api.auth.exception.AuthException;
@@ -22,11 +23,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.http.converter.autoconfigure.HttpMessageConvertersAutoConfiguration;
 import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -36,36 +38,30 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.context.annotation.FilterType;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.List;
 
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.http.HttpHeaders.AUTHORIZATION;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(
-        controllers = AdminUserController.class,
+        controllers = AuthController.class,
         excludeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = JwtAuthenticationFilter.class)
 )
 @ImportAutoConfiguration({
@@ -73,13 +69,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         HttpMessageConvertersAutoConfiguration.class
 })
 @Import({
-        AdminUserControllerTest.TestSecurityConfig.class,
+        AuthMeControllerTest.TestSecurityConfig.class,
         JwtAuthenticationEntryPoint.class,
         JwtAccessDeniedHandler.class,
         RequestIdLoggingFilter.class
 })
-@DisplayName("AdminUserController 단위테스트")
-class AdminUserControllerTest {
+@DisplayName("AuthController /me 보안 단위테스트")
+class AuthMeControllerTest {
 
     @TestConfiguration
     @EnableWebSecurity
@@ -102,7 +98,13 @@ class AdminUserControllerTest {
                             .accessDeniedHandler(jwtAccessDeniedHandler)
                     )
                     .authorizeHttpRequests(auth -> auth
-                            .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                            .requestMatchers(
+                                    "/api/auth/signup",
+                                    "/api/auth/login",
+                                    "/api/auth/refresh",
+                                    "/api/auth/logout"
+                            ).permitAll()
+                            .requestMatchers("/api/auth/me").authenticated()
                             .anyRequest().permitAll()
                     )
                     .addFilterBefore(testTokenAuthenticationFilter, AuthorizationFilter.class);
@@ -136,25 +138,18 @@ class AdminUserControllerTest {
             String authorization = request.getHeader(AUTHORIZATION);
             if (authorization != null && authorization.startsWith("Bearer ")) {
                 String token = authorization.substring("Bearer ".length()).trim();
-                if ("admin-token".equals(token)) {
-                    setAuthentication(1L, UserRole.ADMIN);
-                } else if ("user-token".equals(token)) {
-                    setAuthentication(2L, UserRole.USER);
+                if ("user-token".equals(token)) {
+                    AuthenticatedUser principal = new AuthenticatedUser(1L, UserRole.USER);
+                    UsernamePasswordAuthenticationToken authentication =
+                            new UsernamePasswordAuthenticationToken(
+                                    principal,
+                                    null,
+                                    List.of(new SimpleGrantedAuthority("ROLE_USER"))
+                            );
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
                 }
             }
-
             filterChain.doFilter(request, response);
-        }
-
-        private void setAuthentication(Long userId, UserRole role) {
-            AuthenticatedUser principal = new AuthenticatedUser(userId, role);
-            UsernamePasswordAuthenticationToken authentication =
-                    new UsernamePasswordAuthenticationToken(
-                            principal,
-                            null,
-                            List.of(new SimpleGrantedAuthority("ROLE_" + role.name()))
-                    );
-            SecurityContextHolder.getContext().setAuthentication(authentication);
         }
     }
 
@@ -163,6 +158,9 @@ class AdminUserControllerTest {
 
     @MockitoBean
     private AuthService authService;
+
+    @MockitoBean
+    private AuthCookieConfig authCookieConfig;
 
     @MockitoBean
     private SecurityErrorResponseWriter securityErrorResponseWriter;
@@ -178,131 +176,43 @@ class AdminUserControllerTest {
     }
 
     @Test
-    @DisplayName("승인 대기 사용자 목록 조회 - ADMIN 성공")
-    void getPendingUsers_admin_success() throws Exception {
-        OffsetDateTime createdAt = OffsetDateTime.of(2026, 4, 2, 9, 0, 0, 0, ZoneOffset.UTC);
-        PendingUserResponse pending = new PendingUserResponse(
-                10L,
-                "pending@example.com",
-                UserRole.USER,
-                UserStatus.PENDING,
-                createdAt
-        );
-        when(authService.getPendingUsers(1L)).thenReturn(List.of(pending));
+    @DisplayName("내 정보 조회 - 인증된 사용자 성공")
+    void me_success() throws Exception {
+        when(authService.getMe(1L))
+                .thenReturn(new MeResponse(1L, "user@example.com", UserRole.USER, UserStatus.APPROVED));
 
-        mockMvc.perform(get("/api/admin/users/pending")
-                        .header(AUTHORIZATION, bearer("admin-token")))
+        mockMvc.perform(get("/api/auth/me")
+                        .header(AUTHORIZATION, bearer("user-token")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success", is(true)))
-                .andExpect(jsonPath("$.data", hasSize(1)))
-                .andExpect(jsonPath("$.data[0].userId", is(10)))
-                .andExpect(jsonPath("$.data[0].email", is("pending@example.com")))
-                .andExpect(jsonPath("$.data[0].status", is("PENDING")));
-
-        verify(authService).getPendingUsers(1L);
-    }
-
-    @Test
-    @DisplayName("사용자 승인 - ADMIN 성공")
-    void approveUser_admin_success() throws Exception {
-        OffsetDateTime createdAt = OffsetDateTime.of(2026, 4, 2, 9, 0, 0, 0, ZoneOffset.UTC);
-        PendingUserResponse approved = new PendingUserResponse(
-                10L,
-                "approved@example.com",
-                UserRole.USER,
-                UserStatus.APPROVED,
-                createdAt
-        );
-        when(authService.approvePendingUser(1L, 10L)).thenReturn(approved);
-
-        mockMvc.perform(post("/api/admin/users/10/approve")
-                        .header(AUTHORIZATION, bearer("admin-token")))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success", is(true)))
-                .andExpect(jsonPath("$.data.userId", is(10)))
-                .andExpect(jsonPath("$.data.email", is("approved@example.com")))
+                .andExpect(jsonPath("$.data.userId", is(1)))
+                .andExpect(jsonPath("$.data.email", is("user@example.com")))
+                .andExpect(jsonPath("$.data.role", is("USER")))
                 .andExpect(jsonPath("$.data.status", is("APPROVED")));
 
-        verify(authService).approvePendingUser(1L, 10L);
+        verify(authService).getMe(1L);
     }
 
     @Test
-    @DisplayName("사용자 거절 - ADMIN 성공")
-    void rejectUser_admin_success() throws Exception {
-        OffsetDateTime createdAt = OffsetDateTime.of(2026, 4, 2, 9, 0, 0, 0, ZoneOffset.UTC);
-        PendingUserResponse rejected = new PendingUserResponse(
-                11L,
-                "rejected@example.com",
-                UserRole.USER,
-                UserStatus.REJECTED,
-                createdAt
-        );
-        when(authService.rejectPendingUser(1L, 11L)).thenReturn(rejected);
+    @DisplayName("내 정보 조회 - 미인증이면 401")
+    void me_unauthenticated_returns401() throws Exception {
+        mockMvc.perform(get("/api/auth/me"))
+                .andExpect(status().isUnauthorized());
 
-        mockMvc.perform(post("/api/admin/users/11/reject")
-                        .header(AUTHORIZATION, bearer("admin-token")))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success", is(true)))
-                .andExpect(jsonPath("$.data.userId", is(11)))
-                .andExpect(jsonPath("$.data.email", is("rejected@example.com")))
-                .andExpect(jsonPath("$.data.status", is("REJECTED")));
-
-        verify(authService).rejectPendingUser(1L, 11L);
+        verify(authService, never()).getMe(any());
     }
 
     @Test
-    @DisplayName("사용자 승인 - 대상 사용자가 없으면 404")
-    void approveUser_notFound_returns404() throws Exception {
-        when(authService.approvePendingUser(1L, 999L))
+    @DisplayName("내 정보 조회 - 사용자 없음이면 404")
+    void me_userNotFound_returns404() throws Exception {
+        when(authService.getMe(1L))
                 .thenThrow(new AuthException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "사용자 정보를 찾을 수 없습니다."));
 
-        mockMvc.perform(post("/api/admin/users/999/approve")
-                        .header(AUTHORIZATION, bearer("admin-token")))
+        mockMvc.perform(get("/api/auth/me")
+                        .header(AUTHORIZATION, bearer("user-token")))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.success", is(false)))
                 .andExpect(jsonPath("$.error.code", is("USER_NOT_FOUND")));
-    }
-
-    @Test
-    @DisplayName("사용자 거절 - PENDING 상태가 아니면 409")
-    void rejectUser_notPending_returns409() throws Exception {
-        when(authService.rejectPendingUser(1L, 11L))
-                .thenThrow(new AuthException(HttpStatus.CONFLICT, "ACCOUNT_NOT_PENDING", "승인 대기 상태 계정만 거절할 수 있습니다."));
-
-        mockMvc.perform(post("/api/admin/users/11/reject")
-                        .header(AUTHORIZATION, bearer("admin-token")))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.success", is(false)))
-                .andExpect(jsonPath("$.error.code", is("ACCOUNT_NOT_PENDING")));
-    }
-
-    @Test
-    @DisplayName("승인 대기 사용자 목록 조회 - 미인증이면 401")
-    void getPendingUsers_unauthenticated_unauthorized() throws Exception {
-        mockMvc.perform(get("/api/admin/users/pending"))
-                .andExpect(status().isUnauthorized());
-
-        verify(authService, never()).getPendingUsers(any());
-    }
-
-    @Test
-    @DisplayName("사용자 승인 - USER 권한이면 403")
-    void approveUser_userRole_forbidden() throws Exception {
-        mockMvc.perform(post("/api/admin/users/10/approve")
-                        .header(AUTHORIZATION, bearer("user-token")))
-                .andExpect(status().isForbidden());
-
-        verify(authService, never()).approvePendingUser(any(), eq(10L));
-    }
-
-    @Test
-    @DisplayName("사용자 거절 - USER 권한이면 403")
-    void rejectUser_userRole_forbidden() throws Exception {
-        mockMvc.perform(post("/api/admin/users/11/reject")
-                        .header(AUTHORIZATION, bearer("user-token")))
-                .andExpect(status().isForbidden());
-
-        verify(authService, never()).rejectPendingUser(any(), eq(11L));
     }
 
     private String bearer(String token) {

@@ -149,6 +149,33 @@ class AuthControllerTest {
     }
 
     @Test
+    @DisplayName("로그인 성공 - refresh cookie에 Secure/SameSite 정책 반영")
+    void login_success_appliesSecureAndSameSitePolicy() throws Exception {
+        when(authCookieConfig.secure()).thenReturn(true);
+        when(authCookieConfig.sameSite()).thenReturn("Strict");
+
+        LoginRequest request = new LoginRequest("user@example.com", "Password1");
+        LoginResponse response = new LoginResponse(
+                "Bearer",
+                "access-token",
+                900L,
+                1L,
+                "user@example.com",
+                UserRole.USER,
+                UserStatus.APPROVED
+        );
+        when(authService.login(any())).thenReturn(new AuthService.LoginResult(response, "refresh-token", 1200L));
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Set-Cookie", containsString("Secure")))
+                .andExpect(header().string("Set-Cookie", containsString("SameSite=Strict")))
+                .andExpect(header().string("Set-Cookie", containsString("Path=/api/auth")));
+    }
+
+    @Test
     @DisplayName("토큰 재발급 성공 - 요청 cookie 사용 + 새 cookie 설정")
     void refresh_success_usesCookieAndSetsNewCookie() throws Exception {
         AccessTokenResponse response = new AccessTokenResponse("Bearer", "new-access-token", 900L);
@@ -189,5 +216,20 @@ class AuthControllerTest {
                 .andExpect(header().string("Set-Cookie", containsString("Max-Age=0")));
 
         verify(authService).logout("logout-token");
+    }
+
+    @Test
+    @DisplayName("로그아웃 성공 - refresh cookie 제거 시 Secure/SameSite 정책 유지")
+    void logout_success_clearCookieKeepsSecurityPolicy() throws Exception {
+        when(authCookieConfig.secure()).thenReturn(true);
+        when(authCookieConfig.sameSite()).thenReturn("Strict");
+
+        mockMvc.perform(post("/api/auth/logout")
+                        .cookie(new Cookie("refresh_token", "logout-token")))
+                .andExpect(status().isNoContent())
+                .andExpect(header().string("Set-Cookie", containsString("refresh_token=")))
+                .andExpect(header().string("Set-Cookie", containsString("Max-Age=0")))
+                .andExpect(header().string("Set-Cookie", containsString("Secure")))
+                .andExpect(header().string("Set-Cookie", containsString("SameSite=Strict")));
     }
 }
