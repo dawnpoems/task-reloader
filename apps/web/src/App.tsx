@@ -21,6 +21,7 @@ const INSIGHTS_PATH = '/insights'
 const LOGIN_PATH = '/auth/login'
 const SIGNUP_PATH = '/auth/signup'
 const ADMIN_APPROVALS_PATH = '/admin/approvals'
+const POST_LOGIN_REDIRECT_KEY = 'task_reloader.post_login_redirect'
 
 const getTaskIdFromPath = (pathname: string): number | null => {
   const match = pathname.match(/^\/tasks\/(\d+)$/)
@@ -29,6 +30,11 @@ const getTaskIdFromPath = (pathname: string): number | null => {
 
 const isPublicPath = (pathname: string): boolean => pathname === LOGIN_PATH || pathname === SIGNUP_PATH
 
+const canAccessPathByRole = (pathname: string, role?: 'USER' | 'ADMIN'): boolean => {
+  if (pathname === ADMIN_APPROVALS_PATH) return role === 'ADMIN'
+  return true
+}
+
 const isKnownPath = (pathname: string): boolean => {
   if (pathname === HOME_PATH) return true
   if (pathname === INSIGHTS_PATH) return true
@@ -36,6 +42,22 @@ const isKnownPath = (pathname: string): boolean => {
   if (pathname === SIGNUP_PATH) return true
   if (pathname === ADMIN_APPROVALS_PATH) return true
   return getTaskIdFromPath(pathname) !== null
+}
+
+const savePostLoginRedirect = (pathname: string): void => {
+  if (!isKnownPath(pathname) || isPublicPath(pathname)) return
+  window.sessionStorage.setItem(POST_LOGIN_REDIRECT_KEY, pathname)
+}
+
+const popPostLoginRedirect = (): string | null => {
+  const stored = window.sessionStorage.getItem(POST_LOGIN_REDIRECT_KEY)
+  if (!stored) return null
+  window.sessionStorage.removeItem(POST_LOGIN_REDIRECT_KEY)
+  return stored
+}
+
+const clearPostLoginRedirect = (): void => {
+  window.sessionStorage.removeItem(POST_LOGIN_REDIRECT_KEY)
 }
 
 function App() {
@@ -125,20 +147,31 @@ function App() {
 
     if (!isAuthenticated) {
       if (!isPublicPath(pathname)) {
+        savePostLoginRedirect(pathname)
         replaceTo(LOGIN_PATH)
       }
       return
     }
 
     if (isPublicPath(pathname)) {
-      replaceTo(HOME_PATH)
+      const redirectPath = popPostLoginRedirect()
+      if (
+        redirectPath &&
+        isKnownPath(redirectPath) &&
+        !isPublicPath(redirectPath) &&
+        canAccessPathByRole(redirectPath, user?.role)
+      ) {
+        replaceTo(redirectPath)
+      } else {
+        replaceTo(HOME_PATH)
+      }
       return
     }
 
     if (isAdminApprovalsPage && !canViewAdminPage) {
       replaceTo(HOME_PATH)
     }
-  }, [canViewAdminPage, isAdminApprovalsPage, isAuthenticated, isInitializing, pathname, replaceTo])
+  }, [canViewAdminPage, isAdminApprovalsPage, isAuthenticated, isInitializing, pathname, replaceTo, user?.role])
 
   useEffect(() => {
     if (isDataEnabled) return
@@ -266,6 +299,7 @@ function App() {
 
   const handleLogout = async () => {
     await logout()
+    clearPostLoginRedirect()
     replaceTo(LOGIN_PATH)
   }
 
@@ -322,6 +356,10 @@ function App() {
           <p className="subtitle">A completion-driven recurring task scheduler</p>
         </div>
         <div className="app-header__actions">
+          <div className="app-user-chip" aria-live="polite">
+            <strong>{user.email}</strong>
+            <span>{user.role === 'ADMIN' ? '관리자' : '일반 사용자'}</span>
+          </div>
           <nav className="app-nav">
             <button
               type="button"

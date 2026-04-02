@@ -23,6 +23,28 @@
   justify-content: flex-end;
 }
 
+.app-user-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0.4rem 0.65rem;
+  border-radius: 10px;
+  border: 1px solid #dbe3ef;
+  background: #f8fafc;
+  line-height: 1.2;
+}
+
+.app-user-chip strong {
+  font-size: 0.82rem;
+  color: #0f172a;
+}
+
+.app-user-chip span {
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
 .app-nav {
   display: inline-flex;
   gap: 0.35rem;
@@ -278,6 +300,41 @@
   flex-wrap: wrap;
 }
 
+.admin-approvals__filter {
+  border: 1px solid #dbe3ef;
+  border-radius: 10px;
+  background: #fff;
+  padding: 0.7rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.admin-approvals__filter label {
+  font-size: 0.84rem;
+  color: #334155;
+  font-weight: 700;
+}
+
+.admin-approvals__filter-control {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.admin-approvals__filter-control input {
+  flex: 1;
+}
+
+.admin-approvals__clear {
+  white-space: nowrap;
+}
+
+.admin-approvals__summary {
+  color: #64748b;
+  font-size: 0.82rem;
+}
+
 .admin-approvals__notice {
   margin: 0;
   background: #ecfdf5;
@@ -292,6 +349,13 @@
 .admin-approvals__empty {
   padding: 0.85rem 0.4rem;
   color: #64748b;
+}
+
+.admin-approvals__empty--filter {
+  border: 1px dashed #dbe3ef;
+  border-radius: 10px;
+  background: #fff;
+  padding: 0.8rem;
 }
 
 .admin-approvals__list {
@@ -356,7 +420,38 @@
   border-color: #991b1b;
 }
 
+.admin-approvals__modal {
+  width: min(520px, 92vw);
+}
+
+.admin-approvals__modal-message {
+  margin: 0;
+  color: #334155;
+  line-height: 1.55;
+}
+
+.admin-approvals__modal-email {
+  display: block;
+  margin-top: 0.35rem;
+  color: #0f172a;
+  font-weight: 700;
+  word-break: break-all;
+}
+
+.admin-approvals__modal-actions {
+  justify-content: flex-end;
+}
+
 @media (max-width: 720px) {
+  .admin-approvals__filter-control {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-approvals__clear {
+    width: 100%;
+  }
+
   .admin-approvals__item {
     flex-direction: column;
     align-items: stretch;
