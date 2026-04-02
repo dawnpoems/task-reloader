@@ -9,6 +9,7 @@ import { TaskCreateModal } from './components/TaskCreateModal'
 import { TaskEditModal } from './components/TaskEditModal'
 import { tasksApi } from './api/tasks'
 import { extractErrorMessage } from './api/client'
+import { useAuth } from './auth/AuthContext'
 import type { Task } from './types/task'
 import './App.css'
 
@@ -20,9 +21,11 @@ const getTaskIdFromPath = (pathname: string): number | null => {
 }
 
 function App() {
+  const { isAuthenticated, isInitializing } = useAuth()
   const [pathname, setPathname] = useState(window.location.pathname)
   const isInsightsPage = pathname === INSIGHTS_PATH
-  const { tasks: dueNowTasks, isLoading, error, toast, createTask, updateTask, completeTask, deleteTask, refetch } = useTasks('DUE_NOW')
+  const isDataEnabled = isAuthenticated && !isInitializing
+  const { tasks: dueNowTasks, isLoading, error, toast, createTask, updateTask, completeTask, deleteTask, refetch } = useTasks('DUE_NOW', isDataEnabled)
   const {
     dashboard,
     overview,
@@ -30,7 +33,7 @@ function App() {
     isLoading: isInsightsLoading,
     error: insightsError,
     refetch: refetchInsights,
-  } = useInsights(isInsightsPage)
+  } = useInsights(isInsightsPage && isDataEnabled)
   const [showForm, setShowForm] = useState(false)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [upcomingTasks, setUpcomingTasks] = useState<Task[]>([])
@@ -67,9 +70,17 @@ function App() {
 
   const selectedTaskId = getTaskIdFromPath(pathname)
   const isHomePage = pathname === '/'
-  const shouldShowGlobalError = isHomePage && !showForm && !selectedTask && !selectedTaskId
+  const shouldShowGlobalError = isDataEnabled && isHomePage && !showForm && !selectedTask && !selectedTaskId
 
   const fetchUpcomingTasks = useCallback(async () => {
+    if (!isDataEnabled) {
+      setUpcomingTasks([])
+      setUpcomingError(null)
+      setIsUpcomingLoaded(false)
+      setIsUpcomingLoading(false)
+      return
+    }
+
     setIsUpcomingLoading(true)
     setUpcomingError(null)
     const res = await tasksApi.getAll('UPCOMING')
@@ -80,7 +91,7 @@ function App() {
       setUpcomingError(extractErrorMessage(res.error, '남은 일정을 불러오지 못했습니다.'))
     }
     setIsUpcomingLoading(false)
-  }, [])
+  }, [isDataEnabled])
 
   useEffect(() => {
     if (isUpcomingOpen && !isUpcomingLoaded && !isUpcomingLoading) {
@@ -208,7 +219,15 @@ function App() {
         {shouldShowGlobalError && error && <ErrorNotice message={error} onRetry={refreshAll} />}
         {toast && <p className="app-toast" role="status" aria-live="polite">{toast}</p>}
 
-        {selectedTaskId ? (
+        {isInitializing ? (
+          <p className="app-loading">인증 상태를 확인하는 중...</p>
+        ) : !isAuthenticated ? (
+          <section className="auth-placeholder">
+            <h2>로그인이 필요합니다</h2>
+            <p>인증 기반(Access Token + Refresh Token) 연동이 완료되었습니다.</p>
+            <p>다음 단계에서 로그인/회원가입 화면과 라우트 가드를 연결합니다.</p>
+          </section>
+        ) : selectedTaskId ? (
           <TaskDetailPage
             taskId={selectedTaskId}
             refreshToken={detailRefreshToken}

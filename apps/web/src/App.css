@@ -111,6 +111,28 @@
   padding: 3rem 0;
 }
 
+.auth-placeholder {
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  padding: 1.25rem 1.4rem;
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.auth-placeholder h2 {
+  margin: 0;
+  font-size: 1.08rem;
+  color: #1f2937;
+}
+
+.auth-placeholder p {
+  margin: 0;
+  color: #475569;
+  font-size: 0.94rem;
+}
+
 /* ── TaskForm ── */
 .task-form {
   background: #f9f9f9;
