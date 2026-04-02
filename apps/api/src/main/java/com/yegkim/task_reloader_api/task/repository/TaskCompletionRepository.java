@@ -9,7 +9,16 @@ import java.util.List;
 public interface TaskCompletionRepository extends JpaRepository<TaskCompletion, Long> {
 
     List<TaskCompletion> findByTaskIdOrderByCompletedAtDesc(Long taskId);
+
     List<TaskCompletion> findByTaskIdAndCompletedAtGreaterThanEqualAndCompletedAtLessThanOrderByCompletedAtDesc(
+            Long taskId,
+            OffsetDateTime startInclusive,
+            OffsetDateTime endExclusive
+    );
+
+    List<TaskCompletion> findByUserIdAndTaskIdOrderByCompletedAtDesc(Long userId, Long taskId);
+    List<TaskCompletion> findByUserIdAndTaskIdAndCompletedAtGreaterThanEqualAndCompletedAtLessThanOrderByCompletedAtDesc(
+            Long userId,
             Long taskId,
             OffsetDateTime startInclusive,
             OffsetDateTime endExclusive
@@ -17,12 +26,24 @@ public interface TaskCompletionRepository extends JpaRepository<TaskCompletion, 
 
     List<TaskCompletion> findTop5ByOrderByCompletedAtDesc();
 
+    List<TaskCompletion> findTop5ByUserIdOrderByCompletedAtDesc(Long userId);
+
     List<TaskCompletion> findByCompletedAtGreaterThanEqualAndCompletedAtLessThan(
+            OffsetDateTime startInclusive,
+            OffsetDateTime endExclusive
+    );
+
+    List<TaskCompletion> findByUserIdAndCompletedAtGreaterThanEqualAndCompletedAtLessThan(
+            Long userId,
             OffsetDateTime startInclusive,
             OffsetDateTime endExclusive
     );
 
     long countByCompletedAtBetween(OffsetDateTime start, OffsetDateTime end);
 
+    long countByUserIdAndCompletedAtBetween(Long userId, OffsetDateTime start, OffsetDateTime end);
+
     long countByCompletedAtGreaterThanEqual(OffsetDateTime start);
+
+    long countByUserIdAndCompletedAtGreaterThanEqual(Long userId, OffsetDateTime start);
 }

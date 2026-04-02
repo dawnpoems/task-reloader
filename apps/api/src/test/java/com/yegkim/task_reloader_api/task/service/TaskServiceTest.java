@@ -1,5 +1,6 @@
 package com.yegkim.task_reloader_api.task.service;
 
+import com.yegkim.task_reloader_api.auth.security.AuthenticatedUserProvider;
 import com.yegkim.task_reloader_api.common.exception.TaskInactiveException;
 import com.yegkim.task_reloader_api.common.exception.TaskNotFoundException;
 import com.yegkim.task_reloader_api.common.exception.TaskRecentlyCompletedException;
@@ -44,6 +45,7 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 @DisplayName("TaskService 단위테스트")
 class TaskServiceTest {
+    private static final long USER_ID = 1L;
 
     @Mock
     private TaskRepository taskRepository;
@@ -63,6 +65,9 @@ class TaskServiceTest {
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
+    @Mock
+    private AuthenticatedUserProvider authenticatedUserProvider;
+
     @InjectMocks
     private TaskService taskService;
 
@@ -73,6 +78,33 @@ class TaskServiceTest {
     void setUp() {
         OffsetDateTime now = OffsetDateTime.now();
         lenient().when(clock.instant()).thenReturn(now.toInstant());
+        lenient().when(authenticatedUserProvider.currentUserId()).thenReturn(USER_ID);
+        lenient().when(taskRepository.findAllByUserIdAndIsActiveTrueOrderByNextDueAtAsc(anyLong()))
+                .thenAnswer(invocation -> taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc());
+        lenient().when(taskRepository.findByIdAndUserId(anyLong(), anyLong()))
+                .thenAnswer(invocation -> taskRepository.findById(invocation.getArgument(0)));
+        lenient().when(taskRepository.existsByIdAndUserId(anyLong(), anyLong()))
+                .thenAnswer(invocation -> taskRepository.existsById(invocation.getArgument(0)));
+        lenient().when(taskRepository.findByIdAndUserIdForUpdate(anyLong(), anyLong()))
+                .thenAnswer(invocation -> taskRepository.findByIdForUpdate(invocation.getArgument(0)));
+
+        lenient().when(taskCompletionRepository.findByUserIdAndTaskIdOrderByCompletedAtDesc(anyLong(), anyLong()))
+                .thenAnswer(invocation -> taskCompletionRepository.findByTaskIdOrderByCompletedAtDesc(invocation.getArgument(1)));
+        lenient().when(taskCompletionRepository
+                .findByUserIdAndTaskIdAndCompletedAtGreaterThanEqualAndCompletedAtLessThanOrderByCompletedAtDesc(
+                        anyLong(), anyLong(), any(), any()))
+                .thenAnswer(invocation -> taskCompletionRepository
+                        .findByTaskIdAndCompletedAtGreaterThanEqualAndCompletedAtLessThanOrderByCompletedAtDesc(
+                                invocation.getArgument(1), invocation.getArgument(2), invocation.getArgument(3)));
+        lenient().when(taskCompletionRepository.findTop5ByUserIdOrderByCompletedAtDesc(anyLong()))
+                .thenAnswer(invocation -> taskCompletionRepository.findTop5ByOrderByCompletedAtDesc());
+        lenient().when(taskCompletionRepository.findByUserIdAndCompletedAtGreaterThanEqualAndCompletedAtLessThan(anyLong(), any(), any()))
+                .thenAnswer(invocation -> taskCompletionRepository
+                        .findByCompletedAtGreaterThanEqualAndCompletedAtLessThan(invocation.getArgument(1), invocation.getArgument(2)));
+        lenient().when(taskCompletionRepository.countByUserIdAndCompletedAtBetween(anyLong(), any(), any()))
+                .thenAnswer(invocation -> taskCompletionRepository.countByCompletedAtBetween(invocation.getArgument(1), invocation.getArgument(2)));
+        lenient().when(taskCompletionRepository.countByUserIdAndCompletedAtGreaterThanEqual(anyLong(), any()))
+                .thenAnswer(invocation -> taskCompletionRepository.countByCompletedAtGreaterThanEqual(invocation.getArgument(1)));
 
         task = Task.builder()
                 .id(1L)
