@@ -3,6 +3,7 @@ import type {
   LoginRequest,
   LoginResponse,
   MeResponse,
+  PendingUser,
   RefreshResponse,
   SignupRequest,
   SignupResponse,
@@ -25,4 +26,13 @@ export const authApi = {
 
   me: (): Promise<ApiResponse<MeResponse>> =>
     apiClient.get<MeResponse>('/auth/me'),
+
+  getPendingUsers: (): Promise<ApiResponse<PendingUser[]>> =>
+    apiClient.get<PendingUser[]>('/admin/users/pending'),
+
+  approveUser: (userId: number): Promise<ApiResponse<PendingUser>> =>
+    apiClient.post<PendingUser>(`/admin/users/${userId}/approve`, {}),
+
+  rejectUser: (userId: number): Promise<ApiResponse<PendingUser>> =>
+    apiClient.post<PendingUser>(`/admin/users/${userId}/reject`, {}),
 }

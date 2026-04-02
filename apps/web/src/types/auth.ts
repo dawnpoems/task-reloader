@@ -47,3 +47,11 @@ export interface AuthUser {
   role: UserRole
   status: UserStatus
 }
+
+export interface PendingUser {
+  userId: number
+  email: string
+  role: UserRole
+  status: UserStatus
+  createdAt: string
+}
