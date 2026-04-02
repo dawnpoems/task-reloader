@@ -1,10 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { authApi } from '../api/auth'
-import { clearAccessToken, configureAuthClient, extractErrorMessage, setAccessToken } from '../api/client'
+import { clearAccessToken, configureAuthClient, extractErrorCode, extractErrorMessage, setAccessToken } from '../api/client'
 import type { AuthUser, LoginRequest, LoginResponse, MeResponse, SignupRequest } from '../types/auth'
 
 interface AuthActionResult {
   success: boolean
+  code?: string
   message?: string
 }
 
@@ -113,6 +114,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!res.success || !res.data) {
       return {
         success: false,
+        code: extractErrorCode(res.error),
         message: extractErrorMessage(res.error, '로그인에 실패했습니다.'),
       }
     }
@@ -129,6 +131,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     return {
       success: false,
+      code: extractErrorCode(res.error),
       message: extractErrorMessage(res.error, '회원가입에 실패했습니다.'),
     }
   }, [])

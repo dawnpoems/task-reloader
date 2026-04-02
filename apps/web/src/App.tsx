@@ -7,33 +7,40 @@ import { TaskSection } from './components/TaskSection'
 import { TaskDetailPage } from './components/TaskDetailPage'
 import { TaskCreateModal } from './components/TaskCreateModal'
 import { TaskEditModal } from './components/TaskEditModal'
+import { AuthLoginPage } from './components/AuthLoginPage'
+import { AuthSignupPage } from './components/AuthSignupPage'
+import { AdminApprovalsPage } from './components/AdminApprovalsPage'
 import { tasksApi } from './api/tasks'
 import { extractErrorMessage } from './api/client'
 import { useAuth } from './auth/AuthContext'
 import type { Task } from './types/task'
 import './App.css'
 
+const HOME_PATH = '/'
 const INSIGHTS_PATH = '/insights'
+const LOGIN_PATH = '/auth/login'
+const SIGNUP_PATH = '/auth/signup'
+const ADMIN_APPROVALS_PATH = '/admin/approvals'
 
 const getTaskIdFromPath = (pathname: string): number | null => {
   const match = pathname.match(/^\/tasks\/(\d+)$/)
   return match ? Number(match[1]) : null
 }
 
+const isPublicPath = (pathname: string): boolean => pathname === LOGIN_PATH || pathname === SIGNUP_PATH
+
+const isKnownPath = (pathname: string): boolean => {
+  if (pathname === HOME_PATH) return true
+  if (pathname === INSIGHTS_PATH) return true
+  if (pathname === LOGIN_PATH) return true
+  if (pathname === SIGNUP_PATH) return true
+  if (pathname === ADMIN_APPROVALS_PATH) return true
+  return getTaskIdFromPath(pathname) !== null
+}
+
 function App() {
-  const { isAuthenticated, isInitializing } = useAuth()
+  const { user, isAuthenticated, isInitializing, login, signup, logout } = useAuth()
   const [pathname, setPathname] = useState(window.location.pathname)
-  const isInsightsPage = pathname === INSIGHTS_PATH
-  const isDataEnabled = isAuthenticated && !isInitializing
-  const { tasks: dueNowTasks, isLoading, error, toast, createTask, updateTask, completeTask, deleteTask, refetch } = useTasks('DUE_NOW', isDataEnabled)
-  const {
-    dashboard,
-    overview,
-    recentCompletions,
-    isLoading: isInsightsLoading,
-    error: insightsError,
-    refetch: refetchInsights,
-  } = useInsights(isInsightsPage && isDataEnabled)
   const [showForm, setShowForm] = useState(false)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [upcomingTasks, setUpcomingTasks] = useState<Task[]>([])
@@ -46,6 +53,34 @@ function App() {
   const [detailRefreshToken, setDetailRefreshToken] = useState(0)
   const [restoreCreateButtonFocus, setRestoreCreateButtonFocus] = useState(false)
   const createTaskButtonRef = useRef<HTMLButtonElement | null>(null)
+
+  const selectedTaskId = getTaskIdFromPath(pathname)
+  const isHomePage = pathname === HOME_PATH
+  const isInsightsPage = pathname === INSIGHTS_PATH
+  const isAdminApprovalsPage = pathname === ADMIN_APPROVALS_PATH
+  const isDataEnabled = isAuthenticated && !isInitializing
+  const canViewAdminPage = user?.role === 'ADMIN'
+
+  const {
+    tasks: dueNowTasks,
+    isLoading,
+    error,
+    toast,
+    createTask,
+    updateTask,
+    completeTask,
+    deleteTask,
+    refetch,
+  } = useTasks('DUE_NOW', isDataEnabled)
+
+  const {
+    dashboard,
+    overview,
+    recentCompletions,
+    isLoading: isInsightsLoading,
+    error: insightsError,
+    refetch: refetchInsights,
+  } = useInsights(isInsightsPage && isDataEnabled)
 
   useEffect(() => {
     const handlePopState = () => setPathname(window.location.pathname)
@@ -62,24 +97,65 @@ function App() {
     return () => window.cancelAnimationFrame(rafId)
   }, [restoreCreateButtonFocus, showForm])
 
-  const navigateTo = (nextPath: string) => {
-    if (nextPath === window.location.pathname) return
-    window.history.pushState({}, '', nextPath)
-    setPathname(nextPath)
-  }
-
-  const selectedTaskId = getTaskIdFromPath(pathname)
-  const isHomePage = pathname === '/'
-  const shouldShowGlobalError = isDataEnabled && isHomePage && !showForm && !selectedTask && !selectedTaskId
-
-  const fetchUpcomingTasks = useCallback(async () => {
-    if (!isDataEnabled) {
-      setUpcomingTasks([])
-      setUpcomingError(null)
-      setIsUpcomingLoaded(false)
-      setIsUpcomingLoading(false)
+  const navigateTo = useCallback((nextPath: string) => {
+    if (nextPath === window.location.pathname) {
+      setPathname(nextPath)
       return
     }
+    window.history.pushState({}, '', nextPath)
+    setPathname(nextPath)
+  }, [])
+
+  const replaceTo = useCallback((nextPath: string) => {
+    if (nextPath === window.location.pathname) {
+      setPathname(nextPath)
+      return
+    }
+    window.history.replaceState({}, '', nextPath)
+    setPathname(nextPath)
+  }, [])
+
+  useEffect(() => {
+    if (isInitializing) return
+
+    if (!isKnownPath(pathname)) {
+      replaceTo(isAuthenticated ? HOME_PATH : LOGIN_PATH)
+      return
+    }
+
+    if (!isAuthenticated) {
+      if (!isPublicPath(pathname)) {
+        replaceTo(LOGIN_PATH)
+      }
+      return
+    }
+
+    if (isPublicPath(pathname)) {
+      replaceTo(HOME_PATH)
+      return
+    }
+
+    if (isAdminApprovalsPage && !canViewAdminPage) {
+      replaceTo(HOME_PATH)
+    }
+  }, [canViewAdminPage, isAdminApprovalsPage, isAuthenticated, isInitializing, pathname, replaceTo])
+
+  useEffect(() => {
+    if (isDataEnabled) return
+
+    setShowForm(false)
+    setSelectedTask(null)
+    setIsUpcomingOpen(false)
+    setIsUpcomingLoaded(false)
+    setIsUpcomingLoading(false)
+    setUpcomingError(null)
+    setUpcomingTasks([])
+    setCompletingTaskIds(new Set())
+    setCompletedTaskIds(new Set())
+  }, [isDataEnabled])
+
+  const fetchUpcomingTasks = useCallback(async () => {
+    if (!isDataEnabled) return
 
     setIsUpcomingLoading(true)
     setUpcomingError(null)
@@ -100,6 +176,8 @@ function App() {
   }, [isUpcomingOpen, isUpcomingLoaded, isUpcomingLoading, fetchUpcomingTasks])
 
   const refreshAll = async () => {
+    if (!isDataEnabled) return
+
     const tasksToRefresh = [refetch(), refetchInsights()]
     if (isUpcomingLoaded) {
       tasksToRefresh.push(fetchUpcomingTasks())
@@ -129,7 +207,7 @@ function App() {
     const ok = await deleteTask(id)
     if (ok) {
       await refreshAll()
-      if (selectedTaskId === id) navigateTo('/')
+      if (selectedTaskId === id) navigateTo(HOME_PATH)
     }
     return ok
   }
@@ -173,8 +251,6 @@ function App() {
     const ok = await completeTask(id)
     if (!ok) return false
 
-    // 상세 화면 완료 후에는 전체 갱신(refreshAll) 대신,
-    // 홈 화면 동기화에 필요한 최소 데이터만 갱신한다.
     const tasksToRefresh = [refetch()]
     if (isUpcomingLoaded) {
       tasksToRefresh.push(fetchUpcomingTasks())
@@ -186,6 +262,56 @@ function App() {
   const handleCloseCreateModal = () => {
     setShowForm(false)
     setRestoreCreateButtonFocus(true)
+  }
+
+  const handleLogout = async () => {
+    await logout()
+    replaceTo(LOGIN_PATH)
+  }
+
+  const shouldShowGlobalError = isHomePage && !showForm && !selectedTask && !selectedTaskId
+
+  if (isInitializing) {
+    return (
+      <div className="app">
+        <p className="app-loading">인증 상태를 확인하는 중...</p>
+      </div>
+    )
+  }
+
+  if (pathname === LOGIN_PATH) {
+    return <AuthLoginPage onLogin={login} onGoSignup={() => navigateTo(SIGNUP_PATH)} />
+  }
+
+  if (pathname === SIGNUP_PATH) {
+    return <AuthSignupPage onSignup={signup} onGoLogin={() => navigateTo(LOGIN_PATH)} />
+  }
+
+  if (!isAuthenticated || !user) {
+    return (
+      <div className="app">
+        <p className="app-loading">로그인 화면으로 이동하는 중...</p>
+      </div>
+    )
+  }
+
+  if (user.status !== 'APPROVED') {
+    const statusMessage =
+      user.status === 'PENDING'
+        ? '계정이 관리자 승인 대기 상태입니다. 승인 완료 후 다시 이용해 주세요.'
+        : '계정 승인이 거절된 상태입니다. 관리자에게 문의해 주세요.'
+
+    return (
+      <div className="auth-page">
+        <section className="auth-card account-status-card" aria-live="polite">
+          <h1>계정 상태 확인</h1>
+          <p className="auth-card__subtitle">{statusMessage}</p>
+          <button type="button" onClick={handleLogout}>
+            로그아웃
+          </button>
+        </section>
+      </div>
+    )
   }
 
   return (
@@ -200,7 +326,7 @@ function App() {
             <button
               type="button"
               className={`app-nav__link ${isHomePage ? 'app-nav__link--active' : ''}`}
-              onClick={() => navigateTo('/')}
+              onClick={() => navigateTo(HOME_PATH)}
             >
               Task
             </button>
@@ -211,7 +337,19 @@ function App() {
             >
               인사이트
             </button>
+            {canViewAdminPage && (
+              <button
+                type="button"
+                className={`app-nav__link ${isAdminApprovalsPage ? 'app-nav__link--active' : ''}`}
+                onClick={() => navigateTo(ADMIN_APPROVALS_PATH)}
+              >
+                관리자
+              </button>
+            )}
           </nav>
+          <button type="button" className="btn-secondary" onClick={handleLogout}>
+            로그아웃
+          </button>
         </div>
       </header>
 
@@ -219,19 +357,13 @@ function App() {
         {shouldShowGlobalError && error && <ErrorNotice message={error} onRetry={refreshAll} />}
         {toast && <p className="app-toast" role="status" aria-live="polite">{toast}</p>}
 
-        {isInitializing ? (
-          <p className="app-loading">인증 상태를 확인하는 중...</p>
-        ) : !isAuthenticated ? (
-          <section className="auth-placeholder">
-            <h2>로그인이 필요합니다</h2>
-            <p>인증 기반(Access Token + Refresh Token) 연동이 완료되었습니다.</p>
-            <p>다음 단계에서 로그인/회원가입 화면과 라우트 가드를 연결합니다.</p>
-          </section>
+        {isAdminApprovalsPage ? (
+          <AdminApprovalsPage />
         ) : selectedTaskId ? (
           <TaskDetailPage
             taskId={selectedTaskId}
             refreshToken={detailRefreshToken}
-            onBack={() => navigateTo('/')}
+            onBack={() => navigateTo(HOME_PATH)}
             onEdit={setSelectedTask}
             onComplete={handleCompleteTaskFromDetail}
           />
@@ -316,7 +448,7 @@ function App() {
           onClose={() => setSelectedTask(null)}
         />
       )}
-      {!selectedTaskId && !isInsightsPage && showForm && (
+      {!selectedTaskId && !isInsightsPage && !isAdminApprovalsPage && showForm && (
         <TaskCreateModal
           onSubmit={handleCreateTask}
           onClose={handleCloseCreateModal}

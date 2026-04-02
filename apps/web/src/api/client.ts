@@ -134,6 +134,11 @@ export function extractErrorMessage(
   return error.message || fallback
 }
 
+export function extractErrorCode(error: ApiResponse<unknown>['error']): string | undefined {
+  if (!error || typeof error === 'string') return undefined
+  return error.code
+}
+
 export const apiClient = {
   get: <T,>(endpoint: string, options?: RequestOptions) =>
     request<T>(endpoint, { ...options, method: 'GET' }),
