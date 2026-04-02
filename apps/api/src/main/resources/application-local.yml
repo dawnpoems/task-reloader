@@ -10,6 +10,9 @@ spring:
       ddl-auto: validate
   flyway:
     enabled: true
+    placeholders:
+      auth_admin_email: ${AUTH_ADMIN_EMAIL:admin@task-reloader.local}
+      auth_admin_password_hash: ${AUTH_ADMIN_PASSWORD_HASH:__CHANGE_ME_WITH_BCRYPT_HASH__}
 
 management:
   endpoints:
