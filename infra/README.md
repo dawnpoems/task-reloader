@@ -1,247 +1,177 @@
-# Task Reloader - 인프라 설정
+# Task Reloader - Infra & Monitoring
 
-## 🚀 빠른 시작
+Task Reloader의 인프라 실행/관측성 구성을 빠르게 확인하기 위한 문서입니다.
 
-### 1단계: 환경 설정
+## 빠른 시작 (Docker 전체 실행)
 
-`.env` 파일을 생성하세요:
+1. 환경 파일 생성
 
 ```bash
 cp infra/.env.example infra/.env
 ```
 
-`.env` 파일을 열어 설정값을 수정하세요 (프로덕션 환경에서는 강력한 비밀번호 사용):
+2. 필요한 값 설정 (`infra/.env`)
 
 ```env
 POSTGRES_USER=task_reloader
-POSTGRES_PASSWORD=your_secure_password      # ⚠️ 변경 필수
+POSTGRES_PASSWORD=change_me_in_production
 POSTGRES_DB=task_reloader
 
 SPRING_DATASOURCE_USERNAME=task_reloader
-SPRING_DATASOURCE_PASSWORD=your_secure_password  # ⚠️ 변경 필수
+SPRING_DATASOURCE_PASSWORD=change_me_in_production
+
+GRAFANA_ADMIN_USER=admin
+GRAFANA_ADMIN_PASSWORD=admin
 ```
 
----
-
-## 🖥️ 개발 환경 (로컬)
-
-각 앱을 개별적으로 실행하는 방식입니다.
-
-### 1. DB만 Docker로 실행
+3. 전체 스택 실행
 
 ```bash
 cd infra
-docker-compose up postgres -d
+docker compose up -d --build
 ```
 
-### 2. API 실행 (Spring Boot)
-
-```bash
-# 루트에서
-./gradlew :apps:api:bootRun --args='--spring.profiles.active=local'
-```
-
-- API: http://localhost:8080
-- Swagger UI: http://localhost:8080/swagger-ui.html
-
-### 3. Web 실행 (Vite dev server)
-
-```bash
-cd apps/web
-npm install
-npm run dev
-```
-
-- Web: http://localhost:5173
-- `/api` 요청은 자동으로 `localhost:8080`으로 프록시됨 (vite.config.ts)
-
----
-
-## 🐳 운영 환경 (Docker 전체 스택)
-
-모든 서비스(DB + API + Web)를 Docker로 실행합니다.
-
-```bash
-cd infra
-docker-compose up --build -d
-```
+## 서비스 URL
 
 | 서비스 | URL |
-|--------|-----|
-| Web (nginx) | http://localhost:80 |
+|---|---|
+| Web | http://localhost:3000 |
 | API | http://localhost:8080 |
 | Swagger UI | http://localhost:8080/swagger-ui.html |
-| PostgreSQL | localhost:5432 |
+| Prometheus | http://localhost:9090 |
+| Grafana | http://localhost:3001 |
 
-### 종료
+## Grafana 사용법
+
+### 로그인
+
+- URL: `http://localhost:3001`
+- 계정: `infra/.env`의 `GRAFANA_ADMIN_USER`, `GRAFANA_ADMIN_PASSWORD`
+
+### 자동 프로비저닝
+
+- Datasource: Prometheus (`infra/monitoring/grafana/provisioning/datasources/datasource.yml`)
+- Dashboard provider: `infra/monitoring/grafana/provisioning/dashboards/dashboard.yml`
+- Dashboard JSON: `infra/monitoring/grafana/dashboards/task-reloader-overview.json`
+- 기본 대시보드: `Task Reloader - API Overview`
+
+### 대시보드에서 보는 핵심
+
+- `요청량 (RPS)`: 트래픽 변화/급증 감지
+- `에러율 (5xx)`: 장애 징후 감지
+- `p95 Latency`: 사용자 체감 성능 저하 감지
+- `상태코드별 요청량`: 정상/비정상 비율 확인
+- `느린 API Top5`, `5xx Endpoint Top5`: 병목/오류 우선순위 파악
+
+### 점검 루틴 (추천)
+
+1. RPS 상승 구간에서 5xx, p95가 함께 상승하는지 확인
+2. `느린 API Top5`의 URI를 기준으로 requestId 로그 추적
+3. `5xx Endpoint Top5`에서 오류 집중 엔드포인트 우선 대응
+
+## 모니터링 확인 커맨드
+
+```bash
+# Prometheus scrape target 상태
+curl -s http://localhost:9090/api/v1/targets | jq '.data.activeTargets[] | {job: .labels.job, health: .health}'
+
+# API Prometheus metrics 노출 확인
+curl -s http://localhost:8080/actuator/prometheus | head -n 20
+```
+
+## k6 부하 테스트 (스모크)
+
+1. k6 설치 (macOS)
+
+```bash
+brew install k6
+```
+
+2. 스모크 테스트 실행
+
+```bash
+BASE_URL=http://localhost:8080 k6 run infra/load/k6-smoke.js
+```
+
+3. 결과 확인 포인트
+
+- `http_req_failed`: 실패율 (기본 목표 `< 1%`)
+- `http_req_duration p(95)`: 95퍼센타일 응답시간 (기본 목표 `< 800ms`)
+- `checks`: 응답 검증 성공률 (기본 목표 `> 99%`)
+
+### 여러 GET API를 함께 검증하고 싶을 때
+
+아래 스크립트는 목록/인사이트 GET API를 한 번에 호출하고, Task가 존재하면 상세/월별 완료이력 GET까지 함께 확인합니다.
+
+```bash
+BASE_URL=http://localhost:8080 k6 run infra/load/k6-read-suite.js
+```
+
+주요 확인 대상:
+- `/api/tasks?status=DUE_NOW`
+- `/api/tasks?status=UPCOMING`
+- `/api/insights/dashboard`
+- `/api/insights/overview?days=30&top=5`
+- `/api/insights/recent-completions`
+- (Task 존재 시) `/api/tasks/{id}`, `/api/tasks/{id}/completions?year=YYYY&month=MM`
+
+### 확장 버전 (batch + 환경변수 + fallback taskId)
+
+`k6-read-suite-extended.js`는 아래 기능을 추가로 제공합니다.
+
+- `http.batch` 기반 병렬 GET 호출
+- 환경변수로 부하 세기 조정 (`VUS`, `DURATION`, `SLEEP_SECONDS`)
+- Task 목록이 비어도 `TASK_ID`를 지정하면 상세/완료이력 API 강제 검증
+
+기본 실행:
+
+```bash
+BASE_URL=http://localhost:8080 k6 run infra/load/k6-read-suite-extended.js
+```
+
+부하 강도 조정:
+
+```bash
+BASE_URL=http://localhost:8080 VUS=30 DURATION=3m SLEEP_SECONDS=0.5 k6 run infra/load/k6-read-suite-extended.js
+```
+
+목록이 비어 있을 때 fallback taskId 지정:
+
+```bash
+BASE_URL=http://localhost:8080 TASK_ID=1 k6 run infra/load/k6-read-suite-extended.js
+```
+
+## 로컬 개발 모드 (DB만 Docker)
+
+백엔드/프론트를 IDE/로컬 서버로 실행하고 DB만 Docker로 띄우는 방식입니다.
 
 ```bash
 cd infra
-docker-compose down
-
-# 볼륨(DB 데이터)까지 삭제
-docker-compose down -v
+docker compose up -d postgres
 ```
 
----
+- API(local): `http://localhost:8080`
+- Web(local): `http://localhost:5173`
 
-## 🧪 테스트
-
-### API 단위/통합 테스트
+## 종료/정리
 
 ```bash
-# DB 없이 단위 테스트만
-./gradlew :apps:api:test
-
-# Testcontainers 포함 전체 테스트 (Docker 필요)
-./gradlew :apps:api:test --info
-```
-
-### Web 타입 체크
-
-```bash
-cd apps/web
-npm run type-check
-```
-
----
-
-## 📋 서비스 아키텍처
-
-```
-[Browser]
-    │
-    ▼
-[web: nginx :80]
-    │  /         → React SPA (정적 파일)
-    │  /api/**   → proxy
-    ▼
-[api: Spring Boot :8080]
-    │
-    ▼
-[postgres: PostgreSQL :5432]
-```
-
----
-
-## 🐛 문제 해결
-
-### .env 파일 오류
-**해결**: `infra/.env` 파일이 생성되었는지 확인하세요.
-
-### PostgreSQL 연결 실패
-**해결**: Docker Desktop이 실행 중인지 확인하세요.
-
-### API 헬스체크 실패
-**해결**: API가 완전히 시작될 때까지 대기 (약 60초)
-
----
-
-## 🔒 보안 주의사항
-
-⚠️ **절대 `infra/.env` 파일을 Git에 커밋하지 마세요!**
-- `.env`는 `.gitignore`에 등록되어 있습니다
-- `.env.example`은 참고용 템플릿입니다
-
-
-## 🚀 빠른 시작
-
-### 1단계: 환경 설정
-
-`.env` 파일을 생성하세요:
-
-```bash
-cp .env.example .env
-```
-
-`.env` 파일을 열어 설정값을 수정하세요 (프로덕션 환경에서는 강력한 비밀번호 사용):
-
-```env
-POSTGRES_USER=task_reloader
-POSTGRES_PASSWORD=your_secure_password      # ⚠️ 변경 필수
-POSTGRES_DB=task_reloader
-
-SPRING_DATASOURCE_USERNAME=task_reloader
-SPRING_DATASOURCE_PASSWORD=your_secure_password  # ⚠️ 변경 필수
-```
-
-### 2단계: Docker Compose 실행
-
-프로젝트 루트에서:
-
-```bash
-# 옵션 1: 스크립트로 실행 (권장)
-./start.sh
-
-# 옵션 2: 직접 실행
 cd infra
-docker-compose up --build
+docker compose down
+
+# DB/Prometheus/Grafana 데이터 볼륨까지 삭제
+docker compose down -v
 ```
 
-### 3단계: 서비스 확인
+## 문제 해결
 
-- **PostgreSQL**: http://localhost:5432
-- **Spring Boot API**: http://localhost:8080
-- **API 문서**: http://localhost:8080/swagger-ui.html
+### Grafana 대시보드가 비어 있을 때
 
-## 📋 서비스 상세 정보
+- Prometheus target이 `up`인지 먼저 확인
+- API의 `/actuator/prometheus` 응답 확인
+- `docker compose logs prometheus grafana api`로 에러 로그 확인
 
-### PostgreSQL
-- **포트**: 5432
-- **사용자**: `${POSTGRES_USER}`
-- **데이터베이스**: `${POSTGRES_DB}`
-- **헬스체크**: pg_isready 커맨드 (10초 간격)
+### DB 연결 실패로 API가 시작되지 않을 때
 
-### Spring Boot API
-- **포트**: 8080
-- **빌드**: Multi-stage Dockerfile (최적화된 이미지)
-- **헬스체크**: actuator/health 엔드포인트 (30초 간격)
-- **시작 대기**: 60초 (애플리케이션 초기화)
-
-## 🛑 종료
-
-```bash
-docker-compose down
-
-# 볼륨 포함 삭제 (데이터 제거)
-docker-compose down -v
-```
-
-## 🐛 문제 해결
-
-### .env 파일 오류
-```
-Error: Missing environment variable POSTGRES_USER
-```
-**해결**: `.env` 파일이 생성되었는지 확인하세요.
-
-### PostgreSQL 연결 실패
-```
-ERROR: pg_isready: could not translate host name "postgres" to address
-```
-**해결**: Docker Desktop이 실행 중인지 확인하세요.
-
-### API 헬스체크 실패
-```
-WARN: healthcheck failed
-```
-**해결**: API가 완전히 시작될 때까지 대기 (약 60초)
-
-## 🔒 보안 주의사항
-
-⚠️ **절대 `.env` 파일을 Git에 커밋하지 마세요!**
-- `.env`는 `.gitignore`에 등록되어 있습니다
-- `.env.example`은 참고용 템플릿입니다
-- 프로덕션 환경에서는 강력한 비밀번호를 사용하세요
-
-## 📚 추가 정보
-
-### Flyway 마이그레이션
-- 자동 실행됨 (SQL 파일: `src/main/resources/db/migration/`)
-- 파일명 형식: `V{버전}__{설명}.sql`
-
-### Multi-stage Docker Build
-- **Stage 1**: JDK 이미지로 빌드
-- **Stage 2**: JRE 이미지로 실행 (이미지 크기 최소화)
-
-
+- PostgreSQL 컨테이너 상태 확인: `docker compose ps`
+- `infra/.env`의 DB 계정/비밀번호와 API datasource 값이 일치하는지 확인

@@ -1,6 +1,25 @@
 #!/usr/bin/env bash
 set -e
 
-echo "[pre-push] Running quality checks..."
-make check
-echo "[pre-push] Passed."
+run_check=false
+
+# stdin format:
+# <local ref> <local sha> <remote ref> <remote sha>
+while read -r local_ref local_sha remote_ref remote_sha; do
+  # Skip empty lines.
+  [ -z "${local_ref}" ] && continue
+
+  # Run checks only when pushing to remote main branch.
+  if [ "${remote_ref}" = "refs/heads/main" ]; then
+    run_check=true
+    break
+  fi
+done
+
+if [ "${run_check}" = true ]; then
+  echo "[pre-push] Target includes main branch. Running quality checks..."
+  make check
+  echo "[pre-push] Passed."
+else
+  echo "[pre-push] No push to main branch detected. Skipping quality checks."
+fi

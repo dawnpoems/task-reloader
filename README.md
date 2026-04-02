@@ -13,7 +13,7 @@ next_due_at = completed_at + every_n_days
 - 완료 시점 기반 반복 작업 모델(`next_due_at = completed_at + every_n_days`)
 - 오늘 해야 할 일(`DUE_NOW`) 우선 화면
 - 완료 이력(월별/날짜별) 조회
-- 운영 관측성(health, requestId, metrics, prometheus) 포함
+- 운영 관측성(health, requestId, metrics, prometheus, grafana) 포함
 - 접근성/실패 UX(모달 포커스 관리, Esc/포커스 트랩, 처리 중 상태/재시도) 반영
 - 로컬 품질 게이트(type-check/test/build/lint) 기반으로 변경 안정성 관리
 
@@ -21,7 +21,7 @@ next_due_at = completed_at + every_n_days
 
 - Backend: Java 17, Spring Boot, Spring Data JPA, Flyway, PostgreSQL
 - Frontend: React, TypeScript, Vite
-- Infra/Observability: Docker Compose, Spring Actuator, Micrometer, Prometheus
+- Infra/Observability: Docker Compose, Spring Actuator, Micrometer, Prometheus, Grafana
 - Test/Quality: JUnit5, Mockito, Testcontainers, ESLint, TypeScript type-check
 
 ## 프로젝트 문제의식과 해결
@@ -55,6 +55,8 @@ POSTGRES_PASSWORD=change_me_in_production
 POSTGRES_DB=task_reloader
 SPRING_DATASOURCE_USERNAME=task_reloader
 SPRING_DATASOURCE_PASSWORD=change_me_in_production
+GRAFANA_ADMIN_USER=admin
+GRAFANA_ADMIN_PASSWORD=admin
 ```
 
 ```sh
@@ -64,6 +66,10 @@ docker compose up -d
 
 - Web: `http://localhost:3000`
 - API: `http://localhost:8080`
+- Prometheus: `http://localhost:9090`
+- Grafana: `http://localhost:3001`
+
+Grafana 로그인 계정은 `infra/.env`의 `GRAFANA_ADMIN_USER`, `GRAFANA_ADMIN_PASSWORD`를 사용합니다.
 
 ### 개발 실행 (DB Docker + 백/프론트 로컬)
 
@@ -260,8 +266,9 @@ npm run dev
 ### 한계와 다음 단계
 
 - 프론트 네트워크 최적화는 계속 진행 중(개발 모드 StrictMode 영향 포함)
-- 지표 노출은 완료했고, Grafana 대시보드 템플릿 정리는 다음 단계
+- Grafana 대시보드는 1차 구성 완료, 임계치 기반 알림 자동화는 다음 단계
 - 실패 UX(원인+행동 안내) 고도화 여지 있음
+- 인사이트 집계는 1차 기능 구현 기준이며, 대규모 트래픽 대비 집계 쿼리/인덱스 최적화는 추후 단계로 진행 예정
 
 ## 주요 엔드포인트 요약
 
@@ -275,6 +282,16 @@ Base URL: `/api`
 | `POST` | `/tasks/{id}/complete` | Task 완료 처리 |
 | `GET` | `/tasks/{id}/completions` | 완료 이력 조회 |
 | `GET` | `/tasks/{id}/completions?year=YYYY&month=MM` | 월별 완료 이력 조회 |
+| `GET` | `/insights/overview?days=30&top=5` | 인사이트 요약(완료율/지연률/평균지연날짜/리스크/작업별 추세) |
+
+## 인사이트 지표 정의 (1차)
+
+- 기간: `periodStart <= completed_at < periodEnd` (rolling window, UTC 응답 + timezone 필드 제공)
+- 완료율(`completionRatePct`): `기간 내 완료한 활성 Task 수 / 활성 Task 수 * 100`
+- 지연률(`delayRatePct`): `기간 내 완료 이력 중 delayed 건수 / 기간 내 완료 이력 건수 * 100`
+- 평균 지연날짜(`averageDelayDays`): `delayed 건의 (completed_at - previous_due_at) 평균(일, 소수점 2자리)`
+- 방치 위험 작업 수(`riskyTaskCount`): 활성 Task 중 `7일+ overdue` 또는 `최근 30일 완료 없음`인 작업 수
+- 작업별 추세(`taskTrends`): task별 완료 건수/지연 건수/지연률 Top N
 
 ## 관측성 엔드포인트
 
@@ -284,11 +301,36 @@ Base URL: `/api`
 
 `http.server.requests`로 요청량(count), 오류율(status), 응답시간(latency)을 추적할 수 있습니다.
 
+## Grafana 운영 가이드 (1차)
+
+- 접속: `http://localhost:3001`
+- 로그인: `infra/.env`의 `GRAFANA_ADMIN_USER`, `GRAFANA_ADMIN_PASSWORD`
+- 대시보드: `Task Reloader - API Overview` (Docker 실행 시 자동 프로비저닝)
+
+핵심 패널:
+- 요청량(RPS): 트래픽 변화/급증 감지
+- 에러율(5xx): 장애 징후 감지
+- p95 Latency: 체감 성능 저하 감지
+- 상태코드별 요청량: 정상/오류 트래픽 비율 파악
+- 느린 API Top5, 5xx Endpoint Top5: 병목/오류 엔드포인트 우선 조치
+
+운영 시 확인 루틴:
+1. RPS 급증 구간에서 5xx와 p95가 같이 상승하는지 확인
+2. `느린 API Top5`로 병목 URI를 확인하고 로그(requestId)와 대조
+3. `5xx Endpoint Top5`로 오류가 집중되는 API부터 우선 대응
+
+간단 대응 흐름:
+1. 알림 조건 예시: `5xx > 3%(5분)` 또는 `p95 > 800ms(5분)`
+2. 알림 발생 시 Grafana에서 문제 URI/상태코드 확인
+3. requestId 기반 로그 추적으로 원인 구간 확인 후, 조치 결과를 같은 지표에서 재확인
+
 ## 확장 계획
 
-1. Grace Window 도입: due 직후 짧은 유예 구간을 두어 과도한 overdue 판정을 줄이고 사용자 신뢰도 개선 
-2. 인사이트 고도화: 완료율/지연률/작업별 추세를 추가해 “기록”을 “의사결정 정보”로 전환 
-3. Grafana 대시보드: Prometheus 지표를 요청량/에러율/p95 latency 중심으로 시각화해 운영 추적성 강화 
-4. 알림 시스템 MVP: `DUE_NOW` 발생 시 슬랙/이메일 알림을 보내 실제 행동 유도 
-5. 반복 규칙 확장: `every_n_days` 외에 요일 기반 주간 반복을 지원해 도메인 확장성 강화
-6. 멀티유저/워크스페이스: 사용자/팀 단위 데이터 분리와 권한 모델을 도입해 실서비스 확장성 확보
+1. 인사이트 고도화: 완료율/지연률/작업별 추세를 추가해 “기록”을 “의사결정 정보”로 전환 (완료)
+2. Grafana 연계: Prometheus 데이터소스 자동 프로비저닝 + 요청량/에러율/p95/Top5 대시보드 구성으로 운영 추적성 강화 (완료)
+3. 멀티유저 지원: 사용자 계정과 권한 모델을 도입해 개인별 작업 관리와 협업 기능 확장
+4. CloudFlare Tunnel을 활용한 외부 개방 : 서버를 안전하게 외부에 노출해 실사용자 테스트와 피드백 수집 용이성 개선 
+5. 부하 테스트 : k6 등의 도구로 동시 요청 시 시스템 안정성과 병목 구간을 분석해 최적화 포인트 도출 
+6. 알림 시스템 MVP: `DUE_NOW` 발생 시 이메일 알림을 보내 실제 행동 유도 
+7. Grace Window 도입: due 직후 짧은 유예 구간을 두어 과도한 overdue 판정을 줄이고 사용자 신뢰도 개선 
+8. Grafana Alerting 고도화: `API down`/`5xx`/`p95` 임계치 알림 규칙과 Slack·Discord·Email 연동, 재알림/소음 제어 정책까지 포함해 운영 대응 자동화 강화

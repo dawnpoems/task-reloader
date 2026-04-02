@@ -9,9 +9,11 @@ import com.yegkim.task_reloader_api.common.exception.TaskRecentlyCompletedExcept
 import com.yegkim.task_reloader_api.common.web.RequestIdLoggingFilter;
 import com.yegkim.task_reloader_api.task.dto.CreateTaskRequest;
 import com.yegkim.task_reloader_api.task.dto.DashboardSummaryResponse;
+import com.yegkim.task_reloader_api.task.dto.InsightsOverviewResponse;
 import com.yegkim.task_reloader_api.task.dto.RecentTaskCompletionResponse;
 import com.yegkim.task_reloader_api.task.dto.TaskCompletionResponse;
 import com.yegkim.task_reloader_api.task.dto.TaskResponse;
+import com.yegkim.task_reloader_api.task.dto.TaskTrendInsightResponse;
 import com.yegkim.task_reloader_api.task.dto.UpdateTaskRequest;
 import com.yegkim.task_reloader_api.task.entity.TaskStatus;
 import com.yegkim.task_reloader_api.task.service.TaskService;
@@ -42,6 +44,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -360,6 +363,156 @@ class TaskControllerTest {
                 .andExpect(jsonPath("$.error").doesNotExist());
 
         verify(taskService, times(1)).findRecentCompletions();
+    }
+
+    @Test
+    @DisplayName("인사이트 overview 조회 - 성공")
+    void testGetInsightsOverviewSuccess() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now();
+        InsightsOverviewResponse response = InsightsOverviewResponse.builder()
+                .periodDays(30)
+                .periodStart(now.minusDays(30))
+                .periodEnd(now)
+                .timezone("Asia/Seoul")
+                .activeTaskCount(10)
+                .completedTaskCount(8)
+                .completionCount(20)
+                .delayedCompletionCount(5)
+                .completionRatePct(80.0)
+                .delayRatePct(25.0)
+                .averageDelayDays(0.08)
+                .riskyTaskCount(2)
+                .topCompletionTrends(List.of(
+                        TaskTrendInsightResponse.builder()
+                                .taskId(1L)
+                                .taskName("Test Task")
+                                .completionCount(7)
+                                .delayedCount(2)
+                                .delayRatePct(28.6)
+                                .build()
+                ))
+                .topDelayedTrends(List.of(
+                        TaskTrendInsightResponse.builder()
+                                .taskId(2L)
+                                .taskName("Delayed Task")
+                                .completionCount(4)
+                                .delayedCount(3)
+                                .delayRatePct(75.0)
+                                .build()
+                ))
+                .topDelayRateTrends(List.of(
+                        TaskTrendInsightResponse.builder()
+                                .taskId(3L)
+                                .taskName("High Rate Task")
+                                .completionCount(2)
+                                .delayedCount(2)
+                                .delayRatePct(100.0)
+                                .build()
+                ))
+                .taskTrends(List.of(
+                        TaskTrendInsightResponse.builder()
+                                .taskId(1L)
+                                .taskName("Test Task")
+                                .completionCount(7)
+                                .delayedCount(2)
+                                .delayRatePct(28.6)
+                                .build()
+                ))
+                .build();
+
+        when(taskService.getInsightsOverview(30, 3)).thenReturn(response);
+
+        mockMvc.perform(get("/api/insights/overview")
+                        .param("days", "30")
+                        .param("top", "3")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.data.periodDays", is(30)))
+                .andExpect(jsonPath("$.data.timezone", is("Asia/Seoul")))
+                .andExpect(jsonPath("$.data.completionRatePct", is(80.0)))
+                .andExpect(jsonPath("$.data.delayRatePct", is(25.0)))
+                .andExpect(jsonPath("$.data.taskTrends", hasSize(1)))
+                .andExpect(jsonPath("$.data.taskTrends[0].taskId", is(1)))
+                .andExpect(jsonPath("$.data.topCompletionTrends[0].taskId", is(1)))
+                .andExpect(jsonPath("$.data.topDelayedTrends[0].taskId", is(2)))
+                .andExpect(jsonPath("$.data.topDelayRateTrends[0].taskId", is(3)));
+
+        verify(taskService, times(1)).getInsightsOverview(30, 3);
+    }
+
+    @Test
+    @DisplayName("인사이트 overview 조회 - 파라미터 생략 시 기본값(days=30, top=5) 사용")
+    void testGetInsightsOverviewDefaultParams() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now();
+        InsightsOverviewResponse response = InsightsOverviewResponse.builder()
+                .periodDays(30)
+                .periodStart(now.minusDays(30))
+                .periodEnd(now)
+                .timezone("Asia/Seoul")
+                .activeTaskCount(0)
+                .completedTaskCount(0)
+                .completionCount(0)
+                .delayedCompletionCount(0)
+                .completionRatePct(0.0)
+                .delayRatePct(0.0)
+                .averageDelayDays(0.0)
+                .riskyTaskCount(0)
+                .topCompletionTrends(List.of())
+                .topDelayedTrends(List.of())
+                .topDelayRateTrends(List.of())
+                .taskTrends(List.of())
+                .build();
+        when(taskService.getInsightsOverview(30, 5)).thenReturn(response);
+
+        mockMvc.perform(get("/api/insights/overview")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.data.periodDays", is(30)));
+
+        verify(taskService, times(1)).getInsightsOverview(30, 5);
+    }
+
+    @Test
+    @DisplayName("인사이트 overview 조회 - 유효하지 않은 days면 400")
+    void testGetInsightsOverviewInvalidDays() throws Exception {
+        when(taskService.getInsightsOverview(0, 5))
+                .thenThrow(new IllegalArgumentException("days는 1~365 사이여야 합니다."));
+
+        mockMvc.perform(get("/api/insights/overview")
+                        .param("days", "0")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success", is(false)))
+                .andExpect(jsonPath("$.error.code", is("BAD_REQUEST")));
+    }
+
+    @Test
+    @DisplayName("인사이트 overview 조회 - 유효하지 않은 top이면 400")
+    void testGetInsightsOverviewInvalidTop() throws Exception {
+        when(taskService.getInsightsOverview(30, 0))
+                .thenThrow(new IllegalArgumentException("top은 1~20 사이여야 합니다."));
+
+        mockMvc.perform(get("/api/insights/overview")
+                        .param("top", "0")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success", is(false)))
+                .andExpect(jsonPath("$.error.code", is("BAD_REQUEST")));
+    }
+
+    @Test
+    @DisplayName("인사이트 overview 조회 - days 타입이 잘못되면 400(INVALID_PARAMETER)")
+    void testGetInsightsOverviewInvalidDaysType() throws Exception {
+        mockMvc.perform(get("/api/insights/overview")
+                        .param("days", "abc")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success", is(false)))
+                .andExpect(jsonPath("$.error.code", is("INVALID_PARAMETER")));
+
+        verify(taskService, never()).getInsightsOverview(anyInt(), anyInt());
     }
 
     @Test

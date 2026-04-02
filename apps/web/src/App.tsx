@@ -23,7 +23,14 @@ function App() {
   const [pathname, setPathname] = useState(window.location.pathname)
   const isInsightsPage = pathname === INSIGHTS_PATH
   const { tasks: dueNowTasks, isLoading, error, toast, createTask, updateTask, completeTask, deleteTask, refetch } = useTasks('DUE_NOW')
-  const { dashboard, recentCompletions, isLoading: isInsightsLoading, error: insightsError, refetch: refetchInsights } = useInsights(isInsightsPage)
+  const {
+    dashboard,
+    overview,
+    recentCompletions,
+    isLoading: isInsightsLoading,
+    error: insightsError,
+    refetch: refetchInsights,
+  } = useInsights(isInsightsPage)
   const [showForm, setShowForm] = useState(false)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [upcomingTasks, setUpcomingTasks] = useState<Task[]>([])
@@ -212,6 +219,7 @@ function App() {
         ) : isInsightsPage ? (
           <InsightsPage
             dashboard={dashboard}
+            overview={overview}
             recentCompletions={recentCompletions}
             isLoading={isInsightsLoading}
             error={insightsError}
