@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { authApi } from '../api/auth'
 import { clearAccessToken, configureAuthClient, extractErrorCode, extractErrorMessage, setAccessToken } from '../api/client'
 import type { AuthUser, LoginRequest, LoginResponse, MeResponse, SignupRequest } from '../types/auth'
+import { AUTH_NOTICE_SESSION_EXPIRED, pushAuthNotice } from './authNotice'
 
 interface AuthActionResult {
   success: boolean
@@ -78,6 +79,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     configureAuthClient({
       refreshAccessToken,
       onAuthFailure: () => {
+        pushAuthNotice(AUTH_NOTICE_SESSION_EXPIRED)
         clearAccessToken()
         setUser(null)
       },

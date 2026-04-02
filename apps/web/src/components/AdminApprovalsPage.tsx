@@ -38,7 +38,8 @@ export function AdminApprovalsPage() {
 
   const [pendingUsers, setPendingUsers] = useState<PendingUser[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [actionState, setActionState] = useState<ActionState | null>(null)
   const [searchEmail, setSearchEmail] = useState('')
@@ -46,14 +47,13 @@ export function AdminApprovalsPage() {
 
   const loadPendingUsers = useCallback(async () => {
     setIsLoading(true)
-    setError(null)
+    setLoadError(null)
 
     const res = await authApi.getPendingUsers()
     if (res.success && res.data) {
       setPendingUsers(res.data)
     } else {
-      setPendingUsers([])
-      setError(extractErrorMessage(res.error, '승인 대기 사용자 목록을 불러오지 못했습니다.'))
+      setLoadError(extractErrorMessage(res.error, '승인 대기 사용자 목록을 불러오지 못했습니다.'))
     }
     setIsLoading(false)
   }, [])
@@ -64,6 +64,7 @@ export function AdminApprovalsPage() {
 
   const openConfirmModal = useCallback((user: PendingUser, kind: ActionKind, trigger: HTMLElement | null) => {
     if (actionState) return
+    setActionError(null)
     previousFocusedElementRef.current = trigger ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null)
     setConfirmTarget({ user, kind })
   }, [actionState])
@@ -141,7 +142,7 @@ export function AdminApprovalsPage() {
 
     setActionState({ userId, kind })
     setNotice(null)
-    setError(null)
+    setActionError(null)
 
     try {
       const res =
@@ -154,7 +155,14 @@ export function AdminApprovalsPage() {
         setNotice(kind === 'approve' ? '사용자를 승인했습니다.' : '사용자를 거절했습니다.')
         setConfirmTarget(null)
       } else {
-        setError(extractErrorMessage(res.error, kind === 'approve' ? '승인 처리에 실패했습니다.' : '거절 처리에 실패했습니다.'))
+        setActionError(
+          extractErrorMessage(
+            res.error,
+            kind === 'approve'
+              ? '승인 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.'
+              : '거절 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.'
+          )
+        )
       }
     } finally {
       setActionState(null)
@@ -215,11 +223,12 @@ export function AdminApprovalsPage() {
       </div>
 
       {notice && <p className="admin-approvals__notice" role="status" aria-live="polite">{notice}</p>}
-      {error && <ErrorNotice message={error} onRetry={loadPendingUsers} />}
+      {loadError && <ErrorNotice message={loadError} onRetry={loadPendingUsers} />}
+      {actionError && <p className="admin-approvals__action-error" role="alert" aria-live="assertive">{actionError}</p>}
 
       {isLoading ? (
         <p className="app-loading">승인 대기 사용자 목록을 불러오는 중...</p>
-      ) : pendingCount === 0 ? (
+      ) : loadError ? null : pendingCount === 0 ? (
         <p className="admin-approvals__empty">승인 대기 중인 사용자가 없습니다.</p>
       ) : filteredCount === 0 ? (
         <p className="admin-approvals__empty admin-approvals__empty--filter">검색 조건과 일치하는 사용자가 없습니다.</p>

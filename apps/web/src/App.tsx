@@ -13,6 +13,7 @@ import { AdminApprovalsPage } from './components/AdminApprovalsPage'
 import { tasksApi } from './api/tasks'
 import { extractErrorMessage } from './api/client'
 import { useAuth } from './auth/AuthContext'
+import { getAuthNoticeMessage, popAuthNotice } from './auth/authNotice'
 import type { Task } from './types/task'
 import './App.css'
 
@@ -74,6 +75,7 @@ function App() {
   const [completedTaskIds, setCompletedTaskIds] = useState<Set<number>>(new Set())
   const [detailRefreshToken, setDetailRefreshToken] = useState(0)
   const [restoreCreateButtonFocus, setRestoreCreateButtonFocus] = useState(false)
+  const [loginNotice, setLoginNotice] = useState<string | null>(null)
   const createTaskButtonRef = useRef<HTMLButtonElement | null>(null)
 
   const selectedTaskId = getTaskIdFromPath(pathname)
@@ -118,6 +120,17 @@ function App() {
     })
     return () => window.cancelAnimationFrame(rafId)
   }, [restoreCreateButtonFocus, showForm])
+
+  useEffect(() => {
+    if (pathname !== LOGIN_PATH) {
+      setLoginNotice(null)
+      return
+    }
+
+    const noticeCode = popAuthNotice()
+    if (!noticeCode) return
+    setLoginNotice(getAuthNoticeMessage(noticeCode))
+  }, [pathname])
 
   const navigateTo = useCallback((nextPath: string) => {
     if (nextPath === window.location.pathname) {
@@ -314,7 +327,14 @@ function App() {
   }
 
   if (pathname === LOGIN_PATH) {
-    return <AuthLoginPage onLogin={login} onGoSignup={() => navigateTo(SIGNUP_PATH)} />
+    return (
+      <AuthLoginPage
+        onLogin={login}
+        onGoSignup={() => navigateTo(SIGNUP_PATH)}
+        noticeMessage={loginNotice}
+        onDismissNotice={() => setLoginNotice(null)}
+      />
+    )
   }
 
   if (pathname === SIGNUP_PATH) {

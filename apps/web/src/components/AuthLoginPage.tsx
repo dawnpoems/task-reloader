@@ -10,9 +10,11 @@ interface AuthActionResult {
 interface AuthLoginPageProps {
   onLogin: (request: LoginRequest) => Promise<AuthActionResult>
   onGoSignup: () => void
+  noticeMessage?: string | null
+  onDismissNotice?: () => void
 }
 
-export function AuthLoginPage({ onLogin, onGoSignup }: AuthLoginPageProps) {
+export function AuthLoginPage({ onLogin, onGoSignup, noticeMessage, onDismissNotice }: AuthLoginPageProps) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -49,7 +51,7 @@ export function AuthLoginPage({ onLogin, onGoSignup }: AuthLoginPageProps) {
             message: '승인이 거절된 계정입니다. 관리자에게 문의하거나 다른 이메일로 다시 가입해 주세요.',
           })
         }
-        setError(result.message ?? '로그인에 실패했습니다.')
+        setError(result.message ?? '로그인에 실패했습니다. 이메일/비밀번호를 확인한 뒤 다시 시도해 주세요.')
       }
     } finally {
       setIsSubmitting(false)
@@ -62,6 +64,17 @@ export function AuthLoginPage({ onLogin, onGoSignup }: AuthLoginPageProps) {
         <h1 id="login-title">로그인</h1>
         <p className="auth-card__subtitle">승인된 계정으로 Task Reloader를 시작하세요.</p>
 
+        {noticeMessage && (
+          <div className="auth-form__notice" role="status" aria-live="polite">
+            <p>{noticeMessage}</p>
+            {onDismissNotice && (
+              <button type="button" className="auth-link-button" onClick={onDismissNotice}>
+                닫기
+              </button>
+            )}
+          </div>
+        )}
+
         <form className="auth-form" onSubmit={handleSubmit}>
           <label className="auth-form__field">
             <span>이메일</span>
@@ -69,6 +82,7 @@ export function AuthLoginPage({ onLogin, onGoSignup }: AuthLoginPageProps) {
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
+              autoFocus
               autoComplete="email"
               required
             />
@@ -99,7 +113,7 @@ export function AuthLoginPage({ onLogin, onGoSignup }: AuthLoginPageProps) {
 
         <div className="auth-card__footer">
           <p>계정이 없나요?</p>
-          <button type="button" className="auth-link-button" onClick={onGoSignup}>
+          <button type="button" className="auth-link-button" onClick={onGoSignup} disabled={isSubmitting}>
             회원가입
           </button>
         </div>
