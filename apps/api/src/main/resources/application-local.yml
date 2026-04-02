@@ -14,6 +14,14 @@ spring:
       auth_admin_email: ${AUTH_ADMIN_EMAIL:admin@task-reloader.local}
       auth_admin_password_hash: ${AUTH_ADMIN_PASSWORD_HASH:__CHANGE_ME_WITH_BCRYPT_HASH__}
 
+auth:
+  jwt:
+    secret: ${AUTH_JWT_SECRET:__CHANGE_ME_WITH_AT_LEAST_32_BYTE_SECRET__}
+    access-token-ttl-seconds: ${AUTH_ACCESS_TOKEN_TTL_SECONDS:900}
+    refresh-token-ttl-seconds: ${AUTH_REFRESH_TOKEN_TTL_SECONDS:1209600}
+  password:
+    bcrypt-strength: ${AUTH_BCRYPT_STRENGTH:12}
+
 management:
   endpoints:
     web:
