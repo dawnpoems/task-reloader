@@ -21,6 +21,11 @@ auth:
     refresh-token-ttl-seconds: ${AUTH_REFRESH_TOKEN_TTL_SECONDS:1209600}
   password:
     bcrypt-strength: ${AUTH_BCRYPT_STRENGTH:12}
+  refresh-cookie:
+    name: ${AUTH_REFRESH_COOKIE_NAME:refresh_token}
+    path: ${AUTH_REFRESH_COOKIE_PATH:/api/auth}
+    secure: ${AUTH_REFRESH_COOKIE_SECURE:false}
+    same-site: ${AUTH_REFRESH_COOKIE_SAME_SITE:Lax}
 
 management:
   endpoints:

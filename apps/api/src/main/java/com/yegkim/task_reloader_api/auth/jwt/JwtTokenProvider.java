@@ -86,7 +86,7 @@ public class JwtTokenProvider {
         byte[] keyBytes;
         try {
             keyBytes = Decoders.BASE64.decode(sanitized);
-        } catch (IllegalArgumentException ignored) {
+        } catch (RuntimeException ignored) {
             keyBytes = sanitized.getBytes(StandardCharsets.UTF_8);
         }
 

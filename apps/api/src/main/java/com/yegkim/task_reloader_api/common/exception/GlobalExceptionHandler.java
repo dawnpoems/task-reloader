@@ -1,11 +1,13 @@
 package com.yegkim.task_reloader_api.common.exception;
 
+import com.yegkim.task_reloader_api.auth.exception.AuthException;
 import com.yegkim.task_reloader_api.common.response.ApiResponse;
 import com.yegkim.task_reloader_api.common.response.ErrorResponse;
 import com.yegkim.task_reloader_api.common.web.RequestIdLoggingFilter;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -48,6 +50,13 @@ public class GlobalExceptionHandler {
     public ApiResponse<Void> handleIllegalArgument(IllegalArgumentException ex) {
         log.warn("Bad request requestId={} message={}", currentRequestId(), ex.getMessage());
         return error("BAD_REQUEST", ex.getMessage());
+    }
+
+    @ExceptionHandler(AuthException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAuthException(AuthException ex) {
+        log.warn("Auth exception requestId={} status={} code={} message={}", currentRequestId(), ex.getStatus(), ex.getCode(), ex.getMessage());
+        return ResponseEntity.status(ex.getStatus())
+                .body(error(ex.getCode(), ex.getMessage()));
     }
 
     @ExceptionHandler(TaskNotFoundException.class)

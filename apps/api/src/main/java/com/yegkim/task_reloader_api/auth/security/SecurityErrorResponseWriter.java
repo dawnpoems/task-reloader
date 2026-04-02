@@ -5,7 +5,6 @@ import com.yegkim.task_reloader_api.common.response.ApiResponse;
 import com.yegkim.task_reloader_api.common.response.ErrorResponse;
 import com.yegkim.task_reloader_api.common.web.RequestIdLoggingFilter;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import org.slf4j.MDC;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -14,10 +13,9 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 @Component
-@RequiredArgsConstructor
 public class SecurityErrorResponseWriter {
 
-    private final ObjectMapper objectMapper;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public void write(HttpServletResponse response, int status, String code, String message) throws IOException {
         if (response.isCommitted()) {
