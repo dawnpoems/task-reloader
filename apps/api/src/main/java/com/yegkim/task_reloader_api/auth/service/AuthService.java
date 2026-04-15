@@ -116,7 +116,7 @@ public class AuthService {
 
         OffsetDateTime now = nowUtc();
         if (refreshToken.isRevoked()) {
-            revokeAllUserTokens(refreshToken.getUser().getId(), now);
+            revokeAllUserTokens(refreshToken.getUser().getId(), now, "refresh_token_reused");
             throw new AuthException(HttpStatus.UNAUTHORIZED, "REFRESH_TOKEN_REUSED", "리프레시 토큰이 재사용되어 세션을 종료했습니다. 다시 로그인해 주세요.");
         }
 
@@ -166,6 +166,45 @@ public class AuthService {
                 .sorted(java.util.Comparator.comparing(User::getCreatedAt))
                 .map(this::toPendingUserResponse)
                 .toList();
+    }
+
+    @Transactional
+    public PendingUserResponse updateNonPendingUserStatus(Long adminUserId, Long targetUserId, UserStatus targetStatus) {
+        User adminUser = validateAdminUser(adminUserId);
+        User targetUser = userRepository.findById(targetUserId)
+                .orElseThrow(() -> new AuthException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "사용자 정보를 찾을 수 없습니다."));
+
+        if (targetUser.getRole() == UserRole.ADMIN) {
+            throw new AuthException(HttpStatus.CONFLICT, "ADMIN_STATUS_IMMUTABLE", "관리자 계정의 상태는 변경할 수 없습니다.");
+        }
+        if (targetUser.getStatus() == UserStatus.PENDING) {
+            throw new AuthException(HttpStatus.CONFLICT, "ACCOUNT_PENDING_ONLY", "PENDING 계정은 승인/거절 API로 처리해 주세요.");
+        }
+        if (targetStatus == UserStatus.PENDING) {
+            throw new AuthException(HttpStatus.BAD_REQUEST, "INVALID_TARGET_STATUS", "상태는 APPROVED 또는 REJECTED만 허용됩니다.");
+        }
+
+        UserStatus previousStatus = targetUser.getStatus();
+        if (previousStatus == targetStatus) {
+            return toPendingUserResponse(targetUser);
+        }
+
+        OffsetDateTime now = nowUtc();
+        if (targetStatus == UserStatus.APPROVED) {
+            targetUser.approve(adminUser, now);
+        } else {
+            targetUser.reject();
+            revokeAllUserTokens(targetUser.getId(), now, "admin_status_rejected");
+        }
+
+        log.info(
+                "Non-pending user status changed adminUserId={} targetUserId={} from={} to={}",
+                adminUserId,
+                targetUserId,
+                previousStatus,
+                targetStatus
+        );
+        return toPendingUserResponse(targetUser);
     }
 
     @Transactional
@@ -233,12 +272,12 @@ public class AuthService {
         return new TokenBundle(accessToken, refreshTokenValue);
     }
 
-    private void revokeAllUserTokens(Long userId, OffsetDateTime now) {
+    private void revokeAllUserTokens(Long userId, OffsetDateTime now, String reason) {
         List<RefreshToken> activeTokens = refreshTokenRepository.findAllByUserIdAndRevokedAtIsNull(userId);
         for (RefreshToken token : activeTokens) {
             token.revoke(now);
         }
-        log.warn("Refresh token reuse detected: revoked active tokens userId={} count={}", userId, activeTokens.size());
+        log.warn("User tokens revoked userId={} count={} reason={}", userId, activeTokens.size(), reason);
     }
 
     private String generateOpaqueToken() {

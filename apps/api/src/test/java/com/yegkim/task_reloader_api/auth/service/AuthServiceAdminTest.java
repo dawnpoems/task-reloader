@@ -1,6 +1,7 @@
 package com.yegkim.task_reloader_api.auth.service;
 
 import com.yegkim.task_reloader_api.auth.dto.PendingUserResponse;
+import com.yegkim.task_reloader_api.auth.entity.RefreshToken;
 import com.yegkim.task_reloader_api.auth.entity.User;
 import com.yegkim.task_reloader_api.auth.entity.UserRole;
 import com.yegkim.task_reloader_api.auth.entity.UserStatus;
@@ -27,6 +28,8 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -121,6 +124,102 @@ class AuthServiceAdminTest {
         assertThat(responses).hasSize(2);
         assertThat(responses).extracting(PendingUserResponse::userId).containsExactly(3L, 4L);
         assertThat(responses).extracting(PendingUserResponse::status).containsExactly(UserStatus.APPROVED, UserStatus.REJECTED);
+    }
+
+    @Test
+    @DisplayName("승인/거절 사용자 상태 변경 - APPROVED -> REJECTED")
+    void updateNonPendingUserStatus_approvedToRejected_success() {
+        OffsetDateTime now = OffsetDateTime.ofInstant(Instant.parse("2026-04-05T00:00:00Z"), ZoneOffset.UTC);
+        User approvedUser = User.builder()
+                .id(3L)
+                .email("approved@test.com")
+                .passwordHash("hash")
+                .role(UserRole.USER)
+                .status(UserStatus.APPROVED)
+                .createdAt(OffsetDateTime.of(2026, 4, 3, 0, 0, 0, 0, ZoneOffset.UTC))
+                .updatedAt(OffsetDateTime.of(2026, 4, 3, 0, 0, 0, 0, ZoneOffset.UTC))
+                .build();
+        RefreshToken activeToken = RefreshToken.builder()
+                .id(100L)
+                .user(approvedUser)
+                .tokenHash("hash")
+                .expiresAt(now.plusDays(1))
+                .build();
+
+        when(clock.instant()).thenReturn(now.toInstant());
+        when(userRepository.findById(ADMIN_ID)).thenReturn(Optional.of(adminUser));
+        when(userRepository.findById(3L)).thenReturn(Optional.of(approvedUser));
+        when(refreshTokenRepository.findAllByUserIdAndRevokedAtIsNull(3L)).thenReturn(List.of(activeToken));
+
+        PendingUserResponse response = authService.updateNonPendingUserStatus(ADMIN_ID, 3L, UserStatus.REJECTED);
+
+        assertThat(response.status()).isEqualTo(UserStatus.REJECTED);
+        assertThat(approvedUser.getStatus()).isEqualTo(UserStatus.REJECTED);
+        assertThat(activeToken.getRevokedAt()).isEqualTo(now);
+        verify(refreshTokenRepository).findAllByUserIdAndRevokedAtIsNull(eq(3L));
+    }
+
+    @Test
+    @DisplayName("승인/거절 사용자 상태 변경 - REJECTED -> APPROVED")
+    void updateNonPendingUserStatus_rejectedToApproved_success() {
+        Instant now = Instant.parse("2026-04-05T10:00:00Z");
+        User rejectedUser = User.builder()
+                .id(4L)
+                .email("rejected@test.com")
+                .passwordHash("hash")
+                .role(UserRole.USER)
+                .status(UserStatus.REJECTED)
+                .createdAt(OffsetDateTime.of(2026, 4, 4, 0, 0, 0, 0, ZoneOffset.UTC))
+                .updatedAt(OffsetDateTime.of(2026, 4, 4, 0, 0, 0, 0, ZoneOffset.UTC))
+                .build();
+
+        when(clock.instant()).thenReturn(now);
+        when(userRepository.findById(ADMIN_ID)).thenReturn(Optional.of(adminUser));
+        when(userRepository.findById(4L)).thenReturn(Optional.of(rejectedUser));
+
+        PendingUserResponse response = authService.updateNonPendingUserStatus(ADMIN_ID, 4L, UserStatus.APPROVED);
+
+        assertThat(response.status()).isEqualTo(UserStatus.APPROVED);
+        assertThat(rejectedUser.getStatus()).isEqualTo(UserStatus.APPROVED);
+        assertThat(rejectedUser.getApprovedBy()).isEqualTo(adminUser);
+        assertThat(rejectedUser.getApprovedAt()).isEqualTo(OffsetDateTime.ofInstant(now, ZoneOffset.UTC));
+    }
+
+    @Test
+    @DisplayName("승인/거절 사용자 상태 변경 - 대상이 PENDING이면 충돌")
+    void updateNonPendingUserStatus_pendingTarget_conflict() {
+        when(userRepository.findById(ADMIN_ID)).thenReturn(Optional.of(adminUser));
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(pendingUser));
+
+        assertThatThrownBy(() -> authService.updateNonPendingUserStatus(ADMIN_ID, USER_ID, UserStatus.REJECTED))
+                .isInstanceOf(AuthException.class)
+                .satisfies(ex -> {
+                    AuthException authEx = (AuthException) ex;
+                    assertThat(authEx.getStatus()).isEqualTo(HttpStatus.CONFLICT);
+                    assertThat(authEx.getCode()).isEqualTo("ACCOUNT_PENDING_ONLY");
+                });
+    }
+
+    @Test
+    @DisplayName("승인/거절 사용자 상태 변경 - target status가 PENDING이면 400")
+    void updateNonPendingUserStatus_targetPending_badRequest() {
+        User approvedUser = User.builder()
+                .id(3L)
+                .email("approved@test.com")
+                .passwordHash("hash")
+                .role(UserRole.USER)
+                .status(UserStatus.APPROVED)
+                .build();
+        when(userRepository.findById(ADMIN_ID)).thenReturn(Optional.of(adminUser));
+        when(userRepository.findById(3L)).thenReturn(Optional.of(approvedUser));
+
+        assertThatThrownBy(() -> authService.updateNonPendingUserStatus(ADMIN_ID, 3L, UserStatus.PENDING))
+                .isInstanceOf(AuthException.class)
+                .satisfies(ex -> {
+                    AuthException authEx = (AuthException) ex;
+                    assertThat(authEx.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+                    assertThat(authEx.getCode()).isEqualTo("INVALID_TARGET_STATUS");
+                });
     }
 
     @Test

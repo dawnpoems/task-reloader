@@ -29,6 +29,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -60,6 +61,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.http.HttpHeaders.AUTHORIZATION;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -235,6 +237,31 @@ class AdminUserControllerTest {
     }
 
     @Test
+    @DisplayName("승인/거절 사용자 상태 변경 - ADMIN 성공")
+    void updateNonPendingUserStatus_admin_success() throws Exception {
+        OffsetDateTime createdAt = OffsetDateTime.of(2026, 4, 2, 9, 0, 0, 0, ZoneOffset.UTC);
+        PendingUserResponse updated = new PendingUserResponse(
+                20L,
+                "approved@example.com",
+                UserRole.USER,
+                UserStatus.REJECTED,
+                createdAt
+        );
+        when(authService.updateNonPendingUserStatus(1L, 20L, UserStatus.REJECTED)).thenReturn(updated);
+
+        mockMvc.perform(patch("/api/admin/users/20/status")
+                        .header(AUTHORIZATION, bearer("admin-token"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"REJECTED\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.data.userId", is(20)))
+                .andExpect(jsonPath("$.data.status", is("REJECTED")));
+
+        verify(authService).updateNonPendingUserStatus(1L, 20L, UserStatus.REJECTED);
+    }
+
+    @Test
     @DisplayName("사용자 승인 - ADMIN 성공")
     void approveUser_admin_success() throws Exception {
         OffsetDateTime createdAt = OffsetDateTime.of(2026, 4, 2, 9, 0, 0, 0, ZoneOffset.UTC);
@@ -325,6 +352,18 @@ class AdminUserControllerTest {
                 .andExpect(status().isForbidden());
 
         verify(authService, never()).approvePendingUser(any(), eq(10L));
+    }
+
+    @Test
+    @DisplayName("승인/거절 사용자 상태 변경 - USER 권한이면 403")
+    void updateNonPendingUserStatus_userRole_forbidden() throws Exception {
+        mockMvc.perform(patch("/api/admin/users/20/status")
+                        .header(AUTHORIZATION, bearer("user-token"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"APPROVED\"}"))
+                .andExpect(status().isForbidden());
+
+        verify(authService, never()).updateNonPendingUserStatus(any(), eq(20L), any());
     }
 
     @Test
