@@ -91,6 +91,39 @@ class AuthServiceAdminTest {
     }
 
     @Test
+    @DisplayName("승인/거절 사용자 목록 조회 - PENDING 제외")
+    void getNonPendingUsers_success() {
+        User approvedUser = User.builder()
+                .id(3L)
+                .email("approved@test.com")
+                .passwordHash("hash")
+                .role(UserRole.USER)
+                .status(UserStatus.APPROVED)
+                .createdAt(OffsetDateTime.of(2026, 4, 3, 0, 0, 0, 0, ZoneOffset.UTC))
+                .updatedAt(OffsetDateTime.of(2026, 4, 3, 0, 0, 0, 0, ZoneOffset.UTC))
+                .build();
+
+        User rejectedUser = User.builder()
+                .id(4L)
+                .email("rejected@test.com")
+                .passwordHash("hash")
+                .role(UserRole.USER)
+                .status(UserStatus.REJECTED)
+                .createdAt(OffsetDateTime.of(2026, 4, 4, 0, 0, 0, 0, ZoneOffset.UTC))
+                .updatedAt(OffsetDateTime.of(2026, 4, 4, 0, 0, 0, 0, ZoneOffset.UTC))
+                .build();
+
+        when(userRepository.findById(ADMIN_ID)).thenReturn(Optional.of(adminUser));
+        when(userRepository.findAll()).thenReturn(List.of(rejectedUser, pendingUser, approvedUser));
+
+        List<PendingUserResponse> responses = authService.getNonPendingUsers(ADMIN_ID);
+
+        assertThat(responses).hasSize(2);
+        assertThat(responses).extracting(PendingUserResponse::userId).containsExactly(3L, 4L);
+        assertThat(responses).extracting(PendingUserResponse::status).containsExactly(UserStatus.APPROVED, UserStatus.REJECTED);
+    }
+
+    @Test
     @DisplayName("PENDING 사용자 목록 조회 - 일반 사용자는 금지")
     void getPendingUsers_forbiddenWhenNotAdmin() {
         User normalUser = User.builder()

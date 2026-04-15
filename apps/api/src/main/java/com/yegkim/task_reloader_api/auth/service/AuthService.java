@@ -159,6 +159,15 @@ public class AuthService {
                 .toList();
     }
 
+    public List<PendingUserResponse> getNonPendingUsers(Long adminUserId) {
+        validateAdminUser(adminUserId);
+        return userRepository.findAll().stream()
+                .filter(user -> user.getStatus() != UserStatus.PENDING)
+                .sorted(java.util.Comparator.comparing(User::getCreatedAt))
+                .map(this::toPendingUserResponse)
+                .toList();
+    }
+
     @Transactional
     public PendingUserResponse approvePendingUser(Long adminUserId, Long targetUserId) {
         User adminUser = validateAdminUser(adminUserId);

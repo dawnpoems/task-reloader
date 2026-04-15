@@ -24,6 +24,14 @@ public class AdminUserController {
 
     private final AuthService authService;
 
+    @Operation(summary = "승인/거절 사용자 목록 조회 (PENDING 제외)")
+    @GetMapping("/non-pending")
+    public ApiResponse<List<PendingUserResponse>> getNonPendingUsers(
+            @AuthenticationPrincipal AuthenticatedUser principal
+    ) {
+        return ApiResponse.success(authService.getNonPendingUsers(principal.userId()));
+    }
+
     @Operation(summary = "승인 대기(PENDING) 사용자 목록 조회")
     @GetMapping("/pending")
     public ApiResponse<List<PendingUserResponse>> getPendingUsers(

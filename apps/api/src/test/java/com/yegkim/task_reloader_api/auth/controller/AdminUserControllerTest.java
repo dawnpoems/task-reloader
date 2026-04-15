@@ -203,6 +203,38 @@ class AdminUserControllerTest {
     }
 
     @Test
+    @DisplayName("승인/거절 사용자 목록 조회 - ADMIN 성공")
+    void getNonPendingUsers_admin_success() throws Exception {
+        OffsetDateTime approvedCreatedAt = OffsetDateTime.of(2026, 4, 2, 9, 0, 0, 0, ZoneOffset.UTC);
+        OffsetDateTime rejectedCreatedAt = OffsetDateTime.of(2026, 4, 3, 9, 0, 0, 0, ZoneOffset.UTC);
+        PendingUserResponse approved = new PendingUserResponse(
+                20L,
+                "approved@example.com",
+                UserRole.USER,
+                UserStatus.APPROVED,
+                approvedCreatedAt
+        );
+        PendingUserResponse rejected = new PendingUserResponse(
+                21L,
+                "rejected@example.com",
+                UserRole.USER,
+                UserStatus.REJECTED,
+                rejectedCreatedAt
+        );
+        when(authService.getNonPendingUsers(1L)).thenReturn(List.of(approved, rejected));
+
+        mockMvc.perform(get("/api/admin/users/non-pending")
+                        .header(AUTHORIZATION, bearer("admin-token")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.data", hasSize(2)))
+                .andExpect(jsonPath("$.data[0].status", is("APPROVED")))
+                .andExpect(jsonPath("$.data[1].status", is("REJECTED")));
+
+        verify(authService).getNonPendingUsers(1L);
+    }
+
+    @Test
     @DisplayName("사용자 승인 - ADMIN 성공")
     void approveUser_admin_success() throws Exception {
         OffsetDateTime createdAt = OffsetDateTime.of(2026, 4, 2, 9, 0, 0, 0, ZoneOffset.UTC);
