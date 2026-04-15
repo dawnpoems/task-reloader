@@ -125,6 +125,15 @@ public class AuthService {
             throw new AuthException(HttpStatus.UNAUTHORIZED, "REFRESH_TOKEN_EXPIRED", "리프레시 토큰이 만료되었습니다. 다시 로그인해 주세요.");
         }
 
+        User tokenUser = refreshToken.getUser();
+        if (tokenUser.getStatus() != UserStatus.APPROVED) {
+            revokeAllUserTokens(tokenUser.getId(), now, "refresh_user_not_approved");
+            if (tokenUser.getStatus() == UserStatus.PENDING) {
+                throw new AuthException(HttpStatus.FORBIDDEN, "ACCOUNT_PENDING", "관리자 승인 대기 중인 계정입니다.");
+            }
+            throw new AuthException(HttpStatus.FORBIDDEN, "ACCOUNT_REJECTED", "승인 거부된 계정입니다.");
+        }
+
         refreshToken.markUsed(now);
         refreshToken.revoke(now);
 
@@ -232,7 +241,9 @@ public class AuthService {
             throw new AuthException(HttpStatus.CONFLICT, "ACCOUNT_NOT_PENDING", "승인 대기 상태 계정만 거절할 수 있습니다.");
         }
 
+        OffsetDateTime now = nowUtc();
         targetUser.reject();
+        revokeAllUserTokens(targetUser.getId(), now, "pending_user_rejected");
         log.info("User rejected adminUserId={} targetUserId={}", adminUserId, targetUserId);
         return toPendingUserResponse(targetUser);
     }

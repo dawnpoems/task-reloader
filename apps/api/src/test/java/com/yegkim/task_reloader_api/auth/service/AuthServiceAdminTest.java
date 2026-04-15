@@ -285,8 +285,18 @@ class AuthServiceAdminTest {
     @Test
     @DisplayName("사용자 거절 - PENDING 계정을 REJECTED로 전환")
     void rejectPendingUser_success() {
+        OffsetDateTime now = OffsetDateTime.ofInstant(Instant.parse("2026-04-06T00:00:00Z"), ZoneOffset.UTC);
+        RefreshToken activeToken = RefreshToken.builder()
+                .id(900L)
+                .user(pendingUser)
+                .tokenHash("token-hash")
+                .expiresAt(now.plusDays(1))
+                .build();
+
+        when(clock.instant()).thenReturn(now.toInstant());
         when(userRepository.findById(ADMIN_ID)).thenReturn(Optional.of(adminUser));
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(pendingUser));
+        when(refreshTokenRepository.findAllByUserIdAndRevokedAtIsNull(USER_ID)).thenReturn(List.of(activeToken));
 
         PendingUserResponse response = authService.rejectPendingUser(ADMIN_ID, USER_ID);
 
@@ -295,6 +305,8 @@ class AuthServiceAdminTest {
         assertThat(pendingUser.getStatus()).isEqualTo(UserStatus.REJECTED);
         assertThat(pendingUser.getApprovedBy()).isNull();
         assertThat(pendingUser.getApprovedAt()).isNull();
+        assertThat(activeToken.getRevokedAt()).isEqualTo(now);
+        verify(refreshTokenRepository).findAllByUserIdAndRevokedAtIsNull(eq(USER_ID));
     }
 
     @Test

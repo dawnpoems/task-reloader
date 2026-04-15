@@ -284,6 +284,43 @@ class AuthServiceAuthFlowTest {
     }
 
     @Test
+    @DisplayName("리프레시 실패 - REJECTED 계정은 세션 전체 revoke 후 차단")
+    void refresh_rejectedUser_revokesAllSessionsAndFails() {
+        User rejected = user(24L, "rejected@example.com", UserRole.USER, UserStatus.REJECTED);
+        String raw = "rejected-refresh-token";
+
+        RefreshToken current = RefreshToken.builder()
+                .id(410L)
+                .user(rejected)
+                .tokenHash(hash(raw))
+                .expiresAt(OffsetDateTime.ofInstant(FIXED_NOW.plusSeconds(1000), ZoneOffset.UTC))
+                .build();
+        RefreshToken otherActive = RefreshToken.builder()
+                .id(411L)
+                .user(rejected)
+                .tokenHash("active-other")
+                .expiresAt(OffsetDateTime.ofInstant(FIXED_NOW.plusSeconds(1000), ZoneOffset.UTC))
+                .build();
+
+        when(refreshTokenRepository.findByTokenHash(hash(raw))).thenReturn(Optional.of(current));
+        when(refreshTokenRepository.findAllByUserIdAndRevokedAtIsNull(24L)).thenReturn(List.of(current, otherActive));
+
+        assertThatThrownBy(() -> authService.refresh(raw))
+                .isInstanceOf(AuthException.class)
+                .satisfies(ex -> {
+                    AuthException authEx = (AuthException) ex;
+                    assertThat(authEx.getStatus()).isEqualTo(HttpStatus.FORBIDDEN);
+                    assertThat(authEx.getCode()).isEqualTo("ACCOUNT_REJECTED");
+                });
+
+        OffsetDateTime expected = OffsetDateTime.ofInstant(FIXED_NOW, ZoneOffset.UTC);
+        assertThat(current.getRevokedAt()).isEqualTo(expected);
+        assertThat(otherActive.getRevokedAt()).isEqualTo(expected);
+        assertThat(current.getLastUsedAt()).isNull();
+        verify(jwtTokenProvider, never()).generateAccessToken(any(), any());
+    }
+
+    @Test
     @DisplayName("리프레시 성공 - 기존 토큰 사용표시+revoke 후 새 토큰 발급")
     void refresh_success_rotatesToken() {
         User user = user(23L, "user@example.com", UserRole.USER, UserStatus.APPROVED);
