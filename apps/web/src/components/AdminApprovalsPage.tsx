@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { authApi } from '../api/auth'
 import { extractErrorMessage } from '../api/client'
-import type { PendingUser } from '../types/auth'
+import type { PendingUser, UserStatus } from '../types/auth'
 import { ErrorNotice } from './ErrorNotice'
 
-type ActionKind = 'approve' | 'reject'
+type ActionKind = 'approve' | 'reject' | 'set-approved' | 'set-rejected'
 
 interface ActionState {
   userId: number
@@ -30,6 +30,56 @@ function formatCreatedAt(value: string): string {
 
 function sortByCreatedAtAsc(users: PendingUser[]): PendingUser[] {
   return [...users].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+}
+
+function getActionLabel(kind: ActionKind): string {
+  if (kind === 'approve') return '승인'
+  if (kind === 'reject') return '거절'
+  if (kind === 'set-approved') return '승인 상태로 변경'
+  return '거절 상태로 변경'
+}
+
+function getActionButtonClass(kind: ActionKind): string {
+  if (kind === 'reject' || kind === 'set-rejected') return 'admin-approvals__reject'
+  return 'admin-approvals__approve'
+}
+
+function getActionSuccessNotice(kind: ActionKind): string {
+  if (kind === 'approve') return '사용자를 승인했습니다.'
+  if (kind === 'reject') return '사용자를 거절했습니다.'
+  if (kind === 'set-approved') return '사용자 상태를 승인으로 변경했습니다.'
+  return '사용자 상태를 거절로 변경했습니다.'
+}
+
+function getActionFailureMessage(kind: ActionKind): string {
+  if (kind === 'approve') return '승인 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.'
+  if (kind === 'reject') return '거절 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.'
+  if (kind === 'set-approved') return '승인 상태 변경에 실패했습니다. 잠시 후 다시 시도해 주세요.'
+  return '거절 상태 변경에 실패했습니다. 잠시 후 다시 시도해 주세요.'
+}
+
+function getTargetStatus(kind: ActionKind): UserStatus | null {
+  if (kind === 'set-approved') return 'APPROVED'
+  if (kind === 'set-rejected') return 'REJECTED'
+  return null
+}
+
+function isStatusToggleAction(kind: ActionKind): boolean {
+  return kind === 'set-approved' || kind === 'set-rejected'
+}
+
+function getActionSubmitLabel(kind: ActionKind): string {
+  if (kind === 'approve') return '승인 진행'
+  if (kind === 'reject') return '거절 진행'
+  if (kind === 'set-approved') return '승인으로 변경'
+  return '거절로 변경'
+}
+
+function getActionSubmittingLabel(kind: ActionKind): string {
+  if (kind === 'approve') return '승인 처리 중...'
+  if (kind === 'reject') return '거절 처리 중...'
+  if (kind === 'set-approved') return '승인으로 변경 중...'
+  return '거절로 변경 중...'
 }
 
 export function AdminApprovalsPage() {
@@ -185,29 +235,32 @@ export function AdminApprovalsPage() {
       const res =
         kind === 'approve'
           ? await authApi.approveUser(userId)
-          : await authApi.rejectUser(userId)
+          : kind === 'reject'
+            ? await authApi.rejectUser(userId)
+            : await authApi.updateUserStatus(userId, getTargetStatus(kind) ?? 'APPROVED')
 
       if (res.success) {
-        const changedUser = res.data
-        setPendingUsers((prev) => prev.filter((user) => user.userId !== userId))
-        if (changedUser && isNonPendingLoaded) {
-          setNonPendingUsers((prev) => {
-            const merged = prev.filter((user) => user.userId !== changedUser.userId)
-            merged.push(changedUser)
-            return sortByCreatedAtAsc(merged)
-          })
+        const nextStatus = getTargetStatus(kind)
+        const changedUser = res.data ?? (nextStatus ? { ...confirmTarget.user, status: nextStatus } : null)
+
+        if (!isStatusToggleAction(kind)) {
+          setPendingUsers((prev) => prev.filter((user) => user.userId !== userId))
+          if (changedUser && isNonPendingLoaded) {
+            setNonPendingUsers((prev) => {
+              const merged = prev.filter((user) => user.userId !== changedUser.userId)
+              merged.push(changedUser)
+              return sortByCreatedAtAsc(merged)
+            })
+          }
+        } else if (changedUser) {
+          setNonPendingUsers((prev) => sortByCreatedAtAsc(
+            prev.map((user) => (user.userId === changedUser.userId ? changedUser : user))
+          ))
         }
-        setNotice(kind === 'approve' ? '사용자를 승인했습니다.' : '사용자를 거절했습니다.')
+        setNotice(getActionSuccessNotice(kind))
         setConfirmTarget(null)
       } else {
-        setActionError(
-          extractErrorMessage(
-            res.error,
-            kind === 'approve'
-              ? '승인 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.'
-              : '거절 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.'
-          )
-        )
+        setActionError(extractErrorMessage(res.error, getActionFailureMessage(kind)))
       }
     } finally {
       setActionState(null)
@@ -232,9 +285,14 @@ export function AdminApprovalsPage() {
   const nonPendingCount = nonPendingUsers.length
   const filteredNonPendingCount = filteredNonPendingUsers.length
 
-  const confirmActionLabel = confirmTarget?.kind === 'approve' ? '승인' : '거절'
-  const isConfirmingApprove = actionState?.kind === 'approve'
-  const isConfirmingReject = actionState?.kind === 'reject'
+  const confirmActionLabel = confirmTarget ? getActionLabel(confirmTarget.kind) : ''
+  const confirmActionButtonClass = confirmTarget ? getActionButtonClass(confirmTarget.kind) : 'admin-approvals__approve'
+  const confirmSubmitLabel = confirmTarget ? getActionSubmitLabel(confirmTarget.kind) : ''
+  const confirmSubmittingLabel = confirmTarget ? getActionSubmittingLabel(confirmTarget.kind) : ''
+  const isConfirmingCurrentAction =
+    !!confirmTarget &&
+    actionState?.userId === confirmTarget.user.userId &&
+    actionState?.kind === confirmTarget.kind
 
   return (
     <section className="admin-approvals" aria-labelledby="admin-approvals-title">
@@ -303,7 +361,7 @@ export function AdminApprovalsPage() {
                     역할: {user.role} · 상태: {user.status} · 가입일: {formatCreatedAt(user.createdAt)}
                   </p>
                 </div>
-                <div className="admin-approvals__actions">
+                <div className="admin-approvals__actions admin-approvals__actions--decision">
                   <button
                     type="button"
                     className="admin-approvals__approve"
@@ -350,16 +408,39 @@ export function AdminApprovalsPage() {
               <p className="admin-approvals__empty admin-approvals__empty--filter">검색 조건과 일치하는 사용자가 없습니다.</p>
             ) : (
               <ul className="admin-approvals__list">
-                {filteredNonPendingUsers.map((user) => (
-                  <li key={user.userId} className="admin-approvals__item">
-                    <div className="admin-approvals__meta">
-                      <p className="admin-approvals__email">{user.email}</p>
-                      <p className="admin-approvals__detail">
-                        역할: {user.role} · 상태: {user.status} · 가입일: {formatCreatedAt(user.createdAt)}
-                      </p>
-                    </div>
-                  </li>
-                ))}
+                {filteredNonPendingUsers.map((user) => {
+                  const toggleKind: ActionKind = user.status === 'APPROVED' ? 'set-rejected' : 'set-approved'
+                  const isToggling = actionState?.userId === user.userId && isStatusToggleAction(actionState.kind)
+                  const isApproved = user.status === 'APPROVED'
+                  const toggleLabel = isApproved ? '승인' : '거절'
+                  const toggleHint = isApproved ? '클릭하면 거절로 변경' : '클릭하면 승인으로 변경'
+
+                  return (
+                    <li key={user.userId} className="admin-approvals__item">
+                      <div className="admin-approvals__meta">
+                        <p className="admin-approvals__email">{user.email}</p>
+                        <p className="admin-approvals__detail">
+                          역할: {user.role} · 상태: {user.status} · 가입일: {formatCreatedAt(user.createdAt)}
+                        </p>
+                      </div>
+                      <div className="admin-approvals__actions admin-approvals__actions--toggle">
+                        <button
+                          type="button"
+                          className={`admin-approvals__status-toggle ${isApproved ? 'admin-approvals__status-toggle--approved' : 'admin-approvals__status-toggle--rejected'}`}
+                          aria-label={`${user.email} 상태를 ${isApproved ? '거절' : '승인'}으로 변경`}
+                          disabled={isInteractionLocked}
+                          onClick={(event) => openConfirmModal(user, toggleKind, event.currentTarget)}
+                        >
+                          <span className="admin-approvals__status-toggle-track" aria-hidden="true">
+                            <span className="admin-approvals__status-toggle-thumb" />
+                          </span>
+                          <span>{isToggling ? '변경 중...' : toggleLabel}</span>
+                        </button>
+                        <p className="admin-approvals__toggle-hint">{toggleHint}</p>
+                      </div>
+                    </li>
+                  )
+                })}
               </ul>
             )}
           </div>
@@ -399,13 +480,11 @@ export function AdminApprovalsPage() {
                 <button
                   ref={confirmButtonRef}
                   type="button"
-                  className={confirmTarget.kind === 'approve' ? 'admin-approvals__approve' : 'admin-approvals__reject'}
+                  className={confirmActionButtonClass}
                   onClick={submitAction}
                   disabled={isActionBusy}
                 >
-                  {confirmTarget.kind === 'approve'
-                    ? isConfirmingApprove ? '승인 처리 중...' : '승인 진행'
-                    : isConfirmingReject ? '거절 처리 중...' : '거절 진행'}
+                  {isConfirmingCurrentAction ? confirmSubmittingLabel : confirmSubmitLabel}
                 </button>
               </div>
             </div>

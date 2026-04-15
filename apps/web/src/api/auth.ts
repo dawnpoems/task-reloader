@@ -7,6 +7,7 @@ import type {
   RefreshResponse,
   SignupRequest,
   SignupResponse,
+  UserStatus,
 } from '../types/auth'
 
 const NO_AUTH_OPTIONS = { skipAuth: true, retryOnUnauthorized: false } as const
@@ -32,6 +33,9 @@ export const authApi = {
 
   getNonPendingUsers: (): Promise<ApiResponse<PendingUser[]>> =>
     apiClient.get<PendingUser[]>('/admin/users/non-pending'),
+
+  updateUserStatus: (userId: number, status: UserStatus): Promise<ApiResponse<PendingUser>> =>
+    apiClient.patch<PendingUser>(`/admin/users/${userId}/status`, { status }),
 
   approveUser: (userId: number): Promise<ApiResponse<PendingUser>> =>
     apiClient.post<PendingUser>(`/admin/users/${userId}/approve`, {}),
