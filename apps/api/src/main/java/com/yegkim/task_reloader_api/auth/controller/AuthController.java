@@ -17,7 +17,9 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.WebUtils;
 
+import java.security.SecureRandom;
 import java.time.Duration;
+import java.util.Base64;
 
 @Tag(name = "Auth", description = "회원가입/로그인/토큰 재발급 API")
 @RestController
@@ -25,8 +27,10 @@ import java.time.Duration;
 @RequiredArgsConstructor
 public class AuthController {
 
+    private final SecureRandom secureRandom = new SecureRandom();
     private final AuthService authService;
     private final AuthCookieConfig authCookieConfig;
+    private final AuthCsrfConfig authCsrfConfig;
 
     @Operation(summary = "회원가입")
     @PostMapping("/signup")
@@ -43,6 +47,7 @@ public class AuthController {
     ) {
         AuthService.LoginResult result = authService.login(request);
         attachRefreshCookie(response, result.refreshToken(), result.refreshTtlSeconds());
+        attachCsrfCookie(response, generateCsrfToken(), result.refreshTtlSeconds());
         return ApiResponse.success(result.response());
     }
 
@@ -55,6 +60,7 @@ public class AuthController {
         String refreshToken = extractRefreshTokenFromCookie(request);
         AuthService.RefreshResult result = authService.refresh(refreshToken);
         attachRefreshCookie(response, result.refreshToken(), result.refreshTtlSeconds());
+        attachCsrfCookie(response, generateCsrfToken(), result.refreshTtlSeconds());
         return ApiResponse.success(result.response());
     }
 
@@ -67,6 +73,7 @@ public class AuthController {
     ) {
         authService.logout(extractRefreshTokenFromCookie(request));
         clearRefreshCookie(response);
+        clearCsrfCookie(response);
         return ApiResponse.success(null);
     }
 
@@ -101,5 +108,33 @@ public class AuthController {
                 .maxAge(Duration.ZERO)
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+    }
+
+    private void attachCsrfCookie(HttpServletResponse response, String csrfToken, long maxAgeSeconds) {
+        ResponseCookie cookie = ResponseCookie.from(authCsrfConfig.cookieName(), csrfToken)
+                .httpOnly(false)
+                .secure(authCsrfConfig.secure())
+                .sameSite(authCsrfConfig.sameSite())
+                .path(authCsrfConfig.cookiePath())
+                .maxAge(Duration.ofSeconds(maxAgeSeconds))
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+    }
+
+    private void clearCsrfCookie(HttpServletResponse response) {
+        ResponseCookie cookie = ResponseCookie.from(authCsrfConfig.cookieName(), "")
+                .httpOnly(false)
+                .secure(authCsrfConfig.secure())
+                .sameSite(authCsrfConfig.sameSite())
+                .path(authCsrfConfig.cookiePath())
+                .maxAge(Duration.ZERO)
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+    }
+
+    private String generateCsrfToken() {
+        byte[] randomBytes = new byte[32];
+        secureRandom.nextBytes(randomBytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
     }
 }

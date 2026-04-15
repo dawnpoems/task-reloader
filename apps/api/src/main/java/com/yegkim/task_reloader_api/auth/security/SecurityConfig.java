@@ -1,5 +1,7 @@
 package com.yegkim.task_reloader_api.auth.security;
 
+import com.yegkim.task_reloader_api.auth.dto.AuthCookieConfig;
+import com.yegkim.task_reloader_api.auth.dto.AuthCsrfConfig;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -20,9 +22,13 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
     private final JwtAccessDeniedHandler jwtAccessDeniedHandler;
+    private final SecurityErrorResponseWriter securityErrorResponseWriter;
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            AuthCsrfProtectionFilter authCsrfProtectionFilter
+    ) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
                 .cors(Customizer.withDefaults())
@@ -53,7 +59,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .anyRequest().authenticated()
                 )
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(authCsrfProtectionFilter, JwtAuthenticationFilter.class);
 
         return http.build();
     }
@@ -61,5 +68,13 @@ public class SecurityConfig {
     @Bean
     public PasswordEncoder passwordEncoder(@Value("${auth.password.bcrypt-strength:12}") int strength) {
         return new BCryptPasswordEncoder(strength);
+    }
+
+    @Bean
+    public AuthCsrfProtectionFilter authCsrfProtectionFilter(
+            AuthCookieConfig authCookieConfig,
+            AuthCsrfConfig authCsrfConfig
+    ) {
+        return new AuthCsrfProtectionFilter(authCookieConfig, authCsrfConfig, securityErrorResponseWriter);
     }
 }

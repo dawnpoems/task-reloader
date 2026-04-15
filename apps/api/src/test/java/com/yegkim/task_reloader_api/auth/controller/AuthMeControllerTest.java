@@ -1,6 +1,7 @@
 package com.yegkim.task_reloader_api.auth.controller;
 
 import com.yegkim.task_reloader_api.auth.dto.AuthCookieConfig;
+import com.yegkim.task_reloader_api.auth.dto.AuthCsrfConfig;
 import com.yegkim.task_reloader_api.auth.dto.MeResponse;
 import com.yegkim.task_reloader_api.auth.entity.UserRole;
 import com.yegkim.task_reloader_api.auth.entity.UserStatus;
@@ -163,10 +164,24 @@ class AuthMeControllerTest {
     private AuthCookieConfig authCookieConfig;
 
     @MockitoBean
+    private AuthCsrfConfig authCsrfConfig;
+
+    @MockitoBean
     private SecurityErrorResponseWriter securityErrorResponseWriter;
 
     @BeforeEach
     void setUp() throws Exception {
+        when(authCookieConfig.name()).thenReturn("refresh_token");
+        when(authCookieConfig.path()).thenReturn("/api/auth");
+        when(authCookieConfig.secure()).thenReturn(false);
+        when(authCookieConfig.sameSite()).thenReturn("Lax");
+        when(authCsrfConfig.cookieName()).thenReturn("csrf_token");
+        when(authCsrfConfig.cookiePath()).thenReturn("/");
+        when(authCsrfConfig.headerName()).thenReturn("X-CSRF-Token");
+        when(authCsrfConfig.secure()).thenReturn(false);
+        when(authCsrfConfig.sameSite()).thenReturn("Lax");
+        when(authCsrfConfig.allowedOrigins()).thenReturn("http://localhost:5173");
+
         doAnswer(invocation -> {
             HttpServletResponse response = invocation.getArgument(0);
             int status = invocation.getArgument(1);

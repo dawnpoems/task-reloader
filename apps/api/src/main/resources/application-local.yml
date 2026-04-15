@@ -26,6 +26,13 @@ auth:
     base-seconds: ${AUTH_LOGIN_LOCK_BASE_SECONDS:60}
     max-seconds: ${AUTH_LOGIN_LOCK_MAX_SECONDS:3600}
     reset-window-seconds: ${AUTH_LOGIN_LOCK_RESET_WINDOW_SECONDS:900}
+  csrf:
+    cookie-name: ${AUTH_CSRF_COOKIE_NAME:csrf_token}
+    cookie-path: ${AUTH_CSRF_COOKIE_PATH:/}
+    header-name: ${AUTH_CSRF_HEADER_NAME:X-CSRF-Token}
+    secure: ${AUTH_CSRF_COOKIE_SECURE:false}
+    same-site: ${AUTH_CSRF_COOKIE_SAME_SITE:Lax}
+    allowed-origins: ${AUTH_CSRF_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
   refresh-cookie:
     name: ${AUTH_REFRESH_COOKIE_NAME:refresh_token}
     path: ${AUTH_REFRESH_COOKIE_PATH:/api/auth}

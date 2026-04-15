@@ -1,5 +1,7 @@
 // 개발: vite proxy(/api → localhost:8080), 운영: nginx가 /api → api:8080 프록시
 const API_BASE_URL = '/api'
+const AUTH_CSRF_COOKIE_NAME = 'csrf_token'
+const AUTH_CSRF_HEADER_NAME = 'X-CSRF-Token'
 
 export interface ApiError {
   code: string
@@ -68,11 +70,41 @@ async function executeFetch(endpoint: string, options: RequestInit, skipAuth: bo
     headers.set('Authorization', `Bearer ${accessToken}`)
   }
 
+  if (shouldAttachCsrfHeader(endpoint, options.method) && !headers.has(AUTH_CSRF_HEADER_NAME)) {
+    const csrfToken = readCookie(AUTH_CSRF_COOKIE_NAME)
+    if (csrfToken) {
+      headers.set(AUTH_CSRF_HEADER_NAME, csrfToken)
+    }
+  }
+
   return fetch(`${API_BASE_URL}${endpoint}`, {
     ...options,
     headers,
     credentials: options.credentials ?? 'include',
   })
+}
+
+function shouldAttachCsrfHeader(endpoint: string, method?: string): boolean {
+  if ((method ?? 'GET').toUpperCase() !== 'POST') {
+    return false
+  }
+  return endpoint === '/auth/refresh' || endpoint === '/auth/logout'
+}
+
+function readCookie(name: string): string | null {
+  if (typeof document === 'undefined' || !document.cookie) {
+    return null
+  }
+
+  const encodedName = encodeURIComponent(name)
+  const cookie = document.cookie
+    .split(';')
+    .map((item) => item.trim())
+    .find((item) => item.startsWith(`${encodedName}=`))
+
+  if (!cookie) return null
+  const value = cookie.slice(encodedName.length + 1)
+  return value ? decodeURIComponent(value) : null
 }
 
 async function parseResponse<T>(response: Response): Promise<ApiResponse<T>> {

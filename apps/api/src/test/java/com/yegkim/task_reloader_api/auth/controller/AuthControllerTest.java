@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.yegkim.task_reloader_api.auth.dto.AccessTokenResponse;
 import com.yegkim.task_reloader_api.auth.dto.AuthCookieConfig;
+import com.yegkim.task_reloader_api.auth.dto.AuthCsrfConfig;
 import com.yegkim.task_reloader_api.auth.dto.LoginRequest;
 import com.yegkim.task_reloader_api.auth.dto.LoginResponse;
 import com.yegkim.task_reloader_api.auth.dto.SignupRequest;
@@ -34,6 +35,7 @@ import jakarta.servlet.http.Cookie;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.hasItem;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -75,6 +77,9 @@ class AuthControllerTest {
     private AuthCookieConfig authCookieConfig;
 
     @MockitoBean
+    private AuthCsrfConfig authCsrfConfig;
+
+    @MockitoBean
     private JwtTokenProvider jwtTokenProvider;
 
     @MockitoBean
@@ -86,6 +91,12 @@ class AuthControllerTest {
         when(authCookieConfig.path()).thenReturn("/api/auth");
         when(authCookieConfig.secure()).thenReturn(false);
         when(authCookieConfig.sameSite()).thenReturn("Lax");
+        when(authCsrfConfig.cookieName()).thenReturn("csrf_token");
+        when(authCsrfConfig.cookiePath()).thenReturn("/");
+        when(authCsrfConfig.headerName()).thenReturn("X-CSRF-Token");
+        when(authCsrfConfig.secure()).thenReturn(false);
+        when(authCsrfConfig.sameSite()).thenReturn("Lax");
+        when(authCsrfConfig.allowedOrigins()).thenReturn("http://localhost:5173");
     }
 
     @Test
@@ -140,6 +151,7 @@ class AuthControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Set-Cookie", containsString("refresh_token=refresh-token")))
+                .andExpect(header().stringValues("Set-Cookie", hasItem(containsString("csrf_token="))))
                 .andExpect(header().string("Set-Cookie", containsString("HttpOnly")))
                 .andExpect(header().string("Set-Cookie", containsString("Path=/api/auth")))
                 .andExpect(header().string("Set-Cookie", containsString("Max-Age=1200")))
@@ -183,9 +195,13 @@ class AuthControllerTest {
                 .thenReturn(new AuthService.RefreshResult(response, "new-refresh-token", 777L));
 
         mockMvc.perform(post("/api/auth/refresh")
-                        .cookie(new Cookie("refresh_token", "old-refresh-token")))
+                        .cookie(new Cookie("refresh_token", "old-refresh-token"))
+                        .cookie(new Cookie("csrf_token", "csrf-value"))
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", "csrf-value"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Set-Cookie", containsString("refresh_token=new-refresh-token")))
+                .andExpect(header().stringValues("Set-Cookie", hasItem(containsString("csrf_token="))))
                 .andExpect(header().string("Set-Cookie", containsString("Max-Age=777")))
                 .andExpect(jsonPath("$.data.accessToken", is("new-access-token")));
 
@@ -210,9 +226,13 @@ class AuthControllerTest {
     @DisplayName("로그아웃 성공 - refresh cookie 제거")
     void logout_success_clearsRefreshCookie() throws Exception {
         mockMvc.perform(post("/api/auth/logout")
-                        .cookie(new Cookie("refresh_token", "logout-token")))
+                        .cookie(new Cookie("refresh_token", "logout-token"))
+                        .cookie(new Cookie("csrf_token", "csrf-value"))
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", "csrf-value"))
                 .andExpect(status().isNoContent())
                 .andExpect(header().string("Set-Cookie", containsString("refresh_token=")))
+                .andExpect(header().stringValues("Set-Cookie", hasItem(containsString("csrf_token="))))
                 .andExpect(header().string("Set-Cookie", containsString("Max-Age=0")));
 
         verify(authService).logout("logout-token");
@@ -225,7 +245,10 @@ class AuthControllerTest {
         when(authCookieConfig.sameSite()).thenReturn("Strict");
 
         mockMvc.perform(post("/api/auth/logout")
-                        .cookie(new Cookie("refresh_token", "logout-token")))
+                        .cookie(new Cookie("refresh_token", "logout-token"))
+                        .cookie(new Cookie("csrf_token", "csrf-value"))
+                        .header("Origin", "http://localhost:5173")
+                        .header("X-CSRF-Token", "csrf-value"))
                 .andExpect(status().isNoContent())
                 .andExpect(header().string("Set-Cookie", containsString("refresh_token=")))
                 .andExpect(header().string("Set-Cookie", containsString("Max-Age=0")))
