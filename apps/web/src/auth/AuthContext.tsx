@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { authApi } from '../api/auth'
 import { clearAccessToken, configureAuthClient, extractErrorCode, extractErrorMessage, setAccessToken } from '../api/client'
 import type { AuthUser, LoginRequest, LoginResponse, MeResponse, SignupRequest } from '../types/auth'
+import { publishAuthEvent, subscribeAuthEvent } from './authEvent'
 import { AUTH_NOTICE_SESSION_EXPIRED, pushAuthNotice } from './authNotice'
 
 interface AuthActionResult {
@@ -87,6 +88,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refreshAccessToken])
 
   useEffect(() => {
+    return subscribeAuthEvent((eventType) => {
+      if (eventType !== 'LOGOUT') return
+      pushAuthNotice(AUTH_NOTICE_SESSION_EXPIRED)
+      clearAccessToken()
+      setUser(null)
+    })
+  }, [])
+
+  useEffect(() => {
     let cancelled = false
 
     const initialize = async () => {
@@ -144,6 +154,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       clearAccessToken()
       setUser(null)
+      publishAuthEvent('LOGOUT')
     }
   }, [])
 
