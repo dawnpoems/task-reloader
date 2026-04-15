@@ -56,6 +56,18 @@ public class AuthService {
     @Value("${auth.jwt.refresh-token-ttl-seconds}")
     private long refreshTokenTtlSeconds;
 
+    @Value("${auth.login-lock.threshold:5}")
+    private int loginLockThreshold;
+
+    @Value("${auth.login-lock.base-seconds:60}")
+    private long loginLockBaseSeconds;
+
+    @Value("${auth.login-lock.max-seconds:3600}")
+    private long loginLockMaxSeconds;
+
+    @Value("${auth.login-lock.reset-window-seconds:900}")
+    private long loginLockResetWindowSeconds;
+
     @Transactional
     public SignupResponse signup(SignupRequest request) {
         String email = normalizeEmail(request.email());
@@ -74,13 +86,25 @@ public class AuthService {
         return new SignupResponse(saved.getId(), saved.getEmail(), saved.getStatus());
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = AuthException.class)
     public LoginResult login(LoginRequest request) {
         String email = normalizeEmail(request.email());
         User user = userRepository.findByEmail(email)
                 .orElseThrow(this::invalidCredentials);
 
+        OffsetDateTime now = nowUtc();
+        if (user.isLoginLocked(now)) {
+            throw accountLocked();
+        }
+
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+            user.recordLoginFailure(
+                    now,
+                    loginLockThreshold,
+                    loginLockBaseSeconds,
+                    loginLockMaxSeconds,
+                    loginLockResetWindowSeconds
+            );
             throw invalidCredentials();
         }
 
@@ -91,6 +115,7 @@ public class AuthService {
             throw new AuthException(HttpStatus.FORBIDDEN, "ACCOUNT_REJECTED", "승인 거부된 계정입니다.");
         }
 
+        user.clearLoginFailureState();
         TokenBundle bundle = issueTokens(user);
         LoginResponse response = new LoginResponse(
                 TOKEN_TYPE,
@@ -318,6 +343,10 @@ public class AuthService {
 
     private AuthException invalidCredentials() {
         return new AuthException(HttpStatus.UNAUTHORIZED, "INVALID_CREDENTIALS", "이메일 또는 비밀번호가 올바르지 않습니다.");
+    }
+
+    private AuthException accountLocked() {
+        return new AuthException(HttpStatus.TOO_MANY_REQUESTS, "ACCOUNT_LOCKED", "로그인 시도가 많아 잠시 차단되었습니다. 잠시 후 다시 시도해 주세요.");
     }
 
     public record LoginResult(LoginResponse response, String refreshToken, long refreshTtlSeconds) {

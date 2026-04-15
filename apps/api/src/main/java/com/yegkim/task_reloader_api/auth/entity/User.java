@@ -40,6 +40,16 @@ public class User {
     @Column(name = "approved_at")
     private OffsetDateTime approvedAt;
 
+    @Column(name = "failed_login_count", nullable = false)
+    @Builder.Default
+    private int failedLoginCount = 0;
+
+    @Column(name = "last_failed_login_at")
+    private OffsetDateTime lastFailedLoginAt;
+
+    @Column(name = "locked_until")
+    private OffsetDateTime lockedUntil;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
@@ -56,6 +66,50 @@ public class User {
         this.status = UserStatus.REJECTED;
         this.approvedBy = null;
         this.approvedAt = null;
+    }
+
+    public boolean isLoginLocked(OffsetDateTime now) {
+        return lockedUntil != null && lockedUntil.isAfter(now);
+    }
+
+    public void recordLoginFailure(
+            OffsetDateTime now,
+            int threshold,
+            long baseLockSeconds,
+            long maxLockSeconds,
+            long resetWindowSeconds
+    ) {
+        if (threshold <= 0 || baseLockSeconds <= 0 || maxLockSeconds <= 0 || resetWindowSeconds <= 0) {
+            throw new IllegalArgumentException("Login lock policy values must be positive.");
+        }
+
+        if (lastFailedLoginAt == null || lastFailedLoginAt.plusSeconds(resetWindowSeconds).isBefore(now)) {
+            failedLoginCount = 0;
+        }
+
+        failedLoginCount += 1;
+        lastFailedLoginAt = now;
+
+        if (failedLoginCount < threshold) {
+            return;
+        }
+
+        int overflow = failedLoginCount - threshold;
+        long duration = baseLockSeconds;
+        for (int i = 0; i < overflow; i++) {
+            if (duration >= maxLockSeconds) {
+                duration = maxLockSeconds;
+                break;
+            }
+            duration = Math.min(maxLockSeconds, duration * 2);
+        }
+        lockedUntil = now.plusSeconds(duration);
+    }
+
+    public void clearLoginFailureState() {
+        failedLoginCount = 0;
+        lastFailedLoginAt = null;
+        lockedUntil = null;
     }
 
     @PrePersist

@@ -21,6 +21,11 @@ auth:
     refresh-token-ttl-seconds: ${AUTH_REFRESH_TOKEN_TTL_SECONDS:1209600}
   password:
     bcrypt-strength: ${AUTH_BCRYPT_STRENGTH:12}
+  login-lock:
+    threshold: ${AUTH_LOGIN_LOCK_THRESHOLD:5}
+    base-seconds: ${AUTH_LOGIN_LOCK_BASE_SECONDS:60}
+    max-seconds: ${AUTH_LOGIN_LOCK_MAX_SECONDS:3600}
+    reset-window-seconds: ${AUTH_LOGIN_LOCK_RESET_WINDOW_SECONDS:900}
   refresh-cookie:
     name: ${AUTH_REFRESH_COOKIE_NAME:refresh_token}
     path: ${AUTH_REFRESH_COOKIE_PATH:/api/auth}

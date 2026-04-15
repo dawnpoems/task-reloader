@@ -68,6 +68,10 @@ class AuthServiceAuthFlowTest {
     void setUp() {
         ReflectionTestUtils.setField(authService, "accessTokenTtlSeconds", ACCESS_TTL_SECONDS);
         ReflectionTestUtils.setField(authService, "refreshTokenTtlSeconds", REFRESH_TTL_SECONDS);
+        ReflectionTestUtils.setField(authService, "loginLockThreshold", 5);
+        ReflectionTestUtils.setField(authService, "loginLockBaseSeconds", 60L);
+        ReflectionTestUtils.setField(authService, "loginLockMaxSeconds", 3600L);
+        ReflectionTestUtils.setField(authService, "loginLockResetWindowSeconds", 900L);
         lenient().when(clock.instant()).thenReturn(FIXED_NOW);
         lenient().when(refreshTokenRepository.save(any(RefreshToken.class))).thenAnswer(invocation -> invocation.getArgument(0));
     }
@@ -189,6 +193,120 @@ class AuthServiceAuthFlowTest {
                     assertThat(authEx.getStatus()).isEqualTo(HttpStatus.FORBIDDEN);
                     assertThat(authEx.getCode()).isEqualTo("ACCOUNT_REJECTED");
                 });
+    }
+
+    @Test
+    @DisplayName("로그인 실패 누적 - 임계치 이후 계정 잠금")
+    void login_failedAttempts_lockAfterThreshold() {
+        LoginRequest request = new LoginRequest("user@example.com", "WrongPassword");
+        User user = user(14L, "user@example.com", UserRole.USER, UserStatus.APPROVED);
+
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("WrongPassword", "hash-14")).thenReturn(false);
+
+        for (int i = 0; i < 5; i++) {
+            assertThatThrownBy(() -> authService.login(request))
+                    .isInstanceOf(AuthException.class)
+                    .satisfies(ex -> {
+                        AuthException authEx = (AuthException) ex;
+                        assertThat(authEx.getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED);
+                        assertThat(authEx.getCode()).isEqualTo("INVALID_CREDENTIALS");
+                    });
+        }
+
+        assertThat(user.getFailedLoginCount()).isEqualTo(5);
+        assertThat(user.getLockedUntil()).isEqualTo(OffsetDateTime.ofInstant(FIXED_NOW, ZoneOffset.UTC).plusSeconds(60));
+
+        assertThatThrownBy(() -> authService.login(request))
+                .isInstanceOf(AuthException.class)
+                .satisfies(ex -> {
+                    AuthException authEx = (AuthException) ex;
+                    assertThat(authEx.getStatus()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+                    assertThat(authEx.getCode()).isEqualTo("ACCOUNT_LOCKED");
+                });
+    }
+
+    @Test
+    @DisplayName("로그인 성공 시 실패 누적/잠금 상태 초기화")
+    void login_success_clearsFailureState() {
+        LoginRequest request = new LoginRequest("user@example.com", "Password1");
+        User user = User.builder()
+                .id(15L)
+                .email("user@example.com")
+                .passwordHash("hash-15")
+                .role(UserRole.USER)
+                .status(UserStatus.APPROVED)
+                .failedLoginCount(4)
+                .lastFailedLoginAt(OffsetDateTime.ofInstant(FIXED_NOW.minusSeconds(30), ZoneOffset.UTC))
+                .build();
+
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("Password1", "hash-15")).thenReturn(true);
+        when(jwtTokenProvider.generateAccessToken(15L, UserRole.USER)).thenReturn("access-token");
+
+        AuthService.LoginResult result = authService.login(request);
+
+        assertThat(result.response().accessToken()).isEqualTo("access-token");
+        assertThat(user.getFailedLoginCount()).isEqualTo(0);
+        assertThat(user.getLastFailedLoginAt()).isNull();
+        assertThat(user.getLockedUntil()).isNull();
+    }
+
+    @Test
+    @DisplayName("로그인 실패 간격이 reset-window를 넘으면 카운터 초기화 후 재누적")
+    void login_failedAfterResetWindow_resetsCounter() {
+        LoginRequest request = new LoginRequest("user@example.com", "WrongPassword");
+        User user = User.builder()
+                .id(16L)
+                .email("user@example.com")
+                .passwordHash("hash-16")
+                .role(UserRole.USER)
+                .status(UserStatus.APPROVED)
+                .failedLoginCount(4)
+                .lastFailedLoginAt(OffsetDateTime.ofInstant(FIXED_NOW.minusSeconds(901), ZoneOffset.UTC))
+                .build();
+
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("WrongPassword", "hash-16")).thenReturn(false);
+
+        assertThatThrownBy(() -> authService.login(request))
+                .isInstanceOf(AuthException.class)
+                .satisfies(ex -> {
+                    AuthException authEx = (AuthException) ex;
+                    assertThat(authEx.getCode()).isEqualTo("INVALID_CREDENTIALS");
+                });
+
+        assertThat(user.getFailedLoginCount()).isEqualTo(1);
+        assertThat(user.getLockedUntil()).isNull();
+        assertThat(user.getLastFailedLoginAt()).isEqualTo(OffsetDateTime.ofInstant(FIXED_NOW, ZoneOffset.UTC));
+    }
+
+    @Test
+    @DisplayName("잠금 상태 계정은 비밀번호 검증 전에 차단")
+    void login_lockedAccount_blocksBeforePasswordCheck() {
+        LoginRequest request = new LoginRequest("user@example.com", "Password1");
+        User user = User.builder()
+                .id(17L)
+                .email("user@example.com")
+                .passwordHash("hash-17")
+                .role(UserRole.USER)
+                .status(UserStatus.APPROVED)
+                .failedLoginCount(5)
+                .lastFailedLoginAt(OffsetDateTime.ofInstant(FIXED_NOW.minusSeconds(10), ZoneOffset.UTC))
+                .lockedUntil(OffsetDateTime.ofInstant(FIXED_NOW.plusSeconds(60), ZoneOffset.UTC))
+                .build();
+
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> authService.login(request))
+                .isInstanceOf(AuthException.class)
+                .satisfies(ex -> {
+                    AuthException authEx = (AuthException) ex;
+                    assertThat(authEx.getStatus()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+                    assertThat(authEx.getCode()).isEqualTo("ACCOUNT_LOCKED");
+                });
+
+        verify(passwordEncoder, never()).matches(any(), any());
     }
 
     @Test
