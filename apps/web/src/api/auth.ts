@@ -30,6 +30,9 @@ export const authApi = {
   getPendingUsers: (): Promise<ApiResponse<PendingUser[]>> =>
     apiClient.get<PendingUser[]>('/admin/users/pending'),
 
+  getNonPendingUsers: (): Promise<ApiResponse<PendingUser[]>> =>
+    apiClient.get<PendingUser[]>('/admin/users/non-pending'),
+
   approveUser: (userId: number): Promise<ApiResponse<PendingUser>> =>
     apiClient.post<PendingUser>(`/admin/users/${userId}/approve`, {}),
 

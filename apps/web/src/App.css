@@ -359,6 +359,24 @@
   font-size: 0.82rem;
 }
 
+.admin-approvals__secondary {
+  border-top: 1px dashed #dbe3ef;
+  padding-top: 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.admin-approvals__secondary-toggle {
+  align-self: flex-start;
+}
+
+.admin-approvals__secondary-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
 .admin-approvals__notice {
   margin: 0;
   background: #ecfdf5;
