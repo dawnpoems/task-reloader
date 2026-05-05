@@ -9,6 +9,7 @@ import com.yegkim.task_reloader_api.auth.exception.AuthException;
 import com.yegkim.task_reloader_api.auth.jwt.JwtTokenProvider;
 import com.yegkim.task_reloader_api.auth.repository.RefreshTokenRepository;
 import com.yegkim.task_reloader_api.auth.repository.UserRepository;
+import com.yegkim.task_reloader_api.auth.security.AuthRateLimitGuard;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -47,6 +48,8 @@ class AuthServiceAdminTest {
     private PasswordEncoder passwordEncoder;
     @Mock
     private JwtTokenProvider jwtTokenProvider;
+    @Mock
+    private AuthRateLimitGuard authRateLimitGuard;
     @Mock
     private Clock clock;
 

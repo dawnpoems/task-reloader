@@ -5,6 +5,7 @@ import com.yegkim.task_reloader_api.auth.entity.UserRole;
 import com.yegkim.task_reloader_api.auth.entity.UserStatus;
 import com.yegkim.task_reloader_api.auth.exception.AuthException;
 import com.yegkim.task_reloader_api.auth.security.AuthenticatedUser;
+import com.yegkim.task_reloader_api.auth.security.AuthRateLimitGuard;
 import com.yegkim.task_reloader_api.auth.security.JwtAccessDeniedHandler;
 import com.yegkim.task_reloader_api.auth.security.JwtAuthenticationEntryPoint;
 import com.yegkim.task_reloader_api.auth.security.JwtAuthenticationFilter;
@@ -168,6 +169,9 @@ class AdminUserControllerTest {
 
     @MockitoBean
     private SecurityErrorResponseWriter securityErrorResponseWriter;
+
+    @MockitoBean
+    private AuthRateLimitGuard authRateLimitGuard;
 
     @BeforeEach
     void setUp() throws Exception {

@@ -10,6 +10,7 @@ import com.yegkim.task_reloader_api.auth.exception.AuthException;
 import com.yegkim.task_reloader_api.auth.jwt.JwtTokenProvider;
 import com.yegkim.task_reloader_api.auth.repository.RefreshTokenRepository;
 import com.yegkim.task_reloader_api.auth.repository.UserRepository;
+import com.yegkim.task_reloader_api.auth.security.AuthRateLimitGuard;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -37,6 +38,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -58,6 +60,8 @@ class AuthServiceAuthFlowTest {
     private PasswordEncoder passwordEncoder;
     @Mock
     private JwtTokenProvider jwtTokenProvider;
+    @Mock
+    private AuthRateLimitGuard authRateLimitGuard;
     @Mock
     private Clock clock;
 
@@ -115,6 +119,30 @@ class AuthServiceAuthFlowTest {
                     assertThat(authEx.getStatus()).isEqualTo(HttpStatus.CONFLICT);
                     assertThat(authEx.getCode()).isEqualTo("EMAIL_ALREADY_EXISTS");
                 });
+    }
+
+    @Test
+    @DisplayName("회원가입 rate-limit 초과 시 429 반환 및 저장 로직 미진입")
+    void signup_rateLimited_blocksBeforeRepositoryAccess() {
+        SignupRequest request = new SignupRequest(" User@Example.com ", "Password1");
+        doThrow(new AuthException(
+                HttpStatus.TOO_MANY_REQUESTS,
+                "SIGNUP_ACCOUNT_RATE_LIMITED",
+                "동일 이메일 가입 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.",
+                15L
+        )).when(authRateLimitGuard).enforceSignupIpEmailLimit("user@example.com");
+
+        assertThatThrownBy(() -> authService.signup(request))
+                .isInstanceOf(AuthException.class)
+                .satisfies(ex -> {
+                    AuthException authEx = (AuthException) ex;
+                    assertThat(authEx.getStatus()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+                    assertThat(authEx.getCode()).isEqualTo("SIGNUP_ACCOUNT_RATE_LIMITED");
+                    assertThat(authEx.getRetryAfterSeconds()).isEqualTo(15L);
+                });
+
+        verify(userRepository, never()).findByEmail(any());
+        verify(userRepository, never()).save(any());
     }
 
     @Test
@@ -193,6 +221,30 @@ class AuthServiceAuthFlowTest {
                     assertThat(authEx.getStatus()).isEqualTo(HttpStatus.FORBIDDEN);
                     assertThat(authEx.getCode()).isEqualTo("ACCOUNT_REJECTED");
                 });
+    }
+
+    @Test
+    @DisplayName("로그인 rate-limit 초과 시 429 반환 및 사용자 조회 미진입")
+    void login_rateLimited_blocksBeforeUserLookup() {
+        LoginRequest request = new LoginRequest(" User@Example.com ", "Password1");
+        doThrow(new AuthException(
+                HttpStatus.TOO_MANY_REQUESTS,
+                "LOGIN_ACCOUNT_RATE_LIMITED",
+                "동일 계정 로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.",
+                9L
+        )).when(authRateLimitGuard).enforceLoginIpEmailLimit("user@example.com");
+
+        assertThatThrownBy(() -> authService.login(request))
+                .isInstanceOf(AuthException.class)
+                .satisfies(ex -> {
+                    AuthException authEx = (AuthException) ex;
+                    assertThat(authEx.getStatus()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+                    assertThat(authEx.getCode()).isEqualTo("LOGIN_ACCOUNT_RATE_LIMITED");
+                    assertThat(authEx.getRetryAfterSeconds()).isEqualTo(9L);
+                });
+
+        verify(userRepository, never()).findByEmail(any());
+        verify(passwordEncoder, never()).matches(any(), any());
     }
 
     @Test

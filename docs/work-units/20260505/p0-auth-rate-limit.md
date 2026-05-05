@@ -44,4 +44,11 @@
   - `429` 응답 바디의 `error.code`가 rate-limit 코드로 반환
 
 ## Related Tests
-- 자동 테스트 코드: (다음 단계에서 추가 예정)
+- `apps/api/src/test/java/com/yegkim/task_reloader_api/auth/controller/AuthControllerTest.java`
+  - 로그인 rate-limit 초과 시 `429`와 `Retry-After` 헤더 반환 검증
+- `apps/api/src/test/java/com/yegkim/task_reloader_api/auth/security/AuthRateLimitFilterTest.java`
+  - 대상 경로/메서드 판별, 허용/차단 흐름, 차단 시 `Retry-After` 헤더 설정 검증
+- `apps/api/src/test/java/com/yegkim/task_reloader_api/auth/security/AuthRateLimitGuardTest.java`
+  - IP 제한 violation 반환, IP+email 제한 초과 시 `AuthException(429)` 검증
+- `apps/api/src/test/java/com/yegkim/task_reloader_api/auth/service/AuthServiceAuthFlowTest.java`
+  - signup/login에서 rate-limit 초과 시 저장/조회 로직 진입 전 차단 검증

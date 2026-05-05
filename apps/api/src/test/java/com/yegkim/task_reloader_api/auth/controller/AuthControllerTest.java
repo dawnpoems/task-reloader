@@ -14,6 +14,7 @@ import com.yegkim.task_reloader_api.auth.entity.UserRole;
 import com.yegkim.task_reloader_api.auth.entity.UserStatus;
 import com.yegkim.task_reloader_api.auth.exception.AuthException;
 import com.yegkim.task_reloader_api.auth.jwt.JwtTokenProvider;
+import com.yegkim.task_reloader_api.auth.security.AuthRateLimitGuard;
 import com.yegkim.task_reloader_api.auth.security.SecurityErrorResponseWriter;
 import com.yegkim.task_reloader_api.auth.service.AuthService;
 import org.junit.jupiter.api.BeforeEach;
@@ -84,6 +85,9 @@ class AuthControllerTest {
 
     @MockitoBean
     private SecurityErrorResponseWriter securityErrorResponseWriter;
+
+    @MockitoBean
+    private AuthRateLimitGuard authRateLimitGuard;
 
     @BeforeEach
     void setUp() {
@@ -254,5 +258,26 @@ class AuthControllerTest {
                 .andExpect(header().string("Set-Cookie", containsString("Max-Age=0")))
                 .andExpect(header().string("Set-Cookie", containsString("Secure")))
                 .andExpect(header().string("Set-Cookie", containsString("SameSite=Strict")));
+    }
+
+    @Test
+    @DisplayName("로그인 rate-limit 초과 - 429와 Retry-After 반환")
+    void login_rateLimited_returnsRetryAfterHeader() throws Exception {
+        LoginRequest request = new LoginRequest("user@example.com", "Password1");
+        when(authService.login(any()))
+                .thenThrow(new AuthException(
+                        HttpStatus.TOO_MANY_REQUESTS,
+                        "LOGIN_ACCOUNT_RATE_LIMITED",
+                        "동일 계정 로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.",
+                        12L
+                ));
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(header().string("Retry-After", "12"))
+                .andExpect(jsonPath("$.success", is(false)))
+                .andExpect(jsonPath("$.error.code", is("LOGIN_ACCOUNT_RATE_LIMITED")));
     }
 }
