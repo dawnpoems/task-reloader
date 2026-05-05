@@ -23,6 +23,7 @@ public class SecurityConfig {
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
     private final JwtAccessDeniedHandler jwtAccessDeniedHandler;
     private final SecurityErrorResponseWriter securityErrorResponseWriter;
+    private final AuthRateLimitFilter authRateLimitFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(
@@ -60,6 +61,7 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(authRateLimitFilter, AuthCsrfProtectionFilter.class)
                 .addFilterBefore(authCsrfProtectionFilter, JwtAuthenticationFilter.class);
 
         return http.build();

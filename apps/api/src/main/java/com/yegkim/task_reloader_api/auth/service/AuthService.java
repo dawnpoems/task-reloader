@@ -15,6 +15,7 @@ import com.yegkim.task_reloader_api.auth.exception.AuthException;
 import com.yegkim.task_reloader_api.auth.jwt.JwtTokenProvider;
 import com.yegkim.task_reloader_api.auth.repository.RefreshTokenRepository;
 import com.yegkim.task_reloader_api.auth.repository.UserRepository;
+import com.yegkim.task_reloader_api.auth.security.AuthRateLimitGuard;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -47,6 +48,7 @@ public class AuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
+    private final AuthRateLimitGuard authRateLimitGuard;
     private final Clock clock;
     private final SecureRandom secureRandom = new SecureRandom();
 
@@ -71,6 +73,7 @@ public class AuthService {
     @Transactional
     public SignupResponse signup(SignupRequest request) {
         String email = normalizeEmail(request.email());
+        authRateLimitGuard.enforceSignupIpEmailLimit(email);
         if (userRepository.findByEmail(email).isPresent()) {
             throw new AuthException(HttpStatus.CONFLICT, "EMAIL_ALREADY_EXISTS", "이미 사용 중인 이메일입니다.");
         }
@@ -89,6 +92,7 @@ public class AuthService {
     @Transactional(noRollbackFor = AuthException.class)
     public LoginResult login(LoginRequest request) {
         String email = normalizeEmail(request.email());
+        authRateLimitGuard.enforceLoginIpEmailLimit(email);
         User user = userRepository.findByEmail(email)
                 .orElseThrow(this::invalidCredentials);
 
