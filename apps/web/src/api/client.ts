@@ -7,6 +7,7 @@ export interface ApiError {
   code: string
   message: string
   requestId?: string
+  retryAfterSeconds?: number
 }
 
 export interface ApiResponse<T> {
@@ -108,6 +109,8 @@ function readCookie(name: string): string | null {
 }
 
 async function parseResponse<T>(response: Response): Promise<ApiResponse<T>> {
+  const retryAfterSeconds = parseRetryAfterSeconds(response.headers.get('retry-after'))
+
   if (response.status === 204 || response.status === 205 || response.headers.get('content-length') === '0') {
     return { success: response.ok }
   }
@@ -123,16 +126,53 @@ async function parseResponse<T>(response: Response): Promise<ApiResponse<T>> {
 
   try {
     const body = JSON.parse(text) as ApiResponse<T>
+    if (!response.ok && retryAfterSeconds !== undefined) {
+      if (body.error && typeof body.error !== 'string') {
+        return {
+          ...body,
+          error: { ...body.error, retryAfterSeconds },
+        }
+      }
+
+      if (typeof body.error === 'string') {
+        return {
+          ...body,
+          error: { code: 'HTTP_ERROR', message: body.error, retryAfterSeconds },
+        }
+      }
+
+      return {
+        ...body,
+        error: { code: 'HTTP_ERROR', message: `요청에 실패했습니다. (HTTP ${response.status})`, retryAfterSeconds },
+      }
+    }
     return body
   } catch (error) {
     if (!response.ok) {
       return {
         success: false,
-        error: { code: 'INVALID_RESPONSE', message: '서버 응답을 해석하지 못했습니다.' },
+        error: { code: 'INVALID_RESPONSE', message: '서버 응답을 해석하지 못했습니다.', retryAfterSeconds },
       }
     }
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error occurred' }
   }
+}
+
+function parseRetryAfterSeconds(retryAfterHeader: string | null): number | undefined {
+  if (!retryAfterHeader) return undefined
+  const normalizedValue = retryAfterHeader.trim()
+  if (!normalizedValue) return undefined
+
+  const secondsValue = Number.parseInt(normalizedValue, 10)
+  if (Number.isFinite(secondsValue) && secondsValue >= 0) {
+    return secondsValue
+  }
+
+  const parsedDate = Date.parse(normalizedValue)
+  if (Number.isNaN(parsedDate)) return undefined
+
+  const remainingSeconds = Math.ceil((parsedDate - Date.now()) / 1000)
+  return remainingSeconds >= 0 ? remainingSeconds : 0
 }
 
 async function request<T>(endpoint: string, options: RequestOptions = {}): Promise<ApiResponse<T>> {
@@ -169,6 +209,12 @@ export function extractErrorMessage(
 export function extractErrorCode(error: ApiResponse<unknown>['error']): string | undefined {
   if (!error || typeof error === 'string') return undefined
   return error.code
+}
+
+export function extractRetryAfterSeconds(error: ApiResponse<unknown>['error']): number | undefined {
+  if (!error || typeof error === 'string') return undefined
+  if (typeof error.retryAfterSeconds !== 'number') return undefined
+  return error.retryAfterSeconds >= 0 ? error.retryAfterSeconds : undefined
 }
 
 export const apiClient = {

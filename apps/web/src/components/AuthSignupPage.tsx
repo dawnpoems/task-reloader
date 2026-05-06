@@ -1,10 +1,12 @@
 import { useState } from 'react'
+import { useRetryAfterCountdown } from '../hooks/useRetryAfterCountdown'
 import type { SignupRequest } from '../types/auth'
 
 interface AuthActionResult {
   success: boolean
   code?: string
   message?: string
+  retryAfterSeconds?: number
 }
 
 interface AuthSignupPageProps {
@@ -19,6 +21,7 @@ export function AuthSignupPage({ onSignup, onGoLogin }: AuthSignupPageProps) {
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const { isActive: isRateLimited, remainingSeconds, startCountdown, clearCountdown } = useRetryAfterCountdown()
 
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
   const isPasswordLongEnough = password.length >= 8
@@ -29,6 +32,8 @@ export function AuthSignupPage({ onSignup, onGoLogin }: AuthSignupPageProps) {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (isRateLimited) return
+
     setError(null)
     setSuccessMessage(null)
 
@@ -55,6 +60,13 @@ export function AuthSignupPage({ onSignup, onGoLogin }: AuthSignupPageProps) {
     try {
       const result = await onSignup({ email: normalizedEmail, password })
       if (!result.success) {
+        const retryAfterSeconds = result.retryAfterSeconds
+        if (typeof retryAfterSeconds === 'number' && retryAfterSeconds > 0) {
+          startCountdown(retryAfterSeconds)
+        } else {
+          clearCountdown()
+        }
+
         if (result.code === 'EMAIL_ALREADY_EXISTS') {
           setError('이미 사용 중인 이메일입니다. 다른 이메일로 시도해 주세요.')
           return
@@ -63,6 +75,7 @@ export function AuthSignupPage({ onSignup, onGoLogin }: AuthSignupPageProps) {
         return
       }
 
+      clearCountdown()
       setSuccessMessage('가입이 완료되었습니다. 관리자 승인 후 로그인할 수 있습니다.')
       setPassword('')
       setConfirmPassword('')
@@ -125,10 +138,18 @@ export function AuthSignupPage({ onSignup, onGoLogin }: AuthSignupPageProps) {
           </label>
 
           {error && <p className="auth-form__error">{error}</p>}
+          {isRateLimited && (
+            <div className="auth-state-notice auth-state-notice--throttled" role="status" aria-live="polite">
+              <p>요청이 많아 잠시 제한되었습니다. {remainingSeconds}초 후 다시 시도해 주세요.</p>
+            </div>
+          )}
           {successMessage && <p className="auth-form__success">{successMessage}</p>}
 
-          <button type="submit" disabled={isSubmitting || !isEmailValid || !isPasswordRuleValid || !doesConfirmMatch}>
-            {isSubmitting ? '가입 중...' : '회원가입'}
+          <button
+            type="submit"
+            disabled={isSubmitting || isRateLimited || !isEmailValid || !isPasswordRuleValid || !doesConfirmMatch}
+          >
+            {isSubmitting ? '가입 중...' : isRateLimited ? `${remainingSeconds}초 후 재시도` : '회원가입'}
           </button>
         </form>
 

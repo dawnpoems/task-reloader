@@ -1,6 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { authApi } from '../api/auth'
-import { clearAccessToken, configureAuthClient, extractErrorCode, extractErrorMessage, setAccessToken } from '../api/client'
+import {
+  clearAccessToken,
+  configureAuthClient,
+  extractErrorCode,
+  extractErrorMessage,
+  extractRetryAfterSeconds,
+  setAccessToken,
+} from '../api/client'
 import type { AuthUser, LoginRequest, LoginResponse, MeResponse, SignupRequest } from '../types/auth'
 import { publishAuthEvent, subscribeAuthEvent } from './authEvent'
 import { AUTH_NOTICE_SESSION_EXPIRED, pushAuthNotice } from './authNotice'
@@ -9,6 +16,7 @@ interface AuthActionResult {
   success: boolean
   code?: string
   message?: string
+  retryAfterSeconds?: number
 }
 
 interface AuthContextValue {
@@ -128,6 +136,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         success: false,
         code: extractErrorCode(res.error),
         message: extractErrorMessage(res.error, '로그인에 실패했습니다.'),
+        retryAfterSeconds: extractRetryAfterSeconds(res.error),
       }
     }
 
@@ -145,6 +154,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       success: false,
       code: extractErrorCode(res.error),
       message: extractErrorMessage(res.error, '회원가입에 실패했습니다.'),
+      retryAfterSeconds: extractRetryAfterSeconds(res.error),
     }
   }, [])
 

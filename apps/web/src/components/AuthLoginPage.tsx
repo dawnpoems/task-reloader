@@ -1,10 +1,12 @@
 import { useState } from 'react'
+import { useRetryAfterCountdown } from '../hooks/useRetryAfterCountdown'
 import type { LoginRequest } from '../types/auth'
 
 interface AuthActionResult {
   success: boolean
   code?: string
   message?: string
+  retryAfterSeconds?: number
 }
 
 interface AuthLoginPageProps {
@@ -20,9 +22,12 @@ export function AuthLoginPage({ onLogin, onGoSignup, noticeMessage, onDismissNot
   const [error, setError] = useState<string | null>(null)
   const [accountStateNotice, setAccountStateNotice] = useState<{ tone: 'pending' | 'rejected'; message: string } | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const { isActive: isRateLimited, remainingSeconds, startCountdown, clearCountdown } = useRetryAfterCountdown()
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (isRateLimited) return
+
     const normalizedEmail = email.trim()
     if (!normalizedEmail) {
       setError('이메일을 입력해 주세요.')
@@ -40,6 +45,13 @@ export function AuthLoginPage({ onLogin, onGoSignup, noticeMessage, onDismissNot
     try {
       const result = await onLogin({ email: normalizedEmail, password })
       if (!result.success) {
+        const retryAfterSeconds = result.retryAfterSeconds
+        if (typeof retryAfterSeconds === 'number' && retryAfterSeconds > 0) {
+          startCountdown(retryAfterSeconds)
+        } else {
+          clearCountdown()
+        }
+
         if (result.code === 'ACCOUNT_PENDING') {
           setAccountStateNotice({
             tone: 'pending',
@@ -52,7 +64,10 @@ export function AuthLoginPage({ onLogin, onGoSignup, noticeMessage, onDismissNot
           })
         }
         setError(result.message ?? '로그인에 실패했습니다. 이메일/비밀번호를 확인한 뒤 다시 시도해 주세요.')
+        return
       }
+
+      clearCountdown()
     } finally {
       setIsSubmitting(false)
     }
@@ -105,9 +120,14 @@ export function AuthLoginPage({ onLogin, onGoSignup, noticeMessage, onDismissNot
               <p>{accountStateNotice.message}</p>
             </div>
           )}
+          {isRateLimited && (
+            <div className="auth-state-notice auth-state-notice--throttled" role="status" aria-live="polite">
+              <p>요청이 많아 잠시 제한되었습니다. {remainingSeconds}초 후 다시 시도해 주세요.</p>
+            </div>
+          )}
 
-          <button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? '로그인 중...' : '로그인'}
+          <button type="submit" disabled={isSubmitting || isRateLimited}>
+            {isSubmitting ? '로그인 중...' : isRateLimited ? `${remainingSeconds}초 후 재시도` : '로그인'}
           </button>
         </form>
 

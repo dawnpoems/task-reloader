@@ -269,6 +269,12 @@
   color: #991b1b;
 }
 
+.auth-state-notice--throttled {
+  background: #fffbeb;
+  border-color: #fcd34d;
+  color: #92400e;
+}
+
 .auth-card__footer {
   margin-top: 0.9rem;
   display: flex;
