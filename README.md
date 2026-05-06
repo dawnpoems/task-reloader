@@ -55,9 +55,24 @@ POSTGRES_PASSWORD=change_me_in_production
 POSTGRES_DB=task_reloader
 SPRING_DATASOURCE_USERNAME=task_reloader
 SPRING_DATASOURCE_PASSWORD=change_me_in_production
+SPRING_PROFILES_ACTIVE=local
+
+AUTH_JWT_SECRET=__CHANGE_ME_WITH_AT_LEAST_32_BYTE_SECRET__
+AUTH_REFRESH_COOKIE_SECURE=true
+AUTH_REFRESH_COOKIE_SAME_SITE=Lax
+AUTH_CSRF_COOKIE_SECURE=true
+AUTH_CSRF_COOKIE_SAME_SITE=Lax
+AUTH_CSRF_ALLOWED_ORIGINS=https://app.task-reloader.example
+
 GRAFANA_ADMIN_USER=admin
 GRAFANA_ADMIN_PASSWORD=admin
 ```
+
+운영 보안 설정(단일 오리진 기준):
+- Web과 API를 같은 도메인(예: `https://app.task-reloader.example`)으로 제공하고 `/api` 프록시를 사용합니다.
+- `AUTH_CSRF_ALLOWED_ORIGINS`는 Web 접속 Origin 하나로 고정합니다.
+- 운영에서는 `AUTH_REFRESH_COOKIE_SECURE=true`, `AUTH_CSRF_COOKIE_SECURE=true`를 유지합니다.
+- 로컬 HTTP 점검 시에는 `AUTH_REFRESH_COOKIE_SECURE=false`, `AUTH_CSRF_COOKIE_SECURE=false`, `AUTH_CSRF_ALLOWED_ORIGINS=http://localhost:3000`으로 오버라이드합니다.
 
 ```sh
 cd infra
