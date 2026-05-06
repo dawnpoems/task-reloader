@@ -193,6 +193,19 @@
   gap: 0.75rem;
 }
 
+.auth-form button[type="submit"]:disabled {
+  background: #94a3b8;
+  border-color: #94a3b8;
+  color: #e2e8f0;
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+.auth-form button[type="submit"]:disabled:hover {
+  background: #94a3b8;
+  border-color: #94a3b8;
+}
+
 .auth-form__field {
   display: flex;
   flex-direction: column;

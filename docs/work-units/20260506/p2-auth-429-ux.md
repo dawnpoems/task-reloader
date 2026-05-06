@@ -24,6 +24,7 @@
   - API 에러 객체에 `retryAfterSeconds`를 전달하도록 확장.
   - 로그인/회원가입에서 `retryAfterSeconds` 수신 시 실시간 카운트다운 시작.
   - 카운트다운 동안 제출 버튼 잠금 + 남은 초 UI 노출.
+  - 제출 버튼 비활성 상태를 회색 톤으로 명확하게 표시해 상태 인지성 강화.
   - 카운트다운 로직을 공통 훅(`useRetryAfterCountdown`)으로 분리.
 
 ## How To Test
