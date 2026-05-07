@@ -26,6 +26,7 @@ import static org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTest
 @Testcontainers
 @DisplayName("TaskRepository JPA 테스트")
 class TaskRepositoryTest {
+    private static final long TEST_USER_ID = 1L;
 
     @Container
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
@@ -35,6 +36,9 @@ class TaskRepositoryTest {
         registry.add("spring.datasource.url", postgres::getJdbcUrl);
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
+        registry.add("spring.flyway.placeholders.auth_admin_email", () -> "admin@task-reloader.local");
+        registry.add("spring.flyway.placeholders.auth_admin_password_hash",
+                () -> "$2a$12$yA0NQILk2h0m9Pk5IXf4Y.j6pESf9bnC8sY8VAsxN1uQf9P4j2Q0m");
     }
 
     @Autowired
@@ -45,18 +49,21 @@ class TaskRepositoryTest {
     void findByIsActiveTrueAndNextDueAtBefore() {
         OffsetDateTime now = OffsetDateTime.now();
         Task activePast = Task.builder()
+                .userId(TEST_USER_ID)
                 .name("Active Past")
                 .everyNDays(1)
                 .nextDueAt(now.minusHours(1))
                 .isActive(true)
                 .build();
         Task activeFuture = Task.builder()
+                .userId(TEST_USER_ID)
                 .name("Active Future")
                 .everyNDays(1)
                 .nextDueAt(now.plusHours(2))
                 .isActive(true)
                 .build();
         Task inactivePast = Task.builder()
+                .userId(TEST_USER_ID)
                 .name("Inactive Past")
                 .everyNDays(1)
                 .nextDueAt(now.minusHours(2))
@@ -77,18 +84,21 @@ class TaskRepositoryTest {
     void findAllByIsActiveTrueOrderByNextDueAtAsc() {
         OffsetDateTime now = OffsetDateTime.now();
         Task first = Task.builder()
+                .userId(TEST_USER_ID)
                 .name("First")
                 .everyNDays(2)
                 .nextDueAt(now.plusHours(1))
                 .isActive(true)
                 .build();
         Task second = Task.builder()
+                .userId(TEST_USER_ID)
                 .name("Second")
                 .everyNDays(2)
                 .nextDueAt(now.plusHours(3))
                 .isActive(true)
                 .build();
         Task inactive = Task.builder()
+                .userId(TEST_USER_ID)
                 .name("Inactive")
                 .everyNDays(2)
                 .nextDueAt(now.plusHours(2))
@@ -110,6 +120,7 @@ class TaskRepositoryTest {
         LocalDate startDate = LocalDate.of(2026, 4, 1);
 
         Task task = Task.builder()
+                .userId(TEST_USER_ID)
                 .name("Task with start date")
                 .everyNDays(3)
                 .startDate(startDate)
@@ -126,6 +137,7 @@ class TaskRepositoryTest {
     @DisplayName("startDate 미입력 시 오늘 날짜 기본값 + nextDueAt은 00:00")
     void saveWithoutStartDateDefaultsToToday() {
         Task task = Task.builder()
+                .userId(TEST_USER_ID)
                 .name("Task without start date")
                 .everyNDays(3)
                 .isActive(true)

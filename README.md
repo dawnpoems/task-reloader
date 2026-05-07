@@ -55,9 +55,57 @@ POSTGRES_PASSWORD=change_me_in_production
 POSTGRES_DB=task_reloader
 SPRING_DATASOURCE_USERNAME=task_reloader
 SPRING_DATASOURCE_PASSWORD=change_me_in_production
+SPRING_PROFILES_ACTIVE=local
+
+AUTH_JWT_SECRET=__CHANGE_ME_WITH_AT_LEAST_32_BYTE_SECRET__
+AUTH_REFRESH_COOKIE_SECURE=true
+AUTH_REFRESH_COOKIE_SAME_SITE=Lax
+AUTH_CSRF_COOKIE_SECURE=true
+AUTH_CSRF_COOKIE_SAME_SITE=Lax
+AUTH_CSRF_ALLOWED_ORIGINS=https://app.task-reloader.example
+
 GRAFANA_ADMIN_USER=admin
 GRAFANA_ADMIN_PASSWORD=admin
 ```
+
+운영 보안 설정(단일 오리진 기준):
+- Web과 API를 같은 도메인(예: `https://app.task-reloader.example`)으로 제공하고 `/api` 프록시를 사용합니다.
+- `AUTH_CSRF_ALLOWED_ORIGINS`는 Web 접속 Origin 하나로 고정합니다.
+- 운영에서는 `AUTH_REFRESH_COOKIE_SECURE=true`, `AUTH_CSRF_COOKIE_SECURE=true`를 유지합니다.
+- 로컬 HTTP 점검 시에는 `AUTH_REFRESH_COOKIE_SECURE=false`, `AUTH_CSRF_COOKIE_SECURE=false`, `AUTH_CSRF_ALLOWED_ORIGINS=http://localhost:3000`으로 오버라이드합니다.
+
+운영 체크리스트(핵심, DB/WAS 포함):
+- [ ] `AUTH_JWT_SECRET`를 32바이트 이상 랜덤 시크릿으로 변경했다. (예: `openssl rand -base64 48`)
+- [ ] DB 계정 비밀번호를 운영값으로 변경했다: `POSTGRES_PASSWORD`, `SPRING_DATASOURCE_PASSWORD`. (예: `change_me...` 금지, 랜덤 20자+)
+- [ ] Grafana 관리자 계정을 운영값으로 변경했다: `GRAFANA_ADMIN_USER`, `GRAFANA_ADMIN_PASSWORD`. (예: `GRAFANA_ADMIN_USER=ops_admin`)
+- [ ] 관리자 시드 계정을 운영값으로 설정했다: `AUTH_ADMIN_EMAIL`, `AUTH_ADMIN_PASSWORD_HASH`(bcrypt 해시). (예: `AUTH_ADMIN_PASSWORD_HASH=$2a$12$...`)
+- [ ] 운영 쿠키/CSRF 설정을 확정했다:
+  - `AUTH_REFRESH_COOKIE_SECURE=true`
+  - `AUTH_CSRF_COOKIE_SECURE=true`
+  - `AUTH_REFRESH_COOKIE_SAME_SITE=Lax`
+  - `AUTH_CSRF_COOKIE_SAME_SITE=Lax`
+  - `AUTH_CSRF_ALLOWED_ORIGINS=https://<운영-웹-도메인>`
+  - 예: `AUTH_CSRF_ALLOWED_ORIGINS=https://app.task-reloader.example`
+- [ ] 토큰 만료 정책을 운영 기준으로 확정했다:
+  - `AUTH_ACCESS_TOKEN_TTL_SECONDS`
+  - `AUTH_REFRESH_TOKEN_TTL_SECONDS`
+  - 예: `AUTH_ACCESS_TOKEN_TTL_SECONDS=900`, `AUTH_REFRESH_TOKEN_TTL_SECONDS=1209600`
+- [ ] 로그인 잠금 정책 값을 확정했다:
+  - `AUTH_LOGIN_LOCK_THRESHOLD`
+  - `AUTH_LOGIN_LOCK_BASE_SECONDS`
+  - `AUTH_LOGIN_LOCK_MAX_SECONDS`
+  - `AUTH_LOGIN_LOCK_RESET_WINDOW_SECONDS`
+  - 예: `5회 실패 -> 60초 잠금 시작, 최대 3600초`
+- [ ] 인증 rate-limit 정책 값을 확정했다:
+  - `AUTH_RATE_LIMIT_ENABLED=true`
+  - `AUTH_RATE_LIMIT_LOGIN_IP_LIMIT`, `AUTH_RATE_LIMIT_LOGIN_IP_WINDOW_SECONDS`
+  - `AUTH_RATE_LIMIT_LOGIN_IP_EMAIL_LIMIT`, `AUTH_RATE_LIMIT_LOGIN_IP_EMAIL_WINDOW_SECONDS`
+  - `AUTH_RATE_LIMIT_SIGNUP_IP_LIMIT`, `AUTH_RATE_LIMIT_SIGNUP_IP_WINDOW_SECONDS`
+  - `AUTH_RATE_LIMIT_SIGNUP_IP_EMAIL_LIMIT`, `AUTH_RATE_LIMIT_SIGNUP_IP_EMAIL_WINDOW_SECONDS`
+  - `AUTH_RATE_LIMIT_REFRESH_IP_LIMIT`, `AUTH_RATE_LIMIT_REFRESH_IP_WINDOW_SECONDS`
+  - 예: 로그인 `IP 30회/60초`, `IP+Email 5회/300초`
+- [ ] DB 스키마 보호 설정을 유지했다: `SPRING_JPA_HIBERNATE_DDL_AUTO=validate`, `SPRING_FLYWAY_ENABLED=true`. (예: `update/create` 금지)
+- [ ] 공개 포트 노출 범위를 확정했다(운영에서 불필요하면 닫기): `5432`, `8080`, `9090`, `3001`. (예: 외부는 `80/443`만, 나머지는 내부망만 허용)
 
 ```sh
 cd infra

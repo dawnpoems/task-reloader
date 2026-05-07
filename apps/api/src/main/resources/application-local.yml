@@ -10,6 +10,54 @@ spring:
       ddl-auto: validate
   flyway:
     enabled: true
+    placeholders:
+      auth_admin_email: ${AUTH_ADMIN_EMAIL:admin@task-reloader.local}
+      auth_admin_password_hash: ${AUTH_ADMIN_PASSWORD_HASH:__CHANGE_ME_WITH_BCRYPT_HASH__}
+
+auth:
+  jwt:
+    secret: ${AUTH_JWT_SECRET:__CHANGE_ME_WITH_AT_LEAST_32_BYTE_SECRET__}
+    access-token-ttl-seconds: ${AUTH_ACCESS_TOKEN_TTL_SECONDS:900}
+    refresh-token-ttl-seconds: ${AUTH_REFRESH_TOKEN_TTL_SECONDS:1209600}
+  password:
+    bcrypt-strength: ${AUTH_BCRYPT_STRENGTH:12}
+  login-lock:
+    threshold: ${AUTH_LOGIN_LOCK_THRESHOLD:5}
+    base-seconds: ${AUTH_LOGIN_LOCK_BASE_SECONDS:60}
+    max-seconds: ${AUTH_LOGIN_LOCK_MAX_SECONDS:3600}
+    reset-window-seconds: ${AUTH_LOGIN_LOCK_RESET_WINDOW_SECONDS:900}
+  csrf:
+    cookie-name: ${AUTH_CSRF_COOKIE_NAME:csrf_token}
+    cookie-path: ${AUTH_CSRF_COOKIE_PATH:/}
+    header-name: ${AUTH_CSRF_HEADER_NAME:X-CSRF-Token}
+    secure: ${AUTH_CSRF_COOKIE_SECURE:false}
+    same-site: ${AUTH_CSRF_COOKIE_SAME_SITE:Lax}
+    allowed-origins: ${AUTH_CSRF_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
+  rate-limit:
+    enabled: ${AUTH_RATE_LIMIT_ENABLED:true}
+    login:
+      ip:
+        limit: ${AUTH_RATE_LIMIT_LOGIN_IP_LIMIT:30}
+        window-seconds: ${AUTH_RATE_LIMIT_LOGIN_IP_WINDOW_SECONDS:60}
+      ip-email:
+        limit: ${AUTH_RATE_LIMIT_LOGIN_IP_EMAIL_LIMIT:5}
+        window-seconds: ${AUTH_RATE_LIMIT_LOGIN_IP_EMAIL_WINDOW_SECONDS:300}
+    signup:
+      ip:
+        limit: ${AUTH_RATE_LIMIT_SIGNUP_IP_LIMIT:10}
+        window-seconds: ${AUTH_RATE_LIMIT_SIGNUP_IP_WINDOW_SECONDS:300}
+      ip-email:
+        limit: ${AUTH_RATE_LIMIT_SIGNUP_IP_EMAIL_LIMIT:3}
+        window-seconds: ${AUTH_RATE_LIMIT_SIGNUP_IP_EMAIL_WINDOW_SECONDS:600}
+    refresh:
+      ip:
+        limit: ${AUTH_RATE_LIMIT_REFRESH_IP_LIMIT:60}
+        window-seconds: ${AUTH_RATE_LIMIT_REFRESH_IP_WINDOW_SECONDS:60}
+  refresh-cookie:
+    name: ${AUTH_REFRESH_COOKIE_NAME:refresh_token}
+    path: ${AUTH_REFRESH_COOKIE_PATH:/api/auth}
+    secure: ${AUTH_REFRESH_COOKIE_SECURE:false}
+    same-site: ${AUTH_REFRESH_COOKIE_SAME_SITE:Lax}
 
 management:
   endpoints:

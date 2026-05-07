@@ -17,8 +17,17 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
 
     List<Task> findAllByIsActiveTrueOrderByNextDueAtAsc();
 
+    List<Task> findAllByUserIdAndIsActiveTrueOrderByNextDueAtAsc(Long userId);
+
+    Optional<Task> findByIdAndUserId(Long id, Long userId);
+
+    boolean existsByIdAndUserId(Long id, Long userId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select t from Task t where t.id = :id")
     Optional<Task> findByIdForUpdate(@Param("id") Long id);
-}
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select t from Task t where t.id = :id and t.userId = :userId")
+    Optional<Task> findByIdAndUserIdForUpdate(@Param("id") Long id, @Param("userId") Long userId);
+}

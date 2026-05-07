@@ -26,6 +26,7 @@ import static org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTest
 @Testcontainers
 @DisplayName("TaskCompletionRepository JPA 테스트")
 class TaskCompletionRepositoryTest {
+    private static final long TEST_USER_ID = 1L;
 
     @Container
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
@@ -35,6 +36,9 @@ class TaskCompletionRepositoryTest {
         registry.add("spring.datasource.url", postgres::getJdbcUrl);
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
+        registry.add("spring.flyway.placeholders.auth_admin_email", () -> "admin@task-reloader.local");
+        registry.add("spring.flyway.placeholders.auth_admin_password_hash",
+                () -> "$2a$12$yA0NQILk2h0m9Pk5IXf4Y.j6pESf9bnC8sY8VAsxN1uQf9P4j2Q0m");
     }
 
     @Autowired
@@ -48,6 +52,7 @@ class TaskCompletionRepositoryTest {
     void findByTaskIdOrderByCompletedAtDesc() {
         OffsetDateTime now = OffsetDateTime.now();
         Task task = taskRepository.save(Task.builder()
+                .userId(TEST_USER_ID)
                 .name("Recurring Task")
                 .everyNDays(3)
                 .nextDueAt(now.plusDays(3))
@@ -55,6 +60,7 @@ class TaskCompletionRepositoryTest {
                 .build());
 
         Task otherTask = taskRepository.save(Task.builder()
+                .userId(TEST_USER_ID)
                 .name("Other Task")
                 .everyNDays(5)
                 .nextDueAt(now.plusDays(5))
@@ -90,6 +96,7 @@ class TaskCompletionRepositoryTest {
     void findByTaskIdAndCompletedAtRangeOrderByCompletedAtDesc() {
         OffsetDateTime now = OffsetDateTime.now();
         Task task = taskRepository.save(Task.builder()
+                .userId(TEST_USER_ID)
                 .name("Recurring Task")
                 .everyNDays(3)
                 .nextDueAt(now.plusDays(3))
@@ -133,12 +140,14 @@ class TaskCompletionRepositoryTest {
     void findByCompletedAtRangeStartInclusiveEndExclusive() {
         OffsetDateTime now = OffsetDateTime.now();
         Task taskA = taskRepository.save(Task.builder()
+                .userId(TEST_USER_ID)
                 .name("Task A")
                 .everyNDays(3)
                 .nextDueAt(now.plusDays(3))
                 .isActive(true)
                 .build());
         Task taskB = taskRepository.save(Task.builder()
+                .userId(TEST_USER_ID)
                 .name("Task B")
                 .everyNDays(5)
                 .nextDueAt(now.plusDays(5))

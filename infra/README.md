@@ -19,6 +19,14 @@ POSTGRES_DB=task_reloader
 
 SPRING_DATASOURCE_USERNAME=task_reloader
 SPRING_DATASOURCE_PASSWORD=change_me_in_production
+SPRING_PROFILES_ACTIVE=local
+
+AUTH_JWT_SECRET=__CHANGE_ME_WITH_AT_LEAST_32_BYTE_SECRET__
+AUTH_REFRESH_COOKIE_SECURE=true
+AUTH_REFRESH_COOKIE_SAME_SITE=Lax
+AUTH_CSRF_COOKIE_SECURE=true
+AUTH_CSRF_COOKIE_SAME_SITE=Lax
+AUTH_CSRF_ALLOWED_ORIGINS=https://app.task-reloader.example
 
 GRAFANA_ADMIN_USER=admin
 GRAFANA_ADMIN_PASSWORD=admin
@@ -30,6 +38,21 @@ GRAFANA_ADMIN_PASSWORD=admin
 cd infra
 docker compose up -d --build
 ```
+
+## 운영 보안 설정 체크 (단일 오리진)
+
+- Web과 API는 같은 오리진에서 서비스하고(`/api` reverse proxy), 외부 노출은 HTTPS를 사용합니다.
+- `AUTH_CSRF_ALLOWED_ORIGINS`는 실제 Web Origin과 정확히 일치해야 합니다.
+- 운영 환경에서 쿠키 보안 플래그는 아래 값을 유지합니다.
+  - `AUTH_REFRESH_COOKIE_SECURE=true`
+  - `AUTH_CSRF_COOKIE_SECURE=true`
+  - `AUTH_REFRESH_COOKIE_SAME_SITE=Lax`
+  - `AUTH_CSRF_COOKIE_SAME_SITE=Lax`
+- 인증 API 과호출 방어는 기본 활성화(`AUTH_RATE_LIMIT_ENABLED=true`) 상태로 운영합니다.
+- 로컬 HTTP 테스트 시에는 아래처럼 오버라이드합니다.
+  - `AUTH_REFRESH_COOKIE_SECURE=false`
+  - `AUTH_CSRF_COOKIE_SECURE=false`
+  - `AUTH_CSRF_ALLOWED_ORIGINS=http://localhost:3000`
 
 ## 서비스 URL
 

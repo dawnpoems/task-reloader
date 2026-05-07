@@ -1,5 +1,6 @@
 package com.yegkim.task_reloader_api.task.service;
 
+import com.yegkim.task_reloader_api.auth.security.AuthenticatedUserProvider;
 import com.yegkim.task_reloader_api.common.exception.TaskInactiveException;
 import com.yegkim.task_reloader_api.common.exception.TaskNotFoundException;
 import com.yegkim.task_reloader_api.common.exception.TaskRecentlyCompletedException;
@@ -61,17 +62,20 @@ public class TaskService {
     private final TaskStatusResolver taskStatusResolver;
     private final Clock clock;
     private final ApplicationEventPublisher eventPublisher;
+    private final AuthenticatedUserProvider authenticatedUserProvider;
 
     public List<TaskResponse> findAll() {
+        Long userId = authenticatedUserProvider.currentUserId();
         TimeWindow window = currentWindow();
-        List<Task> tasks = taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc();
+        List<Task> tasks = taskRepository.findAllByUserIdAndIsActiveTrueOrderByNextDueAtAsc(userId);
         return tasks.stream()
                 .map(task -> withStatus(taskMapper.toResponse(task), task, window))
                 .toList();
     }
 
     public List<TaskResponse> findAll(TaskStatus status) {
-        List<Task> tasks = taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc();
+        Long userId = authenticatedUserProvider.currentUserId();
+        List<Task> tasks = taskRepository.findAllByUserIdAndIsActiveTrueOrderByNextDueAtAsc(userId);
         TimeWindow window = currentWindow();
         return tasks.stream()
                 .filter(task -> taskStatusResolver.resolve(task.getNextDueAt().toInstant(), window) == status)
@@ -81,7 +85,8 @@ public class TaskService {
     }
 
     public List<TaskResponse> findDueNow() {
-        List<Task> tasks = taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc();
+        Long userId = authenticatedUserProvider.currentUserId();
+        List<Task> tasks = taskRepository.findAllByUserIdAndIsActiveTrueOrderByNextDueAtAsc(userId);
         TimeWindow window = currentWindow();
         return tasks.stream()
                 .filter(task -> {
@@ -94,7 +99,8 @@ public class TaskService {
     }
 
     public TaskResponse findById(Long id) {
-        Task task = taskRepository.findById(id)
+        Long userId = authenticatedUserProvider.currentUserId();
+        Task task = taskRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new TaskNotFoundException(id));
         return withStatus(taskMapper.toResponse(task), task, currentWindow());
     }
@@ -104,13 +110,14 @@ public class TaskService {
     }
 
     public List<TaskCompletionResponse> findCompletions(Long id, Integer year, Integer month) {
-        if (!taskRepository.existsById(id)) {
+        Long userId = authenticatedUserProvider.currentUserId();
+        if (!taskRepository.existsByIdAndUserId(id, userId)) {
             throw new TaskNotFoundException(id);
         }
 
         List<TaskCompletion> completions;
         if (year == null && month == null) {
-            completions = taskCompletionRepository.findByTaskIdOrderByCompletedAtDesc(id);
+            completions = taskCompletionRepository.findByUserIdAndTaskIdOrderByCompletedAtDesc(userId, id);
         } else {
             if (year == null || month == null) {
                 throw new IllegalArgumentException("year와 month는 함께 전달해야 합니다.");
@@ -122,8 +129,8 @@ public class TaskService {
             OffsetDateTime monthStart = LocalDate.of(year, month, 1).atStartOfDay(KST).toOffsetDateTime();
             OffsetDateTime nextMonthStart = monthStart.plusMonths(1);
             completions = taskCompletionRepository
-                    .findByTaskIdAndCompletedAtGreaterThanEqualAndCompletedAtLessThanOrderByCompletedAtDesc(
-                            id, monthStart, nextMonthStart);
+                    .findByUserIdAndTaskIdAndCompletedAtGreaterThanEqualAndCompletedAtLessThanOrderByCompletedAtDesc(
+                            userId, id, monthStart, nextMonthStart);
         }
 
         return completions.stream()
@@ -132,18 +139,20 @@ public class TaskService {
     }
 
     public List<RecentTaskCompletionResponse> findRecentCompletions() {
-        return taskCompletionRepository.findTop5ByOrderByCompletedAtDesc().stream()
+        Long userId = authenticatedUserProvider.currentUserId();
+        return taskCompletionRepository.findTop5ByUserIdOrderByCompletedAtDesc(userId).stream()
                 .map(this::toRecentCompletionResponse)
                 .toList();
     }
 
     public DashboardSummaryResponse getDashboardSummary() {
+        Long userId = authenticatedUserProvider.currentUserId();
         TimeWindow window = currentWindow();
         OffsetDateTime todayStart = window.getTodayStartUtc().atOffset(ZoneOffset.UTC);
         OffsetDateTime tomorrowStart = window.getTomorrowStartUtc().atOffset(ZoneOffset.UTC);
         OffsetDateTime sevenDaysAgo = clock.instant().minus(Duration.ofDays(7)).atOffset(ZoneOffset.UTC);
 
-        List<Task> tasks = taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc();
+        List<Task> tasks = taskRepository.findAllByUserIdAndIsActiveTrueOrderByNextDueAtAsc(userId);
 
         long overdue = tasks.stream()
                 .filter(task -> taskStatusResolver.resolve(task.getNextDueAt().toInstant(), window) == TaskStatus.OVERDUE)
@@ -160,12 +169,13 @@ public class TaskService {
                 .overdueTasks(overdue)
                 .todayTasks(today)
                 .upcomingTasks(upcoming)
-                .completedToday(taskCompletionRepository.countByCompletedAtBetween(todayStart, tomorrowStart))
-                .completedLast7Days(taskCompletionRepository.countByCompletedAtGreaterThanEqual(sevenDaysAgo))
+                .completedToday(taskCompletionRepository.countByUserIdAndCompletedAtBetween(userId, todayStart, tomorrowStart))
+                .completedLast7Days(taskCompletionRepository.countByUserIdAndCompletedAtGreaterThanEqual(userId, sevenDaysAgo))
                 .build();
     }
 
     public InsightsOverviewResponse getInsightsOverview(int days, int top) {
+        Long userId = authenticatedUserProvider.currentUserId();
         if (days <= 0 || days > 365) {
             throw new IllegalArgumentException("days는 1~365 사이여야 합니다.");
         }
@@ -179,12 +189,12 @@ public class TaskService {
         OffsetDateTime overdueThreshold = now.minus(Duration.ofDays(7)).atOffset(ZoneOffset.UTC);
         OffsetDateTime recentCompletionThreshold = now.minus(Duration.ofDays(30)).atOffset(ZoneOffset.UTC);
 
-        List<Task> activeTasks = taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc();
+        List<Task> activeTasks = taskRepository.findAllByUserIdAndIsActiveTrueOrderByNextDueAtAsc(userId);
         Set<Long> activeTaskIds = activeTasks.stream()
                 .map(Task::getId)
                 .collect(java.util.stream.Collectors.toSet());
         List<TaskCompletion> completions = taskCompletionRepository
-                .findByCompletedAtGreaterThanEqualAndCompletedAtLessThan(periodStart, nowUtc);
+                .findByUserIdAndCompletedAtGreaterThanEqualAndCompletedAtLessThan(userId, periodStart, nowUtc);
 
         long activeTaskCount = activeTasks.size();
         List<RiskyTaskInsightResponse> riskyTasks = activeTasks.stream()
@@ -322,7 +332,9 @@ public class TaskService {
 
     @Transactional
     public TaskResponse create(CreateTaskRequest request) {
+        Long userId = authenticatedUserProvider.currentUserId();
         Task task = taskMapper.toEntity(request);
+        task.assignOwner(userId);
         Task saved = taskRepository.save(task);
         eventPublisher.publishEvent(new TaskCreatedEvent(saved.getId(), saved.getEveryNDays(), saved.getIsActive()));
         return withStatus(taskMapper.toResponse(saved), saved, currentWindow());
@@ -330,7 +342,8 @@ public class TaskService {
 
     @Transactional
     public TaskResponse update(Long id, UpdateTaskRequest request) {
-        Task task = taskRepository.findById(id)
+        Long userId = authenticatedUserProvider.currentUserId();
+        Task task = taskRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new TaskNotFoundException(id));
         task.update(request.getName(), request.getEveryNDays(), request.getIsActive(), request.getStartDate());
         eventPublisher.publishEvent(
@@ -341,7 +354,8 @@ public class TaskService {
 
     @Transactional
     public void delete(Long id) {
-        Task task = taskRepository.findById(id)
+        Long userId = authenticatedUserProvider.currentUserId();
+        Task task = taskRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new TaskNotFoundException(id));
         taskRepository.delete(task);
         eventPublisher.publishEvent(new TaskDeletedEvent(id));
@@ -351,7 +365,8 @@ public class TaskService {
 
     @Transactional
     public TaskResponse complete(Long id) {
-        Task task = taskRepository.findByIdForUpdate(id)
+        Long userId = authenticatedUserProvider.currentUserId();
+        Task task = taskRepository.findByIdAndUserIdForUpdate(id, userId)
                 .orElseThrow(() -> new TaskNotFoundException(id));
 
         if (!task.getIsActive()) {
