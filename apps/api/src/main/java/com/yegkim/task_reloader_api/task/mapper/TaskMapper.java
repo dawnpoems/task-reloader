@@ -25,6 +25,6 @@ public interface TaskMapper {
     @Mapping(target = "isActive", constant = "true")
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
+    @Mapping(target = "userId", ignore = true)
     Task toEntity(CreateTaskRequest request);
 }
-

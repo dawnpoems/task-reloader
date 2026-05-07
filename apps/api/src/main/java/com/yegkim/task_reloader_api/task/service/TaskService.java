@@ -1,5 +1,6 @@
 package com.yegkim.task_reloader_api.task.service;
 
+import com.yegkim.task_reloader_api.auth.security.AuthenticatedUserProvider;
 import com.yegkim.task_reloader_api.common.exception.TaskInactiveException;
 import com.yegkim.task_reloader_api.common.exception.TaskNotFoundException;
 import com.yegkim.task_reloader_api.common.exception.TaskRecentlyCompletedException;
@@ -7,8 +8,11 @@ import com.yegkim.task_reloader_api.common.time.TimeWindow;
 import com.yegkim.task_reloader_api.task.mapper.TaskMapper;
 import com.yegkim.task_reloader_api.task.dto.CreateTaskRequest;
 import com.yegkim.task_reloader_api.task.dto.DashboardSummaryResponse;
+import com.yegkim.task_reloader_api.task.dto.InsightsOverviewResponse;
 import com.yegkim.task_reloader_api.task.dto.RecentTaskCompletionResponse;
+import com.yegkim.task_reloader_api.task.dto.RiskyTaskInsightResponse;
 import com.yegkim.task_reloader_api.task.dto.TaskCompletionResponse;
+import com.yegkim.task_reloader_api.task.dto.TaskTrendInsightResponse;
 import com.yegkim.task_reloader_api.task.dto.UpdateTaskRequest;
 import com.yegkim.task_reloader_api.task.dto.TaskResponse;
 import com.yegkim.task_reloader_api.task.event.TaskCompleteRejectedEvent;
@@ -33,8 +37,14 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -52,17 +62,20 @@ public class TaskService {
     private final TaskStatusResolver taskStatusResolver;
     private final Clock clock;
     private final ApplicationEventPublisher eventPublisher;
+    private final AuthenticatedUserProvider authenticatedUserProvider;
 
     public List<TaskResponse> findAll() {
+        Long userId = authenticatedUserProvider.currentUserId();
         TimeWindow window = currentWindow();
-        List<Task> tasks = taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc();
+        List<Task> tasks = taskRepository.findAllByUserIdAndIsActiveTrueOrderByNextDueAtAsc(userId);
         return tasks.stream()
                 .map(task -> withStatus(taskMapper.toResponse(task), task, window))
                 .toList();
     }
 
     public List<TaskResponse> findAll(TaskStatus status) {
-        List<Task> tasks = taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc();
+        Long userId = authenticatedUserProvider.currentUserId();
+        List<Task> tasks = taskRepository.findAllByUserIdAndIsActiveTrueOrderByNextDueAtAsc(userId);
         TimeWindow window = currentWindow();
         return tasks.stream()
                 .filter(task -> taskStatusResolver.resolve(task.getNextDueAt().toInstant(), window) == status)
@@ -72,7 +85,8 @@ public class TaskService {
     }
 
     public List<TaskResponse> findDueNow() {
-        List<Task> tasks = taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc();
+        Long userId = authenticatedUserProvider.currentUserId();
+        List<Task> tasks = taskRepository.findAllByUserIdAndIsActiveTrueOrderByNextDueAtAsc(userId);
         TimeWindow window = currentWindow();
         return tasks.stream()
                 .filter(task -> {
@@ -85,7 +99,8 @@ public class TaskService {
     }
 
     public TaskResponse findById(Long id) {
-        Task task = taskRepository.findById(id)
+        Long userId = authenticatedUserProvider.currentUserId();
+        Task task = taskRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new TaskNotFoundException(id));
         return withStatus(taskMapper.toResponse(task), task, currentWindow());
     }
@@ -95,13 +110,14 @@ public class TaskService {
     }
 
     public List<TaskCompletionResponse> findCompletions(Long id, Integer year, Integer month) {
-        if (!taskRepository.existsById(id)) {
+        Long userId = authenticatedUserProvider.currentUserId();
+        if (!taskRepository.existsByIdAndUserId(id, userId)) {
             throw new TaskNotFoundException(id);
         }
 
         List<TaskCompletion> completions;
         if (year == null && month == null) {
-            completions = taskCompletionRepository.findByTaskIdOrderByCompletedAtDesc(id);
+            completions = taskCompletionRepository.findByUserIdAndTaskIdOrderByCompletedAtDesc(userId, id);
         } else {
             if (year == null || month == null) {
                 throw new IllegalArgumentException("year와 month는 함께 전달해야 합니다.");
@@ -113,8 +129,8 @@ public class TaskService {
             OffsetDateTime monthStart = LocalDate.of(year, month, 1).atStartOfDay(KST).toOffsetDateTime();
             OffsetDateTime nextMonthStart = monthStart.plusMonths(1);
             completions = taskCompletionRepository
-                    .findByTaskIdAndCompletedAtGreaterThanEqualAndCompletedAtLessThanOrderByCompletedAtDesc(
-                            id, monthStart, nextMonthStart);
+                    .findByUserIdAndTaskIdAndCompletedAtGreaterThanEqualAndCompletedAtLessThanOrderByCompletedAtDesc(
+                            userId, id, monthStart, nextMonthStart);
         }
 
         return completions.stream()
@@ -123,18 +139,20 @@ public class TaskService {
     }
 
     public List<RecentTaskCompletionResponse> findRecentCompletions() {
-        return taskCompletionRepository.findTop5ByOrderByCompletedAtDesc().stream()
+        Long userId = authenticatedUserProvider.currentUserId();
+        return taskCompletionRepository.findTop5ByUserIdOrderByCompletedAtDesc(userId).stream()
                 .map(this::toRecentCompletionResponse)
                 .toList();
     }
 
     public DashboardSummaryResponse getDashboardSummary() {
+        Long userId = authenticatedUserProvider.currentUserId();
         TimeWindow window = currentWindow();
         OffsetDateTime todayStart = window.getTodayStartUtc().atOffset(ZoneOffset.UTC);
         OffsetDateTime tomorrowStart = window.getTomorrowStartUtc().atOffset(ZoneOffset.UTC);
         OffsetDateTime sevenDaysAgo = clock.instant().minus(Duration.ofDays(7)).atOffset(ZoneOffset.UTC);
 
-        List<Task> tasks = taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc();
+        List<Task> tasks = taskRepository.findAllByUserIdAndIsActiveTrueOrderByNextDueAtAsc(userId);
 
         long overdue = tasks.stream()
                 .filter(task -> taskStatusResolver.resolve(task.getNextDueAt().toInstant(), window) == TaskStatus.OVERDUE)
@@ -151,14 +169,172 @@ public class TaskService {
                 .overdueTasks(overdue)
                 .todayTasks(today)
                 .upcomingTasks(upcoming)
-                .completedToday(taskCompletionRepository.countByCompletedAtBetween(todayStart, tomorrowStart))
-                .completedLast7Days(taskCompletionRepository.countByCompletedAtGreaterThanEqual(sevenDaysAgo))
+                .completedToday(taskCompletionRepository.countByUserIdAndCompletedAtBetween(userId, todayStart, tomorrowStart))
+                .completedLast7Days(taskCompletionRepository.countByUserIdAndCompletedAtGreaterThanEqual(userId, sevenDaysAgo))
+                .build();
+    }
+
+    public InsightsOverviewResponse getInsightsOverview(int days, int top) {
+        Long userId = authenticatedUserProvider.currentUserId();
+        if (days <= 0 || days > 365) {
+            throw new IllegalArgumentException("days는 1~365 사이여야 합니다.");
+        }
+        if (top <= 0 || top > 20) {
+            throw new IllegalArgumentException("top은 1~20 사이여야 합니다.");
+        }
+
+        Instant now = clock.instant();
+        OffsetDateTime nowUtc = now.atOffset(ZoneOffset.UTC);
+        OffsetDateTime periodStart = now.minus(Duration.ofDays(days)).atOffset(ZoneOffset.UTC);
+        OffsetDateTime overdueThreshold = now.minus(Duration.ofDays(7)).atOffset(ZoneOffset.UTC);
+        OffsetDateTime recentCompletionThreshold = now.minus(Duration.ofDays(30)).atOffset(ZoneOffset.UTC);
+
+        List<Task> activeTasks = taskRepository.findAllByUserIdAndIsActiveTrueOrderByNextDueAtAsc(userId);
+        Set<Long> activeTaskIds = activeTasks.stream()
+                .map(Task::getId)
+                .collect(java.util.stream.Collectors.toSet());
+        List<TaskCompletion> completions = taskCompletionRepository
+                .findByUserIdAndCompletedAtGreaterThanEqualAndCompletedAtLessThan(userId, periodStart, nowUtc);
+
+        long activeTaskCount = activeTasks.size();
+        List<RiskyTaskInsightResponse> riskyTasks = activeTasks.stream()
+                .map(task -> {
+                    boolean overdueTooLong = task.getNextDueAt().isBefore(overdueThreshold);
+                    boolean noRecentCompletion = task.getLastCompletedAt() == null
+                            || task.getLastCompletedAt().isBefore(recentCompletionThreshold);
+                    if (!overdueTooLong && !noRecentCompletion) {
+                        return null;
+                    }
+
+                    List<String> reasons = new ArrayList<>(2);
+                    if (overdueTooLong) {
+                        reasons.add("OVERDUE_7D_PLUS");
+                    }
+                    if (noRecentCompletion) {
+                        reasons.add("NO_COMPLETION_30D");
+                    }
+
+                    return RiskyTaskInsightResponse.builder()
+                            .taskId(task.getId())
+                            .taskName(task.getName())
+                            .nextDueAt(task.getNextDueAt())
+                            .lastCompletedAt(task.getLastCompletedAt())
+                            .reasons(reasons)
+                            .build();
+                })
+                .filter(Objects::nonNull)
+                .toList();
+
+        Set<Long> completedTaskIds = new HashSet<>();
+        long delayedCompletionCount = 0L;
+        long totalDelayMinutes = 0L;
+
+        Map<Long, TrendAccumulator> trendByTask = new HashMap<>();
+
+        for (TaskCompletion completion : completions) {
+            Long taskId = completion.getTask().getId();
+            if (!activeTaskIds.contains(taskId)) {
+                continue;
+            }
+            String taskName = completion.getTask().getName();
+            completedTaskIds.add(taskId);
+
+            boolean delayed = completion.getCompletedAt().isAfter(completion.getPreviousDueAt());
+            if (delayed) {
+                delayedCompletionCount++;
+                totalDelayMinutes += Duration
+                        .between(completion.getPreviousDueAt().toInstant(), completion.getCompletedAt().toInstant())
+                        .toMinutes();
+            }
+
+            TrendAccumulator acc = trendByTask.computeIfAbsent(taskId, ignored -> new TrendAccumulator(taskId, taskName));
+            acc.completionCount++;
+            if (delayed) {
+                acc.delayedCount++;
+            }
+        }
+        long completionCount = trendByTask.values().stream()
+                .mapToLong(acc -> acc.completionCount)
+                .sum();
+
+        List<TaskTrendInsightResponse> allTrends = trendByTask.values().stream()
+                .map(acc -> TaskTrendInsightResponse.builder()
+                        .taskId(acc.taskId)
+                        .taskName(acc.taskName)
+                        .completionCount(acc.completionCount)
+                        .delayedCount(acc.delayedCount)
+                        .delayRatePct(acc.completionCount == 0
+                                ? 0.0
+                                : round1((double) acc.delayedCount * 100.0 / acc.completionCount))
+                        .build())
+                .toList();
+
+        Comparator<TaskTrendInsightResponse> byCompletion = Comparator
+                .comparing(TaskTrendInsightResponse::getCompletionCount).reversed()
+                .thenComparing(TaskTrendInsightResponse::getDelayedCount, Comparator.reverseOrder())
+                .thenComparing(TaskTrendInsightResponse::getTaskId);
+
+        Comparator<TaskTrendInsightResponse> byDelayed = Comparator
+                .comparing(TaskTrendInsightResponse::getDelayedCount).reversed()
+                .thenComparing(TaskTrendInsightResponse::getCompletionCount, Comparator.reverseOrder())
+                .thenComparing(TaskTrendInsightResponse::getTaskId);
+
+        Comparator<TaskTrendInsightResponse> byDelayRate = Comparator
+                .comparing(TaskTrendInsightResponse::getDelayRatePct).reversed()
+                .thenComparing(TaskTrendInsightResponse::getDelayedCount, Comparator.reverseOrder())
+                .thenComparing(TaskTrendInsightResponse::getCompletionCount, Comparator.reverseOrder())
+                .thenComparing(TaskTrendInsightResponse::getTaskId);
+
+        List<TaskTrendInsightResponse> topCompletionTrends = allTrends.stream()
+                .sorted(byCompletion)
+                .limit(top)
+                .toList();
+
+        List<TaskTrendInsightResponse> topDelayedTrends = allTrends.stream()
+                .sorted(byDelayed)
+                .limit(top)
+                .toList();
+
+        List<TaskTrendInsightResponse> topDelayRateTrends = allTrends.stream()
+                .sorted(byDelayRate)
+                .limit(top)
+                .toList();
+
+        return InsightsOverviewResponse.builder()
+                .periodDays(days)
+                .periodStart(periodStart)
+                .periodEnd(nowUtc)
+                .timezone(KST.getId())
+                .activeTaskCount(activeTaskCount)
+                .completedTaskCount(completedTaskIds.size())
+                .completionCount(completionCount)
+                .delayedCompletionCount(delayedCompletionCount)
+                .completionRatePct(
+                        activeTaskCount == 0 ? 0.0 : round1((double) completedTaskIds.size() * 100.0 / activeTaskCount)
+                )
+                .delayRatePct(
+                        completionCount == 0 ? 0.0 : round1((double) delayedCompletionCount * 100.0 / completionCount)
+                )
+                .averageDelayDays(
+                        delayedCompletionCount == 0
+                                ? 0.0
+                                : round2(((double) totalDelayMinutes / delayedCompletionCount) / (24.0 * 60.0))
+                )
+                .riskyTaskCount(riskyTasks.size())
+                .riskyTasks(riskyTasks)
+                .topCompletionTrends(topCompletionTrends)
+                .topDelayedTrends(topDelayedTrends)
+                .topDelayRateTrends(topDelayRateTrends)
+                // 하위 호환: 기존 프론트는 taskTrends를 completion 기준 Top으로 사용
+                .taskTrends(topCompletionTrends)
                 .build();
     }
 
     @Transactional
     public TaskResponse create(CreateTaskRequest request) {
+        Long userId = authenticatedUserProvider.currentUserId();
         Task task = taskMapper.toEntity(request);
+        task.assignOwner(userId);
         Task saved = taskRepository.save(task);
         eventPublisher.publishEvent(new TaskCreatedEvent(saved.getId(), saved.getEveryNDays(), saved.getIsActive()));
         return withStatus(taskMapper.toResponse(saved), saved, currentWindow());
@@ -166,7 +342,8 @@ public class TaskService {
 
     @Transactional
     public TaskResponse update(Long id, UpdateTaskRequest request) {
-        Task task = taskRepository.findById(id)
+        Long userId = authenticatedUserProvider.currentUserId();
+        Task task = taskRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new TaskNotFoundException(id));
         task.update(request.getName(), request.getEveryNDays(), request.getIsActive(), request.getStartDate());
         eventPublisher.publishEvent(
@@ -177,7 +354,8 @@ public class TaskService {
 
     @Transactional
     public void delete(Long id) {
-        Task task = taskRepository.findById(id)
+        Long userId = authenticatedUserProvider.currentUserId();
+        Task task = taskRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new TaskNotFoundException(id));
         taskRepository.delete(task);
         eventPublisher.publishEvent(new TaskDeletedEvent(id));
@@ -187,7 +365,8 @@ public class TaskService {
 
     @Transactional
     public TaskResponse complete(Long id) {
-        Task task = taskRepository.findByIdForUpdate(id)
+        Long userId = authenticatedUserProvider.currentUserId();
+        Task task = taskRepository.findByIdAndUserIdForUpdate(id, userId)
                 .orElseThrow(() -> new TaskNotFoundException(id));
 
         if (!task.getIsActive()) {
@@ -245,5 +424,27 @@ public class TaskService {
                 .previousDueAt(completion.getPreviousDueAt())
                 .nextDueAt(completion.getNextDueAt())
                 .build();
+    }
+
+    private double round1(double value) {
+        return Math.round(value * 10.0) / 10.0;
+    }
+
+    private double round2(double value) {
+        return Math.round(value * 100.0) / 100.0;
+    }
+
+    private static final class TrendAccumulator {
+        private final long taskId;
+        private final String taskName;
+        private long completionCount;
+        private long delayedCount;
+
+        private TrendAccumulator(long taskId, String taskName) {
+            this.taskId = taskId;
+            this.taskName = taskName;
+            this.completionCount = 0L;
+            this.delayedCount = 0L;
+        }
     }
 }

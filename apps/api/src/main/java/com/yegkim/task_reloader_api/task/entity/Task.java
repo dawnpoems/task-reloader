@@ -23,6 +23,9 @@ public class Task {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "user_id", nullable = false, updatable = false)
+    private Long userId;
+
     @Column(nullable = false)
     private String name;
 
@@ -54,6 +57,10 @@ public class Task {
 
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
+
+    public void assignOwner(Long userId) {
+        this.userId = userId;
+    }
 
     public void update(String name, Integer everyNDays, Boolean isActive, LocalDate startDate) {
         if (name != null) this.name = name;

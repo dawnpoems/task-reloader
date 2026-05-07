@@ -36,6 +36,34 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-task_reloader}
       SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-task_reloader}
       SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-change_me_in_production}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
+      AUTH_ADMIN_EMAIL: ${AUTH_ADMIN_EMAIL:-admin@task-reloader.local}
+      AUTH_ADMIN_PASSWORD_HASH: ${AUTH_ADMIN_PASSWORD_HASH:-__CHANGE_ME_WITH_BCRYPT_HASH__}
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:-__CHANGE_ME_WITH_AT_LEAST_32_BYTE_SECRET__}
+      AUTH_ACCESS_TOKEN_TTL_SECONDS: ${AUTH_ACCESS_TOKEN_TTL_SECONDS:-900}
+      AUTH_REFRESH_TOKEN_TTL_SECONDS: ${AUTH_REFRESH_TOKEN_TTL_SECONDS:-1209600}
+      AUTH_BCRYPT_STRENGTH: ${AUTH_BCRYPT_STRENGTH:-12}
+      AUTH_REFRESH_COOKIE_NAME: ${AUTH_REFRESH_COOKIE_NAME:-refresh_token}
+      AUTH_REFRESH_COOKIE_PATH: ${AUTH_REFRESH_COOKIE_PATH:-/api/auth}
+      AUTH_REFRESH_COOKIE_SECURE: ${AUTH_REFRESH_COOKIE_SECURE:-false}
+      AUTH_REFRESH_COOKIE_SAME_SITE: ${AUTH_REFRESH_COOKIE_SAME_SITE:-Lax}
+      AUTH_CSRF_COOKIE_NAME: ${AUTH_CSRF_COOKIE_NAME:-csrf_token}
+      AUTH_CSRF_COOKIE_PATH: ${AUTH_CSRF_COOKIE_PATH:-/}
+      AUTH_CSRF_HEADER_NAME: ${AUTH_CSRF_HEADER_NAME:-X-CSRF-Token}
+      AUTH_CSRF_COOKIE_SECURE: ${AUTH_CSRF_COOKIE_SECURE:-false}
+      AUTH_CSRF_COOKIE_SAME_SITE: ${AUTH_CSRF_COOKIE_SAME_SITE:-Lax}
+      AUTH_CSRF_ALLOWED_ORIGINS: ${AUTH_CSRF_ALLOWED_ORIGINS:-http://localhost:3000}
+      AUTH_RATE_LIMIT_ENABLED: ${AUTH_RATE_LIMIT_ENABLED:-true}
+      AUTH_RATE_LIMIT_LOGIN_IP_LIMIT: ${AUTH_RATE_LIMIT_LOGIN_IP_LIMIT:-30}
+      AUTH_RATE_LIMIT_LOGIN_IP_WINDOW_SECONDS: ${AUTH_RATE_LIMIT_LOGIN_IP_WINDOW_SECONDS:-60}
+      AUTH_RATE_LIMIT_LOGIN_IP_EMAIL_LIMIT: ${AUTH_RATE_LIMIT_LOGIN_IP_EMAIL_LIMIT:-5}
+      AUTH_RATE_LIMIT_LOGIN_IP_EMAIL_WINDOW_SECONDS: ${AUTH_RATE_LIMIT_LOGIN_IP_EMAIL_WINDOW_SECONDS:-300}
+      AUTH_RATE_LIMIT_SIGNUP_IP_LIMIT: ${AUTH_RATE_LIMIT_SIGNUP_IP_LIMIT:-10}
+      AUTH_RATE_LIMIT_SIGNUP_IP_WINDOW_SECONDS: ${AUTH_RATE_LIMIT_SIGNUP_IP_WINDOW_SECONDS:-300}
+      AUTH_RATE_LIMIT_SIGNUP_IP_EMAIL_LIMIT: ${AUTH_RATE_LIMIT_SIGNUP_IP_EMAIL_LIMIT:-3}
+      AUTH_RATE_LIMIT_SIGNUP_IP_EMAIL_WINDOW_SECONDS: ${AUTH_RATE_LIMIT_SIGNUP_IP_EMAIL_WINDOW_SECONDS:-600}
+      AUTH_RATE_LIMIT_REFRESH_IP_LIMIT: ${AUTH_RATE_LIMIT_REFRESH_IP_LIMIT:-60}
+      AUTH_RATE_LIMIT_REFRESH_IP_WINDOW_SECONDS: ${AUTH_RATE_LIMIT_REFRESH_IP_WINDOW_SECONDS:-60}
       SPRING_JPA_HIBERNATE_DDL_AUTO: validate
       SPRING_FLYWAY_ENABLED: "true"
     depends_on:
@@ -70,5 +98,52 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: task-reloader-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      api:
+        condition: service_healthy
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  grafana:
+    image: grafana/grafana-oss:11.1.4
+    container_name: task-reloader-grafana
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
+    depends_on:
+      prometheus:
+        condition: service_started
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 volumes:
   postgres_data:
+  prometheus_data:
+  grafana_data:

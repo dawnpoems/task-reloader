@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import { tasksApi } from '../api/tasks'
-import type { DashboardSummary, RecentTaskCompletion } from '../types/insights'
+import type { DashboardSummary, InsightsOverview, RecentTaskCompletion } from '../types/insights'
 
 interface UseInsightsReturn {
   dashboard: DashboardSummary | null
+  overview: InsightsOverview | null
   recentCompletions: RecentTaskCompletion[]
   isLoading: boolean
   error: string | null
@@ -12,6 +13,7 @@ interface UseInsightsReturn {
 
 export function useInsights(enabled = true): UseInsightsReturn {
   const [dashboard, setDashboard] = useState<DashboardSummary | null>(null)
+  const [overview, setOverview] = useState<InsightsOverview | null>(null)
   const [recentCompletions, setRecentCompletions] = useState<RecentTaskCompletion[]>([])
   const [isLoading, setIsLoading] = useState(enabled)
   const [error, setError] = useState<string | null>(null)
@@ -25,8 +27,9 @@ export function useInsights(enabled = true): UseInsightsReturn {
     setIsLoading(true)
     setError(null)
 
-    const [dashboardRes, recentRes] = await Promise.all([
+    const [dashboardRes, overviewRes, recentRes] = await Promise.all([
       tasksApi.getDashboard(),
+      tasksApi.getOverview({ days: 30, top: 5 }),
       tasksApi.getRecentCompletions(),
     ])
 
@@ -35,6 +38,13 @@ export function useInsights(enabled = true): UseInsightsReturn {
     } else {
       setDashboard(null)
       setError('인사이트를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.')
+    }
+
+    if (overviewRes.success && overviewRes.data) {
+      setOverview(overviewRes.data)
+    } else {
+      setOverview(null)
+      setError((prev) => prev ?? '인사이트 요약을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.')
     }
 
     if (recentRes.success && recentRes.data) {
@@ -55,5 +65,5 @@ export function useInsights(enabled = true): UseInsightsReturn {
     fetchInsights()
   }, [enabled, fetchInsights])
 
-  return { dashboard, recentCompletions, isLoading, error, refetch: fetchInsights }
+  return { dashboard, overview, recentCompletions, isLoading, error, refetch: fetchInsights }
 }
