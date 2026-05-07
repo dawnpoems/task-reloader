@@ -377,7 +377,7 @@ class AuthServiceAuthFlowTest {
     @DisplayName("리프레시 실패 - 유효하지 않은 토큰")
     void refresh_invalidToken_unauthorized() {
         String raw = "invalid-refresh-token";
-        when(refreshTokenRepository.findByTokenHash(hash(raw))).thenReturn(Optional.empty());
+        when(refreshTokenRepository.findByTokenHashForUpdate(hash(raw))).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> authService.refresh(raw))
                 .isInstanceOf(AuthException.class)
@@ -399,7 +399,7 @@ class AuthServiceAuthFlowTest {
                 .tokenHash(hash(raw))
                 .expiresAt(OffsetDateTime.ofInstant(FIXED_NOW.minusSeconds(1), ZoneOffset.UTC))
                 .build();
-        when(refreshTokenRepository.findByTokenHash(hash(raw))).thenReturn(Optional.of(expired));
+        when(refreshTokenRepository.findByTokenHashForUpdate(hash(raw))).thenReturn(Optional.of(expired));
 
         assertThatThrownBy(() -> authService.refresh(raw))
                 .isInstanceOf(AuthException.class)
@@ -437,7 +437,7 @@ class AuthServiceAuthFlowTest {
                 .expiresAt(OffsetDateTime.ofInstant(FIXED_NOW.plusSeconds(1000), ZoneOffset.UTC))
                 .build();
 
-        when(refreshTokenRepository.findByTokenHash(hash(raw))).thenReturn(Optional.of(reused));
+        when(refreshTokenRepository.findByTokenHashForUpdate(hash(raw))).thenReturn(Optional.of(reused));
         when(refreshTokenRepository.findAllByUserIdAndRevokedAtIsNull(22L)).thenReturn(List.of(active1, active2));
 
         assertThatThrownBy(() -> authService.refresh(raw))
@@ -472,7 +472,7 @@ class AuthServiceAuthFlowTest {
                 .expiresAt(OffsetDateTime.ofInstant(FIXED_NOW.plusSeconds(1000), ZoneOffset.UTC))
                 .build();
 
-        when(refreshTokenRepository.findByTokenHash(hash(raw))).thenReturn(Optional.of(current));
+        when(refreshTokenRepository.findByTokenHashForUpdate(hash(raw))).thenReturn(Optional.of(current));
         when(refreshTokenRepository.findAllByUserIdAndRevokedAtIsNull(24L)).thenReturn(List.of(current, otherActive));
 
         assertThatThrownBy(() -> authService.refresh(raw))
@@ -501,7 +501,7 @@ class AuthServiceAuthFlowTest {
                 .tokenHash(hash(raw))
                 .expiresAt(OffsetDateTime.ofInstant(FIXED_NOW.plusSeconds(5000), ZoneOffset.UTC))
                 .build();
-        when(refreshTokenRepository.findByTokenHash(hash(raw))).thenReturn(Optional.of(oldToken));
+        when(refreshTokenRepository.findByTokenHashForUpdate(hash(raw))).thenReturn(Optional.of(oldToken));
         when(jwtTokenProvider.generateAccessToken(23L, UserRole.USER)).thenReturn("new-access-token");
 
         AuthService.RefreshResult result = authService.refresh(raw);
@@ -518,6 +518,8 @@ class AuthServiceAuthFlowTest {
 
         ArgumentCaptor<RefreshToken> captor = ArgumentCaptor.forClass(RefreshToken.class);
         verify(refreshTokenRepository).save(captor.capture());
+        verify(refreshTokenRepository).findByTokenHashForUpdate(hash(raw));
+        verify(refreshTokenRepository, never()).findByTokenHash(hash(raw));
         RefreshToken newlySaved = captor.getValue();
         assertThat(newlySaved.getUser()).isEqualTo(user);
         assertThat(newlySaved.getTokenHash()).isEqualTo(hash(result.refreshToken()));
