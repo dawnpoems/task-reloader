@@ -140,7 +140,7 @@ public class AuthService {
         }
 
         String tokenHash = hashToken(refreshTokenValue);
-        RefreshToken refreshToken = refreshTokenRepository.findByTokenHash(tokenHash)
+        RefreshToken refreshToken = refreshTokenRepository.findByTokenHashForUpdate(tokenHash)
                 .orElseThrow(() -> new AuthException(HttpStatus.UNAUTHORIZED, "INVALID_REFRESH_TOKEN", "유효하지 않은 리프레시 토큰입니다."));
 
         OffsetDateTime now = nowUtc();
