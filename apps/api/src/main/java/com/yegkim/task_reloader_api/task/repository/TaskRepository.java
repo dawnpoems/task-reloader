@@ -19,6 +19,12 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
 
     List<Task> findAllByUserIdAndIsActiveTrueOrderByNextDueAtAsc(Long userId);
 
+    long countByUserId(Long userId);
+
+    long countByUserIdAndIsActiveTrue(Long userId);
+
+    long deleteByUserId(Long userId);
+
     Optional<Task> findByIdAndUserId(Long id, Long userId);
 
     boolean existsByIdAndUserId(Long id, Long userId);

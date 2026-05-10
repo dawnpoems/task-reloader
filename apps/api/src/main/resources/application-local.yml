@@ -59,6 +59,15 @@ auth:
     secure: ${AUTH_REFRESH_COOKIE_SECURE:false}
     same-site: ${AUTH_REFRESH_COOKIE_SAME_SITE:Lax}
 
+demo:
+  account:
+    reset:
+      enabled: ${DEMO_ACCOUNT_RESET_ENABLED:false}
+      email: ${DEMO_ACCOUNT_RESET_EMAIL:demo@dawnpoem.kr}
+      cron: ${DEMO_ACCOUNT_RESET_CRON:0 0 4 * * *}
+      zone-id: ${DEMO_ACCOUNT_RESET_ZONE_ID:Asia/Seoul}
+      seed-enabled: ${DEMO_ACCOUNT_RESET_SEED_ENABLED:true}
+
 management:
   endpoints:
     web:
