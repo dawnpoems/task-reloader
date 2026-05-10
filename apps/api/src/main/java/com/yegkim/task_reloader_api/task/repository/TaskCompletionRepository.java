@@ -43,6 +43,8 @@ public interface TaskCompletionRepository extends JpaRepository<TaskCompletion, 
 
     long countByUserIdAndCompletedAtBetween(Long userId, OffsetDateTime start, OffsetDateTime end);
 
+    long countByUserId(Long userId);
+
     long countByCompletedAtGreaterThanEqual(OffsetDateTime start);
 
     long countByUserIdAndCompletedAtGreaterThanEqual(Long userId, OffsetDateTime start);

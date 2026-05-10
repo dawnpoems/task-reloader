@@ -2,6 +2,9 @@ import { useState } from 'react'
 import { useRetryAfterCountdown } from '../hooks/useRetryAfterCountdown'
 import type { LoginRequest } from '../types/auth'
 
+const DEMO_ACCOUNT_EMAIL = 'demo@dawnpoem.kr'
+const DEMO_ACCOUNT_PASSWORD = 'demo1234!'
+
 interface AuthActionResult {
   success: boolean
   code?: string
@@ -19,6 +22,7 @@ interface AuthLoginPageProps {
 export function AuthLoginPage({ onLogin, onGoSignup, noticeMessage, onDismissNotice }: AuthLoginPageProps) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [isDemoAccountOpen, setIsDemoAccountOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [accountStateNotice, setAccountStateNotice] = useState<{ tone: 'pending' | 'rejected'; message: string } | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -87,6 +91,28 @@ export function AuthLoginPage({ onLogin, onGoSignup, noticeMessage, onDismissNot
                 닫기
               </button>
             )}
+          </div>
+        )}
+
+        <button
+          type="button"
+          className="auth-demo-toggle"
+          aria-expanded={isDemoAccountOpen}
+          aria-controls="demo-account-panel"
+          onClick={() => setIsDemoAccountOpen((prev) => !prev)}
+        >
+          {isDemoAccountOpen ? '데모 계정 숨기기' : '데모 계정으로 빠르게 체험하기'}
+        </button>
+        {isDemoAccountOpen && (
+          <div id="demo-account-panel" className="auth-demo-panel" role="region" aria-live="polite">
+            <p className="auth-demo-panel__title">데모 계정 안내</p>
+            <p>
+              <strong>이메일:</strong> {DEMO_ACCOUNT_EMAIL}
+            </p>
+            <p>
+              <strong>비밀번호:</strong> {DEMO_ACCOUNT_PASSWORD}
+            </p>
+            <p className="auth-demo-panel__note">공용 계정이라 데이터가 수시로 바뀔 수 있습니다.</p>
           </div>
         )}
 

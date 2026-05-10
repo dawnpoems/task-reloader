@@ -8,6 +8,14 @@ next_due_at = completed_at + every_n_days
 
 고정 요일/날짜 중심 스케줄러가 놓치기 쉬운 문제, 즉 “실제로 언제 했는가”를 제품의 중심 기준으로 다룹니다.
 
+## 라이브 데모
+
+- 서비스 URL: [https://task.dawnpoem.kr](https://task.dawnpoem.kr)
+- 포트폴리오 방문자는 위 도메인에서 바로 로그인/체험할 수 있습니다.
+- 로그인 화면의 `데모 계정으로 빠르게 체험하기` 버튼으로 데모 계정 안내를 확인할 수 있습니다.
+- 일반 가입자는 회원가입 후 관리자 승인 완료 시 사용 가능합니다.
+- 운영 보호를 위해 관리자/운영 도구는 공개 도메인과 분리해 접근 제어합니다.
+
 ## 개요
 
 - 완료 시점 기반 반복 작업 모델(`next_due_at = completed_at + every_n_days`)
@@ -45,79 +53,17 @@ next_due_at = completed_at + every_n_days
 
 ### 운영 실행 (Docker Compose)
 
-운영 형태는 compose 한 번으로 전체 실행됩니다.
+운영 실행, `.env` 설정, Cloudflare Tunnel, 운영 보안 체크리스트는 아래 문서를 단일 기준으로 사용합니다.
 
-`infra/.env` 최소 예시:
+- [infra/README.md](infra/README.md)
 
-```env
-POSTGRES_USER=task_reloader
-POSTGRES_PASSWORD=change_me_in_production
-POSTGRES_DB=task_reloader
-SPRING_DATASOURCE_USERNAME=task_reloader
-SPRING_DATASOURCE_PASSWORD=change_me_in_production
-SPRING_PROFILES_ACTIVE=local
-
-AUTH_JWT_SECRET=__CHANGE_ME_WITH_AT_LEAST_32_BYTE_SECRET__
-AUTH_REFRESH_COOKIE_SECURE=true
-AUTH_REFRESH_COOKIE_SAME_SITE=Lax
-AUTH_CSRF_COOKIE_SECURE=true
-AUTH_CSRF_COOKIE_SAME_SITE=Lax
-AUTH_CSRF_ALLOWED_ORIGINS=https://app.task-reloader.example
-
-GRAFANA_ADMIN_USER=admin
-GRAFANA_ADMIN_PASSWORD=admin
-```
-
-운영 보안 설정(단일 오리진 기준):
-- Web과 API를 같은 도메인(예: `https://app.task-reloader.example`)으로 제공하고 `/api` 프록시를 사용합니다.
-- `AUTH_CSRF_ALLOWED_ORIGINS`는 Web 접속 Origin 하나로 고정합니다.
-- 운영에서는 `AUTH_REFRESH_COOKIE_SECURE=true`, `AUTH_CSRF_COOKIE_SECURE=true`를 유지합니다.
-- 로컬 HTTP 점검 시에는 `AUTH_REFRESH_COOKIE_SECURE=false`, `AUTH_CSRF_COOKIE_SECURE=false`, `AUTH_CSRF_ALLOWED_ORIGINS=http://localhost:3000`으로 오버라이드합니다.
-
-운영 체크리스트(핵심, DB/WAS 포함):
-- [ ] `AUTH_JWT_SECRET`를 32바이트 이상 랜덤 시크릿으로 변경했다. (예: `openssl rand -base64 48`)
-- [ ] DB 계정 비밀번호를 운영값으로 변경했다: `POSTGRES_PASSWORD`, `SPRING_DATASOURCE_PASSWORD`. (예: `change_me...` 금지, 랜덤 20자+)
-- [ ] Grafana 관리자 계정을 운영값으로 변경했다: `GRAFANA_ADMIN_USER`, `GRAFANA_ADMIN_PASSWORD`. (예: `GRAFANA_ADMIN_USER=ops_admin`)
-- [ ] 관리자 시드 계정을 운영값으로 설정했다: `AUTH_ADMIN_EMAIL`, `AUTH_ADMIN_PASSWORD_HASH`(bcrypt 해시). (예: `AUTH_ADMIN_PASSWORD_HASH=$2a$12$...`)
-- [ ] 운영 쿠키/CSRF 설정을 확정했다:
-  - `AUTH_REFRESH_COOKIE_SECURE=true`
-  - `AUTH_CSRF_COOKIE_SECURE=true`
-  - `AUTH_REFRESH_COOKIE_SAME_SITE=Lax`
-  - `AUTH_CSRF_COOKIE_SAME_SITE=Lax`
-  - `AUTH_CSRF_ALLOWED_ORIGINS=https://<운영-웹-도메인>`
-  - 예: `AUTH_CSRF_ALLOWED_ORIGINS=https://app.task-reloader.example`
-- [ ] 토큰 만료 정책을 운영 기준으로 확정했다:
-  - `AUTH_ACCESS_TOKEN_TTL_SECONDS`
-  - `AUTH_REFRESH_TOKEN_TTL_SECONDS`
-  - 예: `AUTH_ACCESS_TOKEN_TTL_SECONDS=900`, `AUTH_REFRESH_TOKEN_TTL_SECONDS=1209600`
-- [ ] 로그인 잠금 정책 값을 확정했다:
-  - `AUTH_LOGIN_LOCK_THRESHOLD`
-  - `AUTH_LOGIN_LOCK_BASE_SECONDS`
-  - `AUTH_LOGIN_LOCK_MAX_SECONDS`
-  - `AUTH_LOGIN_LOCK_RESET_WINDOW_SECONDS`
-  - 예: `5회 실패 -> 60초 잠금 시작, 최대 3600초`
-- [ ] 인증 rate-limit 정책 값을 확정했다:
-  - `AUTH_RATE_LIMIT_ENABLED=true`
-  - `AUTH_RATE_LIMIT_LOGIN_IP_LIMIT`, `AUTH_RATE_LIMIT_LOGIN_IP_WINDOW_SECONDS`
-  - `AUTH_RATE_LIMIT_LOGIN_IP_EMAIL_LIMIT`, `AUTH_RATE_LIMIT_LOGIN_IP_EMAIL_WINDOW_SECONDS`
-  - `AUTH_RATE_LIMIT_SIGNUP_IP_LIMIT`, `AUTH_RATE_LIMIT_SIGNUP_IP_WINDOW_SECONDS`
-  - `AUTH_RATE_LIMIT_SIGNUP_IP_EMAIL_LIMIT`, `AUTH_RATE_LIMIT_SIGNUP_IP_EMAIL_WINDOW_SECONDS`
-  - `AUTH_RATE_LIMIT_REFRESH_IP_LIMIT`, `AUTH_RATE_LIMIT_REFRESH_IP_WINDOW_SECONDS`
-  - 예: 로그인 `IP 30회/60초`, `IP+Email 5회/300초`
-- [ ] DB 스키마 보호 설정을 유지했다: `SPRING_JPA_HIBERNATE_DDL_AUTO=validate`, `SPRING_FLYWAY_ENABLED=true`. (예: `update/create` 금지)
-- [ ] 공개 포트 노출 범위를 확정했다(운영에서 불필요하면 닫기): `5432`, `8080`, `9090`, `3001`. (예: 외부는 `80/443`만, 나머지는 내부망만 허용)
+빠른 시작:
 
 ```sh
+cp infra/.env.example infra/.env
 cd infra
-docker compose up -d
+docker compose up -d --build
 ```
-
-- Web: `http://localhost:3000`
-- API: `http://localhost:8080`
-- Prometheus: `http://localhost:9090`
-- Grafana: `http://localhost:3001`
-
-Grafana 로그인 계정은 `infra/.env`의 `GRAFANA_ADMIN_USER`, `GRAFANA_ADMIN_PASSWORD`를 사용합니다.
 
 ### 개발 실행 (DB Docker + 백/프론트 로컬)
 
@@ -349,28 +295,9 @@ Base URL: `/api`
 
 `http.server.requests`로 요청량(count), 오류율(status), 응답시간(latency)을 추적할 수 있습니다.
 
-## Grafana 운영 가이드 (1차)
+## Grafana 운영 가이드
 
-- 접속: `http://localhost:3001`
-- 로그인: `infra/.env`의 `GRAFANA_ADMIN_USER`, `GRAFANA_ADMIN_PASSWORD`
-- 대시보드: `Task Reloader - API Overview` (Docker 실행 시 자동 프로비저닝)
-
-핵심 패널:
-- 요청량(RPS): 트래픽 변화/급증 감지
-- 에러율(5xx): 장애 징후 감지
-- p95 Latency: 체감 성능 저하 감지
-- 상태코드별 요청량: 정상/오류 트래픽 비율 파악
-- 느린 API Top5, 5xx Endpoint Top5: 병목/오류 엔드포인트 우선 조치
-
-운영 시 확인 루틴:
-1. RPS 급증 구간에서 5xx와 p95가 같이 상승하는지 확인
-2. `느린 API Top5`로 병목 URI를 확인하고 로그(requestId)와 대조
-3. `5xx Endpoint Top5`로 오류가 집중되는 API부터 우선 대응
-
-간단 대응 흐름:
-1. 알림 조건 예시: `5xx > 3%(5분)` 또는 `p95 > 800ms(5분)`
-2. 알림 발생 시 Grafana에서 문제 URI/상태코드 확인
-3. requestId 기반 로그 추적으로 원인 구간 확인 후, 조치 결과를 같은 지표에서 재확인
+Grafana/Prometheus 운영 방법, 대시보드 확인 루틴, 문제 해결은 [infra/README.md](infra/README.md)를 기준으로 확인합니다.
 
 ## 확장 계획
 
