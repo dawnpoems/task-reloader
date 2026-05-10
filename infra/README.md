@@ -30,6 +30,9 @@ AUTH_CSRF_ALLOWED_ORIGINS=https://app.task-reloader.example
 
 GRAFANA_ADMIN_USER=admin
 GRAFANA_ADMIN_PASSWORD=admin
+
+# Cloudflare Tunnel (Docker profile)
+CLOUDFLARE_TUNNEL_TOKEN=<Cloudflare 대시보드에서 발급한 토큰>
 ```
 
 3. 전체 스택 실행
@@ -37,6 +40,38 @@ GRAFANA_ADMIN_PASSWORD=admin
 ```bash
 cd infra
 docker compose up -d --build
+```
+
+## Cloudflare Tunnel (Docker 기반)
+
+`cloudflared`를 컨테이너로 띄우는 경로입니다. (`docker-compose`의 `tunnel` profile 사용)
+
+1. Cloudflare 대시보드에서 Named Tunnel 생성
+   - 메뉴: `Zero Trust > Networks > Tunnels`
+   - 환경: `Docker`
+   - 발급된 토큰을 복사
+
+2. Public Hostname 라우트 추가
+   - 예: `app.task-reloader.example`
+   - Service URL: `http://web:80`
+   - 중요: cloudflared가 컨테이너로 동작하므로 `localhost:3000`이 아니라 같은 Docker 네트워크의 서비스 이름(`web`)을 사용해야 합니다.
+
+3. `infra/.env`에 값 반영
+   - `CLOUDFLARE_TUNNEL_TOKEN=<발급 토큰>`
+   - `AUTH_CSRF_ALLOWED_ORIGINS=https://app.task-reloader.example`
+
+4. 터널 포함 실행
+
+```bash
+cd infra
+docker compose --profile tunnel up -d --build
+```
+
+5. 연결 상태 확인
+
+```bash
+cd infra
+docker compose logs -f cloudflared
 ```
 
 ## 운영 보안 설정 체크 (단일 오리진)
