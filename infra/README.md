@@ -1,6 +1,7 @@
 # Task Reloader - Infra & Monitoring
 
 Task Reloader의 인프라 실행/관측성 구성을 빠르게 확인하기 위한 문서입니다.
+운영 실행, `.env` 설정, Cloudflare Tunnel, 모니터링 점검은 이 문서를 단일 기준으로 사용합니다.
 
 ## 빠른 시작 (Docker 전체 실행)
 
@@ -10,7 +11,7 @@ Task Reloader의 인프라 실행/관측성 구성을 빠르게 확인하기 위
 cp infra/.env.example infra/.env
 ```
 
-2. 필요한 값 설정 (`infra/.env`)
+2. 필요한 값 설정 (`infra/.env`, 전체 키는 `infra/.env.example` 참고)
 
 ```env
 POSTGRES_USER=task_reloader
@@ -21,12 +22,29 @@ SPRING_DATASOURCE_USERNAME=task_reloader
 SPRING_DATASOURCE_PASSWORD=change_me_in_production
 SPRING_PROFILES_ACTIVE=local
 
+AUTH_ADMIN_EMAIL=admin@task-reloader.local
+AUTH_ADMIN_PASSWORD_HASH=__CHANGE_ME_WITH_BCRYPT_HASH__
 AUTH_JWT_SECRET=__CHANGE_ME_WITH_AT_LEAST_32_BYTE_SECRET__
+AUTH_ACCESS_TOKEN_TTL_SECONDS=900
+AUTH_REFRESH_TOKEN_TTL_SECONDS=1209600
 AUTH_REFRESH_COOKIE_SECURE=true
 AUTH_REFRESH_COOKIE_SAME_SITE=Lax
 AUTH_CSRF_COOKIE_SECURE=true
 AUTH_CSRF_COOKIE_SAME_SITE=Lax
 AUTH_CSRF_ALLOWED_ORIGINS=https://app.task-reloader.example
+
+AUTH_RATE_LIMIT_ENABLED=true
+AUTH_RATE_LIMIT_LOGIN_IP_LIMIT=30
+AUTH_RATE_LIMIT_LOGIN_IP_EMAIL_LIMIT=5
+AUTH_RATE_LIMIT_SIGNUP_IP_LIMIT=10
+AUTH_RATE_LIMIT_SIGNUP_IP_EMAIL_LIMIT=3
+AUTH_RATE_LIMIT_REFRESH_IP_LIMIT=60
+
+DEMO_ACCOUNT_RESET_ENABLED=false
+DEMO_ACCOUNT_RESET_EMAIL=demo@dawnpoem.kr
+DEMO_ACCOUNT_RESET_CRON=0 0 4 * * *
+DEMO_ACCOUNT_RESET_ZONE_ID=Asia/Seoul
+DEMO_ACCOUNT_RESET_SEED_ENABLED=true
 
 GRAFANA_ADMIN_USER=admin
 GRAFANA_ADMIN_PASSWORD=admin
@@ -84,6 +102,10 @@ docker compose logs -f cloudflared
   - `AUTH_REFRESH_COOKIE_SAME_SITE=Lax`
   - `AUTH_CSRF_COOKIE_SAME_SITE=Lax`
 - 인증 API 과호출 방어는 기본 활성화(`AUTH_RATE_LIMIT_ENABLED=true`) 상태로 운영합니다.
+- 데모 계정을 공개할 때는 자동 초기화를 켜고 주기/시간대를 운영에 맞게 확정합니다.
+  - `DEMO_ACCOUNT_RESET_ENABLED=true`
+  - `DEMO_ACCOUNT_RESET_CRON=0 0 4 * * *`
+  - `DEMO_ACCOUNT_RESET_ZONE_ID=Asia/Seoul`
 - 로컬 HTTP 테스트 시에는 아래처럼 오버라이드합니다.
   - `AUTH_REFRESH_COOKIE_SECURE=false`
   - `AUTH_CSRF_COOKIE_SECURE=false`
