@@ -221,6 +221,37 @@ BASE_URL=http://localhost:8080 VUS=30 DURATION=3m SLEEP_SECONDS=0.5 k6 run infra
 BASE_URL=http://localhost:8080 TASK_ID=1 k6 run infra/load/k6-read-suite-extended.js
 ```
 
+### Cloudflare 우회(홈서버 localhost 직행) 인증 포함 읽기 부하 테스트
+
+인증이 필요한 현재 운영 구성에서는 로그인 토큰을 먼저 확보한 뒤 읽기 API에 부하를 주는 스크립트를 사용합니다.
+
+권장 기본값:
+- `BASE_URL=http://127.0.0.1:3000` (web + nginx `/api` 프록시 경로 포함)
+- 또는 `BASE_URL=http://127.0.0.1:8080` (API 직접 성능만 측정)
+
+1) 초기 로그인 1회 + 토큰 공유 방식
+
+```bash
+BASE_URL=http://127.0.0.1:3000 \
+AUTH_EMAIL=demo@dawnpoem.kr \
+AUTH_PASSWORD='demo1234!' \
+VUS=20 DURATION=3m \
+k6 run infra/load/k6-auth-read-local.js
+```
+
+2) 사전 발급 토큰 사용 방식 (로그인 호출 없이 실행)
+
+```bash
+BASE_URL=http://127.0.0.1:3000 \
+ACCESS_TOKEN='<pre-issued-access-token>' \
+VUS=20 DURATION=3m \
+k6 run infra/load/k6-auth-read-local.js
+```
+
+참고:
+- 이 스크립트는 `/api/auth/refresh`를 부하 대상에 포함하지 않습니다.
+- 기본적으로 로그인 호출은 `setup()`에서 1회만 수행해 auth rate-limit 영향을 최소화합니다.
+
 ## 로컬 개발 모드 (DB만 Docker)
 
 백엔드/프론트를 IDE/로컬 서버로 실행하고 DB만 Docker로 띄우는 방식입니다.
