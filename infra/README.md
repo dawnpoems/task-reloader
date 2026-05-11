@@ -104,12 +104,25 @@ docker compose logs -f cloudflared
 - 인증 API 과호출 방어는 기본 활성화(`AUTH_RATE_LIMIT_ENABLED=true`) 상태로 운영합니다.
 - 데모 계정을 공개할 때는 자동 초기화를 켜고 주기/시간대를 운영에 맞게 확정합니다.
   - `DEMO_ACCOUNT_RESET_ENABLED=true`
+  - `DEMO_ACCOUNT_RESET_ENABLED=true`이면 앱 시작 시 1회 즉시 리셋도 함께 수행됩니다.
   - `DEMO_ACCOUNT_RESET_CRON=0 0 4 * * *`
   - `DEMO_ACCOUNT_RESET_ZONE_ID=Asia/Seoul`
 - 로컬 HTTP 테스트 시에는 아래처럼 오버라이드합니다.
   - `AUTH_REFRESH_COOKIE_SECURE=false`
   - `AUTH_CSRF_COOKIE_SECURE=false`
   - `AUTH_CSRF_ALLOWED_ORIGINS=http://localhost:3000`
+
+### 데모 계정 자동 초기화 동작 정리
+
+- `DEMO_ACCOUNT_RESET_ENABLED=false`:
+  - 데모 초기화 기능 비활성화 (시작 시/스케줄 모두 동작 안 함)
+- `DEMO_ACCOUNT_RESET_ENABLED=true`:
+  - 앱 시작 직후 1회 즉시 리셋
+  - `DEMO_ACCOUNT_RESET_CRON`, `DEMO_ACCOUNT_RESET_ZONE_ID` 기준 주기 리셋
+- `DEMO_ACCOUNT_RESET_SEED_ENABLED=true`:
+  - 리셋 후 샘플 Task 자동 재생성
+- `DEMO_ACCOUNT_RESET_SEED_ENABLED=false`:
+  - 리셋 후 샘플 Task 재생성 없이 빈 상태 유지
 
 ## 서비스 URL
 
