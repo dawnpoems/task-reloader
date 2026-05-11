@@ -11,6 +11,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -59,10 +61,20 @@ public class DemoAccountDataResetScheduler {
     )
     @Transactional
     public void resetDemoAccountDataDaily() {
+        resetDemoAccountData("scheduled");
+    }
+
+    @EventListener(ApplicationReadyEvent.class)
+    @Transactional
+    public void resetDemoAccountDataOnStartup() {
+        resetDemoAccountData("startup");
+    }
+
+    private void resetDemoAccountData(String trigger) {
         String normalizedEmail = normalizeEmail(demoAccountEmail);
         User demoUser = userRepository.findByEmail(normalizedEmail).orElse(null);
         if (demoUser == null) {
-            log.warn("Demo account reset skipped. user not found email={}", normalizedEmail);
+            log.warn("Demo account reset skipped. trigger={} user not found email={}", trigger, normalizedEmail);
             return;
         }
 
@@ -79,7 +91,8 @@ public class DemoAccountDataResetScheduler {
         int seededTaskCount = seedEnabled ? seedDefaultTasks(userId) : 0;
 
         log.info(
-                "Demo account reset completed email={} userId={} activeTasksBefore={} totalTasksBefore={} completionsBefore={} revokedTokens={} deletedTasks={} seededTasks={}",
+                "Demo account reset completed trigger={} email={} userId={} activeTasksBefore={} totalTasksBefore={} completionsBefore={} revokedTokens={} deletedTasks={} seededTasks={}",
+                trigger,
                 normalizedEmail,
                 userId,
                 activeTaskCount,

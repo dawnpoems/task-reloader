@@ -23,6 +23,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
@@ -114,7 +115,7 @@ class DemoAccountDataResetSchedulerTest {
                 "독서 20분"
         );
 
-        LocalDate todayKst = LocalDate.ofInstant(FIXED_NOW, java.time.ZoneId.of("Asia/Seoul"));
+        LocalDate todayKst = LocalDate.now(ZoneId.of("Asia/Seoul"));
         assertThat(seededTasks).extracting(Task::getStartDate).containsExactly(
                 todayKst,
                 todayKst.minusDays(1),
@@ -145,6 +146,26 @@ class DemoAccountDataResetSchedulerTest {
 
         verify(taskRepository).deleteByUserId(202L);
         verify(taskRepository, never()).saveAll(anyList());
+        assertThat(token.getRevokedAt()).isEqualTo(OffsetDateTime.ofInstant(FIXED_NOW, ZoneOffset.UTC));
+    }
+
+    @Test
+    @DisplayName("애플리케이션 시작 시에도 데모 계정 데이터를 즉시 초기화한다")
+    void resetDemoAccountDataOnStartup_seedEnabled_resetsAndSeedsTasks() {
+        User demoUser = user(303L, "demo@dawnpoem.kr");
+        RefreshToken token = refreshToken(demoUser, "token-hash-startup");
+
+        when(userRepository.findByEmail("demo@dawnpoem.kr")).thenReturn(Optional.of(demoUser));
+        when(taskRepository.countByUserIdAndIsActiveTrue(303L)).thenReturn(5L);
+        when(taskRepository.countByUserId(303L)).thenReturn(8L);
+        when(taskCompletionRepository.countByUserId(303L)).thenReturn(20L);
+        when(refreshTokenRepository.findAllByUserIdAndRevokedAtIsNull(303L)).thenReturn(List.of(token));
+        when(taskRepository.deleteByUserId(303L)).thenReturn(8L);
+
+        scheduler.resetDemoAccountDataOnStartup();
+
+        verify(taskRepository).deleteByUserId(303L);
+        verify(taskRepository).saveAll(anyList());
         assertThat(token.getRevokedAt()).isEqualTo(OffsetDateTime.ofInstant(FIXED_NOW, ZoneOffset.UTC));
     }
 

@@ -104,12 +104,25 @@ docker compose logs -f cloudflared
 - 인증 API 과호출 방어는 기본 활성화(`AUTH_RATE_LIMIT_ENABLED=true`) 상태로 운영합니다.
 - 데모 계정을 공개할 때는 자동 초기화를 켜고 주기/시간대를 운영에 맞게 확정합니다.
   - `DEMO_ACCOUNT_RESET_ENABLED=true`
+  - `DEMO_ACCOUNT_RESET_ENABLED=true`이면 앱 시작 시 1회 즉시 리셋도 함께 수행됩니다.
   - `DEMO_ACCOUNT_RESET_CRON=0 0 4 * * *`
   - `DEMO_ACCOUNT_RESET_ZONE_ID=Asia/Seoul`
 - 로컬 HTTP 테스트 시에는 아래처럼 오버라이드합니다.
   - `AUTH_REFRESH_COOKIE_SECURE=false`
   - `AUTH_CSRF_COOKIE_SECURE=false`
   - `AUTH_CSRF_ALLOWED_ORIGINS=http://localhost:3000`
+
+### 데모 계정 자동 초기화 동작 정리
+
+- `DEMO_ACCOUNT_RESET_ENABLED=false`:
+  - 데모 초기화 기능 비활성화 (시작 시/스케줄 모두 동작 안 함)
+- `DEMO_ACCOUNT_RESET_ENABLED=true`:
+  - 앱 시작 직후 1회 즉시 리셋
+  - `DEMO_ACCOUNT_RESET_CRON`, `DEMO_ACCOUNT_RESET_ZONE_ID` 기준 주기 리셋
+- `DEMO_ACCOUNT_RESET_SEED_ENABLED=true`:
+  - 리셋 후 샘플 Task 자동 재생성
+- `DEMO_ACCOUNT_RESET_SEED_ENABLED=false`:
+  - 리셋 후 샘플 Task 재생성 없이 빈 상태 유지
 
 ## 서비스 URL
 
@@ -220,6 +233,37 @@ BASE_URL=http://localhost:8080 VUS=30 DURATION=3m SLEEP_SECONDS=0.5 k6 run infra
 ```bash
 BASE_URL=http://localhost:8080 TASK_ID=1 k6 run infra/load/k6-read-suite-extended.js
 ```
+
+### Cloudflare 우회(홈서버 localhost 직행) 인증 포함 읽기 부하 테스트
+
+인증이 필요한 현재 운영 구성에서는 로그인 토큰을 먼저 확보한 뒤 읽기 API에 부하를 주는 스크립트를 사용합니다.
+
+권장 기본값:
+- `BASE_URL=http://127.0.0.1:3000` (web + nginx `/api` 프록시 경로 포함)
+- 또는 `BASE_URL=http://127.0.0.1:8080` (API 직접 성능만 측정)
+
+1) 초기 로그인 1회 + 토큰 공유 방식
+
+```bash
+BASE_URL=http://127.0.0.1:3000 \
+AUTH_EMAIL=demo@dawnpoem.kr \
+AUTH_PASSWORD='demo1234!' \
+VUS=20 DURATION=3m \
+k6 run infra/load/k6-auth-read-local.js
+```
+
+2) 사전 발급 토큰 사용 방식 (로그인 호출 없이 실행)
+
+```bash
+BASE_URL=http://127.0.0.1:3000 \
+ACCESS_TOKEN='<pre-issued-access-token>' \
+VUS=20 DURATION=3m \
+k6 run infra/load/k6-auth-read-local.js
+```
+
+참고:
+- 이 스크립트는 `/api/auth/refresh`를 부하 대상에 포함하지 않습니다.
+- 기본적으로 로그인 호출은 `setup()`에서 1회만 수행해 auth rate-limit 영향을 최소화합니다.
 
 ## 로컬 개발 모드 (DB만 Docker)
 
