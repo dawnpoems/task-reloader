@@ -299,6 +299,12 @@ Base URL: `/api`
 
 Grafana/Prometheus 운영 방법, 대시보드 확인 루틴, 문제 해결은 [infra/README.md](infra/README.md)를 기준으로 확인합니다.
 
+## 부하 테스트 결과 문서
+
+- 최신 로컬 Read Matrix 결과: [infra/load/results/local-read-matrix-20260512-102647/README.md](infra/load/results/local-read-matrix-20260512-102647/README.md)
+- k6 후속 테스트 계획: [infra/load/results/local-read-matrix-20260512-102647/k6-next-test-plan.md](infra/load/results/local-read-matrix-20260512-102647/k6-next-test-plan.md)
+- Grafana 대시보드 확장 권고: [infra/load/results/local-read-matrix-20260512-102647/grafana-dashboard-expansion.md](infra/load/results/local-read-matrix-20260512-102647/grafana-dashboard-expansion.md)
+
 ## 확장 계획
 
 1. 인사이트 고도화: 완료율/지연률/작업별 추세를 추가해 “기록”을 “의사결정 정보”로 전환 (완료)
