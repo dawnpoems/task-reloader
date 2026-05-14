@@ -1,0 +1,6 @@
+BASE_URL=http://127.0.0.1:3000
+SCRIPT_PATH=infra/load/k6-auth-read-local.js
+AUTH_EMAIL=demo@dawnpoem.kr
+RELOGIN_ON_401=true
+STARTED_AT=2026-05-12T10:26:47+00:00
+FINISHED_AT=2026-05-12T10:58:37+00:00
