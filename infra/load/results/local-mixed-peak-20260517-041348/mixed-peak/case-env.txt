@@ -1,0 +1,5 @@
+MODE=mixed
+CASE=peak
+BASE_URL=http://127.0.0.1:3000
+SCRIPT_PATH=infra/load/k6-auth-mixed-peak-local.js
+STARTED_AT=2026-05-17T04:13:52+00:00
