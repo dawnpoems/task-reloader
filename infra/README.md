@@ -192,6 +192,48 @@ BASE_URL=http://localhost:8080 k6 run infra/load/k6-smoke.js
 - `http_req_duration p(95)`: 95퍼센타일 응답시간 (기본 목표 `< 800ms`)
 - `checks`: 응답 검증 성공률 (기본 목표 `> 99%`)
 
+### 통합 실행 스크립트 (run-matrix.sh)
+
+`infra/load/run-matrix.sh`로 `read / mixed / soak`를 동일 포맷으로 실행할 수 있습니다.
+
+read matrix만 실행 (기본):
+
+```bash
+./infra/load/run-matrix.sh
+```
+
+mixed peak만 실행:
+
+```bash
+SUITE_MODE=mixed ./infra/load/run-matrix.sh
+```
+
+soak만 실행:
+
+```bash
+SUITE_MODE=soak SOAK_VUS=60 SOAK_DURATION=2h ./infra/load/run-matrix.sh
+```
+
+3개 시나리오 연속 실행:
+
+```bash
+SUITE_MODE=all ./infra/load/run-matrix.sh
+```
+
+공통 환경변수 예시:
+
+- `BASE_URL` (기본 `http://127.0.0.1:3000`)
+- `AUTH_EMAIL`, `AUTH_PASSWORD`
+- `MATRIX_NAME` (결과 디렉터리 이름)
+- `RESULT_ROOT` (결과 루트, 기본 `infra/load/results`)
+- `SUMMARY_AFTER_RUN` (`true|false`, 기본 `true`) 실행 후 `k6-summary.tsv/txt` 자동 생성
+
+요약만 다시 뽑고 싶으면:
+
+```bash
+./infra/load/summarize-k6-result.sh infra/load/results/<result-dir>
+```
+
 ### Cloudflare 우회(홈서버 localhost 직행) 인증 포함 읽기 부하 테스트
 
 인증이 필요한 현재 운영 구성에서는 로그인 토큰을 먼저 확보한 뒤 읽기 API에 부하를 주는 스크립트를 사용합니다.
