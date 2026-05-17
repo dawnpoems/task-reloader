@@ -1,0 +1,2 @@
+MODE   CASE        STARTED_AT                 FINISHED_AT  DURATION_SEC  RPS     REQS    P95_MS  P99_MS  AVG_MS  MAX_MS   FAIL_PCT  CHECK_PCT
+mixed  mixed-peak  2026-05-17T04:35:55+00:00  -            -             415.59  872832  4.10    6.02    1.78    1219.76  45.4153   51.3687

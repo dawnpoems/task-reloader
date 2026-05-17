@@ -1,7 +1,0 @@
-CONTAINER ID   IMAGE                           COMMAND                  CREATED      STATUS                PORTS                      NAMES
-378ec1888f00   infra-api                       "java -jar app.jar"      4 days ago   Up 4 days (healthy)   127.0.0.1:8080->8080/tcp   task-reloader-api
-a31de643e237   postgres:16-alpine              "docker-entrypoint.s…"   4 days ago   Up 4 days (healthy)   127.0.0.1:5432->5432/tcp   task-reloader-db
-547e52a7247f   grafana/grafana-oss:11.1.4      "/run.sh"                5 days ago   Up 5 days             127.0.0.1:3001->3000/tcp   task-reloader-grafana
-6cd27b51db3b   prom/prometheus:v2.54.1         "/bin/prometheus --c…"   5 days ago   Up 5 days             127.0.0.1:9090->9090/tcp   task-reloader-prometheus
-1554437aacc8   infra-web                       "/docker-entrypoint.…"   5 days ago   Up 5 days             127.0.0.1:3000->80/tcp     task-reloader-web
-30307ef41b9d   cloudflare/cloudflared:latest   "cloudflared --no-au…"   6 days ago   Up 6 days                                        task-reloader-cloudflared
