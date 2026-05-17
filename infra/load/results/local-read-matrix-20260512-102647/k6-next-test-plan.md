@@ -36,3 +36,27 @@
 - Grafana 동일 시간대 스냅샷 보관
 - 테스트마다 환경 변경점(코드/데이터/설정) 명시
 - 동일 프로파일 반복 시 편차 통계(최소/중앙/최대) 누적 관리
+
+## 5) 실행 스크립트
+
+### Mixed Peak (read+write)
+
+```bash
+BASE_URL=http://127.0.0.1:3000 \
+AUTH_EMAIL=demo@dawnpoem.kr \
+AUTH_PASSWORD='demo1234!' \
+WRITE_RATIO_PERCENT=30 \
+k6 run infra/load/k6-auth-mixed-peak-local.js
+```
+
+### Soak (장시간 안정성)
+
+```bash
+BASE_URL=http://127.0.0.1:3000 \
+AUTH_EMAIL=demo@dawnpoem.kr \
+AUTH_PASSWORD='demo1234!' \
+SOAK_VUS=60 \
+SOAK_DURATION=2h \
+WRITE_RATIO_PERCENT=15 \
+k6 run infra/load/k6-auth-soak-local.js
+```

@@ -192,48 +192,6 @@ BASE_URL=http://localhost:8080 k6 run infra/load/k6-smoke.js
 - `http_req_duration p(95)`: 95퍼센타일 응답시간 (기본 목표 `< 800ms`)
 - `checks`: 응답 검증 성공률 (기본 목표 `> 99%`)
 
-### 여러 GET API를 함께 검증하고 싶을 때
-
-아래 스크립트는 목록/인사이트 GET API를 한 번에 호출하고, Task가 존재하면 상세/월별 완료이력 GET까지 함께 확인합니다.
-
-```bash
-BASE_URL=http://localhost:8080 k6 run infra/load/k6-read-suite.js
-```
-
-주요 확인 대상:
-- `/api/tasks?status=DUE_NOW`
-- `/api/tasks?status=UPCOMING`
-- `/api/insights/dashboard`
-- `/api/insights/overview?days=30&top=5`
-- `/api/insights/recent-completions`
-- (Task 존재 시) `/api/tasks/{id}`, `/api/tasks/{id}/completions?year=YYYY&month=MM`
-
-### 확장 버전 (batch + 환경변수 + fallback taskId)
-
-`k6-read-suite-extended.js`는 아래 기능을 추가로 제공합니다.
-
-- `http.batch` 기반 병렬 GET 호출
-- 환경변수로 부하 세기 조정 (`VUS`, `DURATION`, `SLEEP_SECONDS`)
-- Task 목록이 비어도 `TASK_ID`를 지정하면 상세/완료이력 API 강제 검증
-
-기본 실행:
-
-```bash
-BASE_URL=http://localhost:8080 k6 run infra/load/k6-read-suite-extended.js
-```
-
-부하 강도 조정:
-
-```bash
-BASE_URL=http://localhost:8080 VUS=30 DURATION=3m SLEEP_SECONDS=0.5 k6 run infra/load/k6-read-suite-extended.js
-```
-
-목록이 비어 있을 때 fallback taskId 지정:
-
-```bash
-BASE_URL=http://localhost:8080 TASK_ID=1 k6 run infra/load/k6-read-suite-extended.js
-```
-
 ### Cloudflare 우회(홈서버 localhost 직행) 인증 포함 읽기 부하 테스트
 
 인증이 필요한 현재 운영 구성에서는 로그인 토큰을 먼저 확보한 뒤 읽기 API에 부하를 주는 스크립트를 사용합니다.
@@ -264,6 +222,41 @@ k6 run infra/load/k6-auth-read-local.js
 참고:
 - 이 스크립트는 `/api/auth/refresh`를 부하 대상에 포함하지 않습니다.
 - 기본적으로 로그인 호출은 `setup()`에서 1회만 수행해 auth rate-limit 영향을 최소화합니다.
+
+### 인증 포함 혼합 부하(Mixed Peak: read+write)
+
+read/write 혼합 부하를 단계적으로 올려 운영 구간 안정성을 확인할 때 사용합니다.
+
+기본 실행(권장):
+
+```bash
+BASE_URL=http://127.0.0.1:3000 \
+AUTH_EMAIL=demo@dawnpoem.kr \
+AUTH_PASSWORD='demo1234!' \
+WRITE_RATIO_PERCENT=30 \
+k6 run infra/load/k6-auth-mixed-peak-local.js
+```
+
+주요 기본값:
+- `WARMUP_DURATION=5m`, `WARMUP_VUS=20`
+- `PEAK_HOLD_DURATION=20m`, `PEAK_VUS=50`
+- `RAMP_DOWN_DURATION=5m`
+
+### 인증 포함 장시간 안정성(Soak: read 중심 + 소량 write)
+
+장시간 실행 중 지연 드리프트/에러율/리소스 추세를 확인할 때 사용합니다.
+
+기본 실행(권장):
+
+```bash
+BASE_URL=http://127.0.0.1:3000 \
+AUTH_EMAIL=demo@dawnpoem.kr \
+AUTH_PASSWORD='demo1234!' \
+SOAK_VUS=60 \
+SOAK_DURATION=2h \
+WRITE_RATIO_PERCENT=15 \
+k6 run infra/load/k6-auth-soak-local.js
+```
 
 ## 로컬 개발 모드 (DB만 Docker)
 

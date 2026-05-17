@@ -301,9 +301,18 @@ Grafana/Prometheus 운영 방법, 대시보드 확인 루틴, 문제 해결은 [
 
 ## 부하 테스트 결과 문서
 
+### k6 운영 안정성 점검(3축)
+
+- `Read Matrix` (완료): `5→20→40→60→80 VU` 단계 부하에서 read API 실패율 `0%`, `p95 8.11ms`로 안정적
+- `Mixed Peak` (시나리오 준비): read/write 혼합 부하(`70:30`)로 동시 경합 구간 검증
+- `Soak` (시나리오 준비): 장시간(`2h`) 지속 부하로 지연/에러/리소스 드리프트 검증
+
+요약 결론: **운영 안정성은 3축(용량→경합→지속성)으로 순차 검증하며, Read Matrix 결과를 기준선으로 Mixed Peak/Soak까지 동일 체계로 확장해 관리**합니다.
+
 - 최신 로컬 Read Matrix 결과: [infra/load/results/local-read-matrix-20260512-102647/README.md](infra/load/results/local-read-matrix-20260512-102647/README.md)
 - k6 후속 테스트 계획: [infra/load/results/local-read-matrix-20260512-102647/k6-next-test-plan.md](infra/load/results/local-read-matrix-20260512-102647/k6-next-test-plan.md)
 - Grafana 대시보드 확장 권고: [infra/load/results/local-read-matrix-20260512-102647/grafana-dashboard-expansion.md](infra/load/results/local-read-matrix-20260512-102647/grafana-dashboard-expansion.md)
+- Work Unit(선정 근거/우선순위): [docs/work-units/20260517/p1-k6-three-test-rationale.md](docs/work-units/20260517/p1-k6-three-test-rationale.md)
 
 ## 확장 계획
 
