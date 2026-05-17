@@ -234,6 +234,13 @@ SUITE_MODE=all ./infra/load/run-matrix.sh
 ./infra/load/summarize-k6-result.sh infra/load/results/<result-dir>
 ```
 
+시작/종료시간 빠른 확인:
+
+```bash
+cat infra/load/results/<result-dir>/k6-run-window.txt
+cat infra/load/results/<result-dir>/k6-summary.txt
+```
+
 ### Cloudflare 우회(홈서버 localhost 직행) 인증 포함 읽기 부하 테스트
 
 인증이 필요한 현재 운영 구성에서는 로그인 토큰을 먼저 확보한 뒤 읽기 API에 부하를 주는 스크립트를 사용합니다.
@@ -281,8 +288,11 @@ k6 run infra/load/k6-auth-mixed-peak-local.js
 
 주요 기본값:
 - `WARMUP_DURATION=5m`, `WARMUP_VUS=20`
-- `PEAK_HOLD_DURATION=20m`, `PEAK_VUS=50`
+- `RAMP_TO_PEAK_DURATION=5m`, `PEAK_VUS=50`
+- `PEAK_HOLD_DURATION=20m`
 - `RAMP_DOWN_DURATION=5m`
+
+즉, 기본 부하 패턴은 `0→20(5m) → 20→50(5m) → 50 유지(20m) → 50→0(5m)`입니다.
 
 ### 인증 포함 장시간 안정성(Soak: read 중심 + 소량 write)
 

@@ -17,6 +17,12 @@ RESULT_ROOT="${RESULT_ROOT:-infra/load/results}"
 SUITE_MODE="${SUITE_MODE:-read}" # read | mixed | soak | all | read,mixed,soak
 COOLDOWN_SECONDS="${COOLDOWN_SECONDS:-60}"
 MIXED_WRITE_RATIO_PERCENT="${MIXED_WRITE_RATIO_PERCENT:-30}"
+MIXED_WARMUP_VUS="${MIXED_WARMUP_VUS:-20}"
+MIXED_PEAK_VUS="${MIXED_PEAK_VUS:-50}"
+MIXED_WARMUP_DURATION="${MIXED_WARMUP_DURATION:-5m}"
+MIXED_RAMP_TO_PEAK_DURATION="${MIXED_RAMP_TO_PEAK_DURATION:-5m}"
+MIXED_PEAK_HOLD_DURATION="${MIXED_PEAK_HOLD_DURATION:-20m}"
+MIXED_RAMP_DOWN_DURATION="${MIXED_RAMP_DOWN_DURATION:-5m}"
 SOAK_VUS="${SOAK_VUS:-60}"
 SOAK_DURATION="${SOAK_DURATION:-2h}"
 SOAK_WRITE_RATIO_PERCENT="${SOAK_WRITE_RATIO_PERCENT:-15}"
@@ -80,12 +86,19 @@ git status --short | tee "${MATRIX_DIR}/git-status.txt"
   echo "AUTH_EMAIL=${AUTH_EMAIL}"
   echo "RELOGIN_ON_401=${RELOGIN_ON_401}"
   echo "MIXED_WRITE_RATIO_PERCENT=${MIXED_WRITE_RATIO_PERCENT}"
+  echo "MIXED_WARMUP_VUS=${MIXED_WARMUP_VUS}"
+  echo "MIXED_PEAK_VUS=${MIXED_PEAK_VUS}"
+  echo "MIXED_WARMUP_DURATION=${MIXED_WARMUP_DURATION}"
+  echo "MIXED_RAMP_TO_PEAK_DURATION=${MIXED_RAMP_TO_PEAK_DURATION}"
+  echo "MIXED_PEAK_HOLD_DURATION=${MIXED_PEAK_HOLD_DURATION}"
+  echo "MIXED_RAMP_DOWN_DURATION=${MIXED_RAMP_DOWN_DURATION}"
   echo "SOAK_VUS=${SOAK_VUS}"
   echo "SOAK_DURATION=${SOAK_DURATION}"
   echo "SOAK_WRITE_RATIO_PERCENT=${SOAK_WRITE_RATIO_PERCENT}"
   echo "COOLDOWN_SECONDS=${COOLDOWN_SECONDS}"
   echo "SUMMARY_AFTER_RUN=${SUMMARY_AFTER_RUN}"
   echo "STARTED_AT=$(date -Iseconds)"
+  echo "STARTED_AT_EPOCH=$(date +%s)"
 } | tee "${MATRIX_DIR}/test-env.txt"
 
 uname -a | tee "${MATRIX_DIR}/system.txt"
@@ -171,6 +184,7 @@ run_read_case() {
     echo "VUS=${vus}"
     echo "DURATION=${duration}"
     echo "STARTED_AT=$(date -Iseconds)"
+    echo "STARTED_AT_EPOCH=$(date +%s)"
   } | tee "${case_dir}/case-env.txt"
 
   echo "Container stats before case..."
@@ -195,6 +209,7 @@ run_read_case() {
 
   {
     echo "FINISHED_AT=$(date -Iseconds)"
+    echo "FINISHED_AT_EPOCH=$(date +%s)"
   } | tee -a "${case_dir}/case-env.txt"
 
   echo "Cooling down for ${COOLDOWN_SECONDS} seconds..."
@@ -221,6 +236,7 @@ run_single_case() {
     echo "BASE_URL=${BASE_URL}"
     echo "SCRIPT_PATH=${script_path}"
     echo "STARTED_AT=$(date -Iseconds)"
+    echo "STARTED_AT_EPOCH=$(date +%s)"
   } | tee "${case_dir}/case-env.txt"
 
   echo "Container stats before case..."
@@ -245,6 +261,7 @@ run_single_case() {
 
   {
     echo "FINISHED_AT=$(date -Iseconds)"
+    echo "FINISHED_AT_EPOCH=$(date +%s)"
   } | tee -a "${case_dir}/case-env.txt"
 
   echo "Cooling down for ${COOLDOWN_SECONDS} seconds..."
@@ -261,6 +278,12 @@ fi
 
 if should_run "mixed"; then
   run_single_case "mixed" "peak" "${MIXED_SCRIPT_PATH}" \
+    "WARMUP_VUS=${MIXED_WARMUP_VUS}" \
+    "PEAK_VUS=${MIXED_PEAK_VUS}" \
+    "WARMUP_DURATION=${MIXED_WARMUP_DURATION}" \
+    "RAMP_TO_PEAK_DURATION=${MIXED_RAMP_TO_PEAK_DURATION}" \
+    "PEAK_HOLD_DURATION=${MIXED_PEAK_HOLD_DURATION}" \
+    "RAMP_DOWN_DURATION=${MIXED_RAMP_DOWN_DURATION}" \
     "WRITE_RATIO_PERCENT=${MIXED_WRITE_RATIO_PERCENT}"
 fi
 
@@ -271,7 +294,10 @@ if should_run "soak"; then
     "WRITE_RATIO_PERCENT=${SOAK_WRITE_RATIO_PERCENT}"
 fi
 
-echo "FINISHED_AT=$(date -Iseconds)" | tee -a "${MATRIX_DIR}/test-env.txt"
+{
+  echo "FINISHED_AT=$(date -Iseconds)"
+  echo "FINISHED_AT_EPOCH=$(date +%s)"
+} | tee -a "${MATRIX_DIR}/test-env.txt"
 
 echo ""
 echo "Done."

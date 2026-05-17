@@ -49,13 +49,36 @@ for summary in "${summary_files[@]}"; do
     mode="${case_name%%-*}"
   fi
 
+  started_at=""
+  finished_at=""
+  started_epoch=""
+  finished_epoch=""
+  if [[ -f "${case_env}" ]]; then
+    started_at="$(awk -F= '/^STARTED_AT=/{print $2; exit}' "${case_env}")"
+    finished_at="$(awk -F= '/^FINISHED_AT=/{print $2; exit}' "${case_env}")"
+    started_epoch="$(awk -F= '/^STARTED_AT_EPOCH=/{print $2; exit}' "${case_env}")"
+    finished_epoch="$(awk -F= '/^FINISHED_AT_EPOCH=/{print $2; exit}' "${case_env}")"
+  fi
+  if [[ -z "${started_at}" ]]; then started_at="-"; fi
+  if [[ -z "${finished_at}" ]]; then finished_at="-"; fi
+  duration_sec="-"
+  if [[ "${started_epoch}" =~ ^[0-9]+$ ]] && [[ "${finished_epoch}" =~ ^[0-9]+$ ]]; then
+    duration_sec="$((finished_epoch - started_epoch))"
+  fi
+
   jq -r \
     --arg case "${case_name}" \
     --arg mode "${mode}" \
+    --arg started_at "${started_at}" \
+    --arg finished_at "${finished_at}" \
+    --arg duration_sec "${duration_sec}" \
     '
     [
       $mode,
       $case,
+      $started_at,
+      $finished_at,
+      $duration_sec,
       (.metrics.http_reqs.rate // 0),
       (.metrics.http_reqs.count // 0),
       (.metrics.http_req_duration["p(95)"] // 0),
@@ -71,8 +94,8 @@ for summary in "${summary_files[@]}"; do
     ] | @tsv
     ' "${summary}" \
     | awk -F'\t' '{
-        printf "%s\t%s\t%.2f\t%.0f\t%.2f\t%.2f\t%.2f\t%.2f\t%.4f\t%.4f\n",
-          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10
+        printf "%s\t%s\t%s\t%s\t%s\t%.2f\t%.0f\t%.2f\t%.2f\t%.2f\t%.2f\t%.4f\t%.4f\n",
+          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13
       }' >> "${tmp_tsv}"
 done
 
@@ -80,15 +103,36 @@ summary_tsv="${TARGET_DIR}/k6-summary.tsv"
 summary_txt="${TARGET_DIR}/k6-summary.txt"
 
 {
-  echo -e "MODE\tCASE\tRPS\tREQS\tP95_MS\tP99_MS\tAVG_MS\tMAX_MS\tFAIL_PCT\tCHECK_PCT"
+  echo -e "MODE\tCASE\tSTARTED_AT\tFINISHED_AT\tDURATION_SEC\tRPS\tREQS\tP95_MS\tP99_MS\tAVG_MS\tMAX_MS\tFAIL_PCT\tCHECK_PCT"
   sort "${tmp_tsv}"
 } > "${summary_tsv}"
 
 column -t -s $'\t' "${summary_tsv}" | tee "${summary_txt}"
 rm -f "${tmp_tsv}"
 
+run_window_txt="${TARGET_DIR}/k6-run-window.txt"
+if [[ -f "${TARGET_DIR}/test-env.txt" ]]; then
+  matrix_started_at="$(awk -F= '/^STARTED_AT=/{print $2; exit}' "${TARGET_DIR}/test-env.txt")"
+  matrix_finished_at="$(awk -F= '/^FINISHED_AT=/{print $2; exit}' "${TARGET_DIR}/test-env.txt")"
+  matrix_started_epoch="$(awk -F= '/^STARTED_AT_EPOCH=/{print $2; exit}' "${TARGET_DIR}/test-env.txt")"
+  matrix_finished_epoch="$(awk -F= '/^FINISHED_AT_EPOCH=/{print $2; exit}' "${TARGET_DIR}/test-env.txt")"
+  matrix_duration_sec="-"
+  if [[ "${matrix_started_epoch}" =~ ^[0-9]+$ ]] && [[ "${matrix_finished_epoch}" =~ ^[0-9]+$ ]]; then
+    matrix_duration_sec="$((matrix_finished_epoch - matrix_started_epoch))"
+  fi
+
+  {
+    echo "RUN_DIR=${TARGET_DIR}"
+    echo "STARTED_AT=${matrix_started_at:-"-"}"
+    echo "FINISHED_AT=${matrix_finished_at:-"-"}"
+    echo "DURATION_SEC=${matrix_duration_sec}"
+  } | tee "${run_window_txt}"
+fi
+
 echo ""
 echo "Summary files generated:"
 echo "- ${summary_tsv}"
 echo "- ${summary_txt}"
-
+if [[ -f "${run_window_txt}" ]]; then
+  echo "- ${run_window_txt}"
+fi

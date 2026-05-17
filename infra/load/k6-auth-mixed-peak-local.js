@@ -91,6 +91,7 @@ function loginAndGetAccessToken(baseUrl, email, password) {
 export const options = {
   stages: [
     { duration: envDuration("WARMUP_DURATION", "5m"), target: envNumber("WARMUP_VUS", 20) },
+    { duration: envDuration("RAMP_TO_PEAK_DURATION", "5m"), target: envNumber("PEAK_VUS", 50) },
     { duration: envDuration("PEAK_HOLD_DURATION", "20m"), target: envNumber("PEAK_VUS", 50) },
     { duration: envDuration("RAMP_DOWN_DURATION", "5m"), target: 0 },
   ],
@@ -335,4 +336,3 @@ export default function (setupData) {
 
   sleep(sleepSeconds);
 }
-
