@@ -305,12 +305,13 @@ Grafana/Prometheus 운영 방법, 대시보드 확인 루틴, 문제 해결은 [
 
 - `Read Matrix` (완료): `5→20→40→60→80 VU` 단계 부하에서 read API 실패율 `0%`, `p95 8.11ms`로 안정적
 - `Mixed Peak` (완료): read/write 혼합 부하(`70:30`)에서 처리량 피크 `~600 req/s` 확인, 동시에 `401/429` 증가로 인증/보호정책 병목 식별
-- `Soak` (시나리오 준비): 장시간(`2h`) 지속 부하로 지연/에러/리소스 드리프트 검증
+- `Soak` (완료): 장시간(`2h`, `60 VU`) 지속 부하에서 처리량/지연은 안정적이지만, `401/429` 대량 발생과 간헐 `500` endpoint를 확인
 
-요약 결론: **Read Matrix로 read 경로 용량 기준선을 확보했고, Mixed Peak로 경합 시 병목(인증/보호정책)을 확인했습니다. 다음 단계는 Soak로 장시간 안정성까지 검증하는 것입니다.**
+요약 결론: **Read Matrix로 read 경로 용량 기준선을 확보했고, Mixed Peak/Soak에서 공통적으로 인증 구간(`401/429`)이 운영 안정성 병목임을 확인했습니다.**
 
 - 최신 로컬 Read Matrix 결과: [infra/load/results/local-read-matrix-20260512-102647/README.md](infra/load/results/local-read-matrix-20260512-102647/README.md)
 - 최신 로컬 Mixed Peak 결과: [infra/load/results/local-mixed-peak-20260517-043551/README.md](infra/load/results/local-mixed-peak-20260517-043551/README.md)
+- 최신 로컬 Soak 결과: [infra/load/results/local-soak-20260517-055109/README.md](infra/load/results/local-soak-20260517-055109/README.md)
 - k6 후속 테스트 계획: [infra/load/results/local-read-matrix-20260512-102647/k6-next-test-plan.md](infra/load/results/local-read-matrix-20260512-102647/k6-next-test-plan.md)
 - Grafana 대시보드 확장 권고: [infra/load/results/local-read-matrix-20260512-102647/grafana-dashboard-expansion.md](infra/load/results/local-read-matrix-20260512-102647/grafana-dashboard-expansion.md)
 - Work Unit(선정 근거/우선순위): [docs/work-units/20260517/p1-k6-three-test-rationale.md](docs/work-units/20260517/p1-k6-three-test-rationale.md)
