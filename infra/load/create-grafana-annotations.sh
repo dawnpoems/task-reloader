@@ -12,6 +12,7 @@ DRY_RUN="${DRY_RUN:-false}"
 ROUND_TO_MINUTE="${ROUND_TO_MINUTE:-true}"
 CAPTURE_PAD_BEFORE_SEC="${CAPTURE_PAD_BEFORE_SEC:-120}"
 CAPTURE_PAD_AFTER_SEC="${CAPTURE_PAD_AFTER_SEC:-120}"
+SKIP_EXISTING="${SKIP_EXISTING:-true}"
 
 if [[ "${TARGET_DIR}" == "--help" || "${TARGET_DIR}" == "-h" ]]; then
   cat <<'EOF'
@@ -34,6 +35,7 @@ Env:
   - ROUND_TO_MINUTE=true|false (default: true)
   - CAPTURE_PAD_BEFORE_SEC (default: 120)
   - CAPTURE_PAD_AFTER_SEC  (default: 120)
+  - SKIP_EXISTING=true|false (default: true)
   - DRY_RUN=true|false (default: false)
 EOF
   exit 0
@@ -159,6 +161,10 @@ round_to_minute_epoch() {
   echo "$((((epoch + 30) / 60) * 60))"
 }
 
+urlencode() {
+  printf '%s' "$1" | jq -sRr @uri
+}
+
 MODE="$(read_kv "${CASE_ENV}" "MODE")"
 if [[ -z "${MODE}" ]]; then
   MODE="mixed"
@@ -257,10 +263,61 @@ else
   curl_auth=()
 fi
 
+find_existing_annotation_id() {
+  local time_ms="$1"
+  local time_end_ms="$2"
+  local text="$3"
+  local target_end_ms="${time_end_ms:-$time_ms}"
+
+  local query_url="${api_url}?from=${time_ms}&to=${target_end_ms}&type=annotation&limit=500"
+  local tag
+  for tag in "${clean_tags[@]}"; do
+    query_url="${query_url}&tags=$(urlencode "${tag}")"
+  done
+
+  local response
+  response="$(
+    curl -sS \
+      "${curl_auth[@]}" \
+      -H "Accept: application/json" \
+      "${query_url}"
+  )"
+
+  if ! echo "${response}" | jq -e 'type == "array"' >/dev/null 2>&1; then
+    echo ""
+    return 0
+  fi
+
+  echo "${response}" \
+    | jq -r \
+      --argjson t "${time_ms}" \
+      --argjson te "${target_end_ms}" \
+      --arg text "${text}" \
+      --argjson tags "${tags_json}" '
+      [
+        .[]
+        | select(
+            .time == $t
+            and ((.timeEnd // .time) == $te)
+            and ((.text // "") == $text)
+            and (((.tags // []) | sort) == ($tags | sort))
+          )
+      ][0].id // empty
+    '
+}
+
 post_annotation() {
   local time_ms="$1"
   local time_end_ms="$2"
   local text="$3"
+
+  if [[ "${SKIP_EXISTING}" == "true" && "${DRY_RUN}" != "true" ]]; then
+    existing_id="$(find_existing_annotation_id "${time_ms}" "${time_end_ms}" "${text}")"
+    if [[ -n "${existing_id}" ]]; then
+      echo "Skipped existing annotation: id=${existing_id}, text=${text}"
+      return 0
+    fi
+  fi
 
   local payload
   if [[ -n "${time_end_ms}" ]]; then

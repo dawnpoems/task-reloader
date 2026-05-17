@@ -249,6 +249,7 @@ Grafana에 공용(org) annotation을 한 번에 생성합니다.
 - 생성 항목: 시각선 5개 + 구간(region) 4개
 - 동일 태그를 조회하는 여러 대시보드에서 재사용 가능
 - 기본 시간 정렬: 분 단위 반올림(`ROUND_TO_MINUTE=true`)
+- 중복 방지: 동일 이벤트가 있으면 기본 스킵(`SKIP_EXISTING=true`)
 
 미리보기(DRY_RUN):
 
@@ -263,6 +264,25 @@ GRAFANA_URL=http://127.0.0.1:3001 \
 GRAFANA_TOKEN=<grafana_api_token> \
 ANNOTATION_TAGS=loadtest,mixed,2026-05-17 \
 ./infra/load/create-grafana-annotations.sh infra/load/results/<mixed-result-dir>
+```
+
+중복 탐지/정리(먼저 DRY_RUN 권장):
+
+```bash
+# 리포트만
+DRY_RUN=true \
+GRAFANA_URL=http://127.0.0.1:3001 \
+GRAFANA_USER=<user> \
+GRAFANA_PASSWORD=<pass> \
+./infra/load/dedupe-grafana-annotations.sh infra/load/results/<mixed-result-dir>
+
+# 실제 삭제 (기본: 가장 오래된 1개 유지, 나머지 삭제)
+DRY_RUN=false \
+KEEP_MODE=oldest \
+GRAFANA_URL=http://127.0.0.1:3001 \
+GRAFANA_USER=<user> \
+GRAFANA_PASSWORD=<pass> \
+./infra/load/dedupe-grafana-annotations.sh infra/load/results/<mixed-result-dir>
 ```
 
 ### Cloudflare 우회(홈서버 localhost 직행) 인증 포함 읽기 부하 테스트
