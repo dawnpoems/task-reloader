@@ -316,13 +316,58 @@ Grafana/Prometheus 운영 방법, 대시보드 확인 루틴, 문제 해결은 [
 - Grafana 대시보드 확장 권고: [infra/load/results/local-read-matrix-20260512-102647/grafana-dashboard-expansion.md](infra/load/results/local-read-matrix-20260512-102647/grafana-dashboard-expansion.md)
 - Work Unit(선정 근거/우선순위): [docs/work-units/20260517/p1-k6-three-test-rationale.md](docs/work-units/20260517/p1-k6-three-test-rationale.md)
 
+### 다음 액션: 문제 구체화 테스트 + 코드 수정 계획
+
+#### 1) 문제 구체화 테스트 (원인 분리)
+
+1. 인증 병목 분리 A/B 테스트  
+목적: `401/429`의 주 원인이 재로그인 폭주인지 확인합니다.  
+방법: 동일한 mixed/soak 부하에서 `ACCESS_TOKEN 고정(재로그인 없음)` vs `현재 방식(RELOGIN_ON_401=true)`를 비교합니다.  
+판정: 고정 토큰에서 실패율이 급감하면 인증 재로그인 경로가 1차 병목입니다.
+
+2. 계정 샤딩 효과 검증  
+목적: 단일 계정 사용이 `IP+email limit`을 얼마나 악화시키는지 확인합니다.  
+방법: `단일 계정` vs `계정 풀(VU별 고정 계정)`로 mixed/soak를 각각 1회 이상 재실행합니다.  
+판정: 계정 풀에서 `401/429`가 유의미하게 감소하면 계정 분산이 필수 개선안입니다.
+
+3. rate-limit 민감도 테스트  
+목적: 현재 보호정책 값이 실제 운영 목표 트래픽과 맞는지 확인합니다.  
+방법: 같은 시나리오로 `기본값`과 `완화값(테스트 프로파일)`을 비교해 실패율/지연/처리량 변화를 수집합니다.  
+판정: 완화값에서 성공률만 개선되고 지연/자원은 안정적이면 정책 튜닝 근거가 확보됩니다.
+
+4. `recent-completions` 500 재현 테스트  
+목적: 간헐 `500`의 재현성과 조건을 특정합니다.  
+방법: `WRITE_RATIO_PERCENT=0`(read-only)와 `WRITE_RATIO_PERCENT=30`(혼합)을 비교해 endpoint별 5xx를 추적합니다.  
+판정: 혼합에서만 500이 증가하면 read-write 경합/연관조회 타이밍 이슈 가능성이 높습니다.
+
+#### 2) 코드 수정 계획 (우선순위)
+
+1. `P0` 인증 안정화  
+`infra/load/k6-auth-mixed-peak-local.js`, `infra/load/k6-auth-soak-local.js`에 재로그인 backoff+jitter, 계정 풀 샤딩, 연쇄 실패 cool-off를 추가합니다.  
+인증 API rate-limit은 테스트 전용 프로파일에서 별도 운용해 부하테스트 목적(시스템 병목 분석)과 보안정책 검증을 분리합니다.
+
+2. `P1` `recent-completions` 500 완화  
+`/api/insights/recent-completions` 조회 경로를 projection/fetch join 중심으로 단순화해 lazy 연관조회 경합 창을 줄입니다.  
+`GlobalExceptionHandler`에 DB/JPA 계열 예외를 분리 핸들링해 원인 가시성을 높이고, 500을 예외 유형 단위로 식별 가능하게 만듭니다.
+
+3. `P2` 관측성 강화  
+테스트 종료 직후 자동 로그 추출(`500 access line + requestId trace`)을 결과 폴더에 저장합니다.  
+Grafana는 `status`뿐 아니라 `exception class` 기준 패널을 추가해 500 원인을 재현 즉시 좁힐 수 있게 구성합니다.
+
+#### 3) 합격 기준(재실행 공통)
+
+1. `http_req_failed < 1%`  
+2. `checks > 99%`  
+3. `401/429` 비중이 장시간 유지 구간에서 비정상적으로 누적되지 않을 것  
+4. `5xx`는 0에 수렴하거나, 발생 시 endpoint/exception/requestId까지 즉시 추적 가능할 것
+
 ## 확장 계획
 
 1. 인사이트 고도화: 완료율/지연률/작업별 추세를 추가해 “기록”을 “의사결정 정보”로 전환 (완료)
 2. Grafana 연계: Prometheus 데이터소스 자동 프로비저닝 + 요청량/에러율/p95/Top5 대시보드 구성으로 운영 추적성 강화 (완료)
-3. 멀티유저 지원: 사용자 계정과 권한 모델을 도입해 개인별 작업 관리와 협업 기능 확장
-4. CloudFlare Tunnel을 활용한 외부 개방 : 서버를 안전하게 외부에 노출해 실사용자 테스트와 피드백 수집 용이성 개선 
-5. 부하 테스트 : k6 등의 도구로 동시 요청 시 시스템 안정성과 병목 구간을 분석해 최적화 포인트 도출 
+3. 멀티유저 지원: 사용자 계정과 권한 모델을 도입해 개인별 작업 관리와 협업 기능 확장 (완료)
+4. CloudFlare Tunnel을 활용한 외부 개방 : 서버를 안전하게 외부에 노출해 실사용자 테스트와 피드백 수집 용이성 개선 (완료) 
+5. 부하 테스트 : k6 등의 도구로 동시 요청 시 시스템 안정성과 병목 구간을 분석해 최적화 포인트 도출 (완료, 도출 문제점 기반 추가 테스트 계획 수립 중)
 6. 알림 시스템 MVP: `DUE_NOW` 발생 시 이메일 알림을 보내 실제 행동 유도 
 7. Grace Window 도입: due 직후 짧은 유예 구간을 두어 과도한 overdue 판정을 줄이고 사용자 신뢰도 개선 
 8. Grafana Alerting 고도화: `API down`/`5xx`/`p95` 임계치 알림 규칙과 Slack·Discord·Email 연동, 재알림/소음 제어 정책까지 포함해 운영 대응 자동화 강화
