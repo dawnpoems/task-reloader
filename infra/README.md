@@ -241,6 +241,30 @@ cat infra/load/results/<result-dir>/k6-run-window.txt
 cat infra/load/results/<result-dir>/k6-summary.txt
 ```
 
+### Grafana 어노테이션 자동 생성 (공용)
+
+`infra/load/create-grafana-annotations.sh`는 mixed 결과 디렉터리에서 실행 시간대를 읽어,  
+Grafana에 공용(org) annotation을 한 번에 생성합니다.
+
+- 생성 항목: 시각선 5개 + 구간(region) 4개
+- 동일 태그를 조회하는 여러 대시보드에서 재사용 가능
+- 기본 시간 정렬: 분 단위 반올림(`ROUND_TO_MINUTE=true`)
+
+미리보기(DRY_RUN):
+
+```bash
+DRY_RUN=true ./infra/load/create-grafana-annotations.sh infra/load/results/<mixed-result-dir>
+```
+
+실제 생성(토큰 인증):
+
+```bash
+GRAFANA_URL=http://127.0.0.1:3001 \
+GRAFANA_TOKEN=<grafana_api_token> \
+ANNOTATION_TAGS=loadtest,mixed,2026-05-17 \
+./infra/load/create-grafana-annotations.sh infra/load/results/<mixed-result-dir>
+```
+
 ### Cloudflare 우회(홈서버 localhost 직행) 인증 포함 읽기 부하 테스트
 
 인증이 필요한 현재 운영 구성에서는 로그인 토큰을 먼저 확보한 뒤 읽기 API에 부하를 주는 스크립트를 사용합니다.
