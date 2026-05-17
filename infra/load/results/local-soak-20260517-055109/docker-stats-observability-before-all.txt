@@ -1,0 +1,3 @@
+CONTAINER ID   NAME                       CPU %     MEM USAGE / LIMIT    MEM %     NET I/O           BLOCK I/O    PIDS
+6cd27b51db3b   task-reloader-prometheus   0.30%     83.79MiB / 12.4GiB   0.66%     7.85GB / 62.8MB   0B / 1.2GB   19
+547e52a7247f   task-reloader-grafana      0.10%     53.54MiB / 12.4GiB   0.42%     250kB / 444kB     0B / 381kB   19
