@@ -105,3 +105,8 @@ docker-compose.override.yml
 *.temp
 *.bak
 *.orig
+
+# =========================
+# agent files
+# =========================
+AGENTS.md
