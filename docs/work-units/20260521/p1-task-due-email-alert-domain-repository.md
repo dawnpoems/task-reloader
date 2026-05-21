@@ -19,13 +19,14 @@
 - `TaskDueEmailAlertDeliveryLog` 엔티티 및 `TaskDueEmailAlertDeliveryStatus` enum 추가
 - 설정/수신자/발송로그별 Spring Data JPA 리포지토리 추가
 - 설정/발송로그에는 중복 처리와 스케줄러 갱신을 위한 pessimistic write 조회 메서드 추가
+- 리포지토리 동작 검증을 위한 JPA 테스트 추가
 
 ## 테스트 방법
-- 컴파일로 JPA 엔티티/리포지토리 선언이 빌드 가능한지 확인한다.
-- 이후 서비스 테스트에서 사용자별 설정 생성, 수신자 중복 확인, 일자별 발송로그 중복 방지 흐름과 연결해 검증한다.
+- `TaskDueEmailAlertRepositoryTest`에서 기존 사용자 기본 설정 백필, 활성 설정 조회, 수신자 정렬/중복 확인, 발송로그 조회/중복 차단을 검증한다.
+- 이후 서비스 테스트에서 최대 수신자 5개 제한, 이메일 정규화, 발송 스킵/재시도 정책과 연결해 검증한다.
 
 ## 관련 테스트
-- 자동화 테스트 추가 없음 (도메인/리포지토리 구현만 진행)
+- `apps/api/src/test/java/com/yegkim/task_reloader_api/alert/repository/TaskDueEmailAlertRepositoryTest.java`
 
 ## 한 줄 요약
-- 작업 마감 이메일 알림의 설정/수신자/발송로그를 다루는 JPA 도메인과 리포지토리 기반을 추가했다.
+- 작업 마감 이메일 알림의 설정/수신자/발송로그를 다루는 JPA 도메인, 리포지토리, 기본 저장소 테스트를 추가했다.
