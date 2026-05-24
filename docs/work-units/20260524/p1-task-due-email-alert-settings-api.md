@@ -19,13 +19,15 @@
 - 설정 조회/수정 DTO와 수신자 추가/응답 DTO 추가
 - 수신 이메일 최대 5개 제한, 중복 이메일 차단, 타임존 검증 로직 추가
 - 작업 마감 이메일 알림 전용 예외와 공통 예외 핸들러 연결
+- 컨트롤러/서비스 자동화 테스트 추가
 
 ## 테스트 방법
-- 컴파일로 신규 컨트롤러/서비스/DTO/예외 핸들러 구성이 빌드 가능한지 확인한다.
-- 이후 API 테스트에서 설정 조회/수정, 로그인 이메일 추천값, 수신자 추가/삭제, 최대 5개 제한, 중복 이메일 차단을 검증한다.
+- `TaskDueEmailAlertControllerTest`에서 설정 조회/수정, 수신자 목록/추가/삭제, validation/error response를 검증한다.
+- `TaskDueEmailAlertServiceTest`에서 로그인 이메일 추천값, 기본 설정 생성, 타임존 검증, 수신자 최대 5개 제한, 이메일 정규화/중복 차단, 삭제 예외를 검증한다.
 
 ## 관련 테스트
-- 자동화 테스트 추가 없음 (이번 단계는 구현 코드만 진행)
+- `apps/api/src/test/java/com/yegkim/task_reloader_api/alert/controller/TaskDueEmailAlertControllerTest.java`
+- `apps/api/src/test/java/com/yegkim/task_reloader_api/alert/service/TaskDueEmailAlertServiceTest.java`
 
 ## 한 줄 요약
-- 작업 마감 이메일 알림 설정과 수신 이메일 관리를 위한 `/api/alerts/task-due-email` API 구현을 추가했다.
+- 작업 마감 이메일 알림 설정과 수신 이메일 관리를 위한 `/api/alerts/task-due-email` API 및 자동화 테스트를 추가했다.
