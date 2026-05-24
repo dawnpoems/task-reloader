@@ -46,6 +46,15 @@ DEMO_ACCOUNT_RESET_CRON=0 0 4 * * *
 DEMO_ACCOUNT_RESET_ZONE_ID=Asia/Seoul
 DEMO_ACCOUNT_RESET_SEED_ENABLED=true
 
+MAIL_HOST=localhost
+MAIL_PORT=1025
+MAIL_USERNAME=
+MAIL_PASSWORD=
+MAIL_SMTP_AUTH=false
+MAIL_SMTP_STARTTLS_ENABLE=false
+TASK_DUE_EMAIL_ALERT_MAIL_FROM=no-reply@task-reloader.local
+TASK_RELOADER_APP_URL=http://localhost:3000
+
 GRAFANA_ADMIN_USER=admin
 GRAFANA_ADMIN_PASSWORD=admin
 
@@ -111,6 +120,20 @@ docker compose logs -f cloudflared
   - `AUTH_REFRESH_COOKIE_SECURE=false`
   - `AUTH_CSRF_COOKIE_SECURE=false`
   - `AUTH_CSRF_ALLOWED_ORIGINS=http://localhost:3000`
+
+### 작업 마감 이메일 알림 메일 설정
+
+- 실제 메일 발송을 사용하려면 SMTP 제공자에서 발급받은 값을 `infra/.env`에 반영합니다.
+- 로컬 개발에서 Mailpit/Mailhog 같은 SMTP 캡처 도구를 쓰면 `MAIL_HOST=localhost`, `MAIL_PORT=1025`, 인증/STARTTLS 비활성화로 테스트할 수 있습니다.
+- 운영 SMTP에서는 제공자 정책에 맞춰 아래 값을 조정합니다.
+  - `MAIL_HOST`
+  - `MAIL_PORT`
+  - `MAIL_USERNAME`
+  - `MAIL_PASSWORD`
+  - `MAIL_SMTP_AUTH`
+  - `MAIL_SMTP_STARTTLS_ENABLE`
+  - `TASK_DUE_EMAIL_ALERT_MAIL_FROM`
+  - `TASK_RELOADER_APP_URL`
 
 ### 데모 계정 자동 초기화 동작 정리
 
