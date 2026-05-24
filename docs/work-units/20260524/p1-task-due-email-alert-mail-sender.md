@@ -27,11 +27,12 @@
 - `infra/.env.example`, `infra/README.md`에 메일 설정 키 문서화
 
 ## 테스트 방법
-- 컴파일로 Spring Mail/Thymeleaf 의존성과 신규 렌더러/발송 서비스가 빌드 가능한지 확인한다.
-- 이후 테스트 코드에서 0건/수신자 없음 스킵, 제목/HTML/plain text 생성, JavaMailSender 호출/예외 전파를 검증한다.
+- 실제 템플릿 파일을 읽어 제목, HTML 본문, plain text 본문이 렌더링되는지 확인한다.
+- 메일 발송 서비스가 0건/수신자 없음/공백 수신자를 스킵하고 SMTP 실패를 전용 예외로 감싸는지 확인한다.
 
 ## 관련 테스트
-- 자동화 테스트 추가 없음 (이번 단계는 구현 코드만 진행)
+- `apps/api/src/test/java/com/yegkim/task_reloader_api/alert/mail/TaskDueEmailAlertMailTemplateRendererTest.java`
+- `apps/api/src/test/java/com/yegkim/task_reloader_api/alert/mail/TaskDueEmailAlertMailSenderTest.java`
 
 ## 한 줄 요약
-- 작업 마감 이메일 알림 집계 결과를 HTML/plain text 메일로 렌더링하고 SMTP로 발송하는 서비스를 추가했다.
+- 작업 마감 이메일 알림 집계 결과를 Thymeleaf HTML/plain text 템플릿으로 렌더링하고 SMTP로 발송하는 서비스를 테스트까지 추가했다.
