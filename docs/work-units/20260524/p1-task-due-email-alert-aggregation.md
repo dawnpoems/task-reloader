@@ -17,13 +17,15 @@
 - `TaskDueEmailAlertSummary`, `TaskDueEmailAlertTaskItem` DTO 추가
 - `TaskRepository`에 overdue/due today 범위 조회 메서드 추가
 - 사용자 타임존 기준 `localDate`, `dueDate`, `isEmpty()` 판단을 집계 결과에 포함
+- 집계 서비스 단위 테스트와 repository 범위 조회 테스트 추가
 
 ## 테스트 방법
-- 컴파일로 신규 집계 서비스와 repository 파생 쿼리 메서드가 빌드 가능한지 확인한다.
-- 이후 테스트 코드에서 타임존 경계, due today/overdue 분리, `next_due_at ASC` 정렬, 0건 여부를 검증한다.
+- `TaskDueEmailAlertAggregationServiceTest`에서 사용자 타임존 경계, 로컬 날짜, due date 변환, 0건 여부, 잘못된 타임존 예외를 검증한다.
+- `TaskRepositoryTest`에서 overdue/due today 범위 조회가 `next_due_at ASC` 정렬과 경계 포함/제외 규칙을 지키는지 검증한다.
 
 ## 관련 테스트
-- 자동화 테스트 추가 없음 (이번 단계는 구현 코드만 진행)
+- `apps/api/src/test/java/com/yegkim/task_reloader_api/alert/service/TaskDueEmailAlertAggregationServiceTest.java`
+- `apps/api/src/test/java/com/yegkim/task_reloader_api/task/repository/TaskRepositoryTest.java`
 
 ## 한 줄 요약
-- 작업 마감 이메일 발송 전에 사용할 due today/overdue 작업 집계 서비스를 추가했다.
+- 작업 마감 이메일 발송 전에 사용할 due today/overdue 작업 집계 서비스와 검증 테스트를 추가했다.
