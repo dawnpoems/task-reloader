@@ -6,7 +6,7 @@
 
 ## 결정
 - Spring Mail의 `JavaMailSender`를 사용해 실제 SMTP 발송을 구현한다.
-- 템플릿은 별도 템플릿 엔진 없이 Java 렌더러에서 HTML/plain text를 함께 생성한다.
+- Thymeleaf 기반 HTML/plain text 템플릿 파일로 메일 본문을 렌더링한다.
 - 수신자별 개별 발송으로 구현해 이후 실패 로그/재시도 추적을 단순하게 만든다.
 
 ## 트레이드오프
@@ -15,14 +15,19 @@
 
 ## 구현 요약
 - `spring-boot-starter-mail` 의존성 추가
+- `spring-boot-starter-thymeleaf` 의존성 추가
 - SMTP 및 작업 마감 이메일 알림 발신 설정 추가
 - `TaskDueEmailAlertMailTemplateRenderer` 추가
+- plain text 메일 템플릿용 Thymeleaf TEXT 모드 resolver 추가
+- `templates/mail/task-due-email-alert.html` 추가
+- `templates/mail/task-due-email-alert.txt` 추가
 - `TaskDueEmailAlertMailSender` 추가
+- SMTP host 설정이 있을 때만 메일 발송 서비스가 활성화되도록 처리
 - 메일 발송 실패 전용 예외 추가
 - `infra/.env.example`, `infra/README.md`에 메일 설정 키 문서화
 
 ## 테스트 방법
-- 컴파일로 Spring Mail 의존성과 신규 렌더러/발송 서비스가 빌드 가능한지 확인한다.
+- 컴파일로 Spring Mail/Thymeleaf 의존성과 신규 렌더러/발송 서비스가 빌드 가능한지 확인한다.
 - 이후 테스트 코드에서 0건/수신자 없음 스킵, 제목/HTML/plain text 생성, JavaMailSender 호출/예외 전파를 검증한다.
 
 ## 관련 테스트

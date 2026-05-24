@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <title>Task Reloader 알림</title>
+</head>
+<body style="margin:0;padding:0;background:#f6f7f9;color:#1f2933;font-family:Arial,sans-serif;">
+  <main style="max-width:640px;margin:0 auto;padding:32px 20px;">
+    <section style="background:#ffffff;border:1px solid #d9dee7;border-radius:8px;padding:24px;">
+      <h1 style="margin:0 0 8px;font-size:22px;line-height:1.35;color:#111827;">작업 마감 알림</h1>
+      <p style="margin:0 0 20px;color:#52606d;font-size:14px;line-height:1.6;">
+        <span th:text="${localDate}">2026-05-24</span> 기준,
+        <span th:text="${timezone}">Asia/Seoul</span> 타임존으로 정리했습니다.
+      </p>
+
+      <div style="display:flex;gap:12px;margin:0 0 24px;">
+        <div style="flex:1;border:1px solid #d9dee7;border-radius:8px;padding:14px;">
+          <div style="font-size:12px;color:#66788a;">오늘 마감</div>
+          <div style="font-size:24px;font-weight:700;color:#111827;" th:text="${dueTodayCount}">0</div>
+        </div>
+        <div style="flex:1;border:1px solid #d9dee7;border-radius:8px;padding:14px;">
+          <div style="font-size:12px;color:#66788a;">지난 작업</div>
+          <div style="font-size:24px;font-weight:700;color:#111827;" th:text="${overdueCount}">0</div>
+        </div>
+      </div>
+
+      <h2 style="margin:24px 0 10px;font-size:16px;color:#111827;">오늘 마감</h2>
+      <p
+          th:if="${#lists.isEmpty(dueTodayTasks)}"
+          style="margin:0;color:#66788a;font-size:14px;line-height:1.6;">
+        아직 오늘 처리할 작업이 없습니다.
+      </p>
+      <ul th:if="${!#lists.isEmpty(dueTodayTasks)}" style="list-style:none;margin:0;padding:0;">
+        <li
+            th:each="task : ${dueTodayTasks}"
+            style="border-top:1px solid #e5e9f0;padding:12px 0;">
+          <a
+              th:href="${task.url}"
+              th:text="${task.name}"
+              style="font-size:15px;font-weight:700;color:#1d4ed8;text-decoration:none;">
+            작업 이름
+          </a>
+          <div style="margin-top:4px;color:#66788a;font-size:13px;">
+            마감일: <span th:text="${task.dueDate}">2026-05-24</span>
+          </div>
+        </li>
+      </ul>
+
+      <h2 style="margin:24px 0 10px;font-size:16px;color:#111827;">지난 작업</h2>
+      <p
+          th:if="${#lists.isEmpty(overdueTasks)}"
+          style="margin:0;color:#66788a;font-size:14px;line-height:1.6;">
+        밀린 작업이 없습니다.
+      </p>
+      <ul th:if="${!#lists.isEmpty(overdueTasks)}" style="list-style:none;margin:0;padding:0;">
+        <li
+            th:each="task : ${overdueTasks}"
+            style="border-top:1px solid #e5e9f0;padding:12px 0;">
+          <a
+              th:href="${task.url}"
+              th:text="${task.name}"
+              style="font-size:15px;font-weight:700;color:#1d4ed8;text-decoration:none;">
+            작업 이름
+          </a>
+          <div style="margin-top:4px;color:#66788a;font-size:13px;">
+            마감일: <span th:text="${task.dueDate}">2026-05-23</span>
+          </div>
+        </li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

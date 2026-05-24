@@ -6,6 +6,7 @@ import com.yegkim.task_reloader_api.alert.dto.TaskDueEmailAlertSummary;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
@@ -15,6 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @Service
+@ConditionalOnProperty(prefix = "spring.mail", name = "host")
 @RequiredArgsConstructor
 public class TaskDueEmailAlertMailSender {
 

@@ -1,0 +1,14 @@
+Task Reloader 작업 마감 알림
+기준일: [(${localDate})]
+타임존: [(${timezone})]
+
+오늘 마감: [(${dueTodayCount})]개
+[# th:if="${#lists.isEmpty(dueTodayTasks)}"]- 없음
+[/]
+[# th:each="task : ${dueTodayTasks}"]- [(${task.name})] (마감일: [(${task.dueDate})], 링크: [(${task.url})])
+[/]
+지난 작업: [(${overdueCount})]개
+[# th:if="${#lists.isEmpty(overdueTasks)}"]- 없음
+[/]
+[# th:each="task : ${overdueTasks}"]- [(${task.name})] (마감일: [(${task.dueDate})], 링크: [(${task.url})])
+[/]
