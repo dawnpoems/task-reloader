@@ -18,6 +18,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -63,6 +64,7 @@ class TaskDueEmailAlertRepositoryTest {
         assertThat(setting.getSendTime()).isEqualTo(LocalTime.of(9, 0));
         assertThat(setting.getTimezone()).isEqualTo("Asia/Seoul");
         assertThat(setting.getLastSentLocalDate()).isNull();
+        assertThat(setting.getNextSendAt()).isNull();
     }
 
     @Test
@@ -77,6 +79,45 @@ class TaskDueEmailAlertRepositoryTest {
         assertThat(result)
                 .extracting(TaskDueEmailAlertSetting::getUserId)
                 .containsExactly(ADMIN_USER_ID);
+    }
+
+    @Test
+    @DisplayName("발송 예정 시각이 지난 활성 알림 설정만 조회한다")
+    void findDueSettingsForUpdate() {
+        TaskDueEmailAlertSetting setting = settingRepository.findById(ADMIN_USER_ID).orElseThrow();
+        setting.update(true, LocalTime.of(8, 30), "Asia/Seoul");
+        setting.updateNextSendAt(OffsetDateTime.parse("2026-05-25T00:00:00Z"));
+        settingRepository.saveAndFlush(setting);
+
+        List<TaskDueEmailAlertSetting> result =
+                settingRepository.findDueSettingsForUpdate(OffsetDateTime.parse("2026-05-25T00:01:00Z"), 10);
+
+        assertThat(result)
+                .extracting(TaskDueEmailAlertSetting::getUserId)
+                .containsExactly(ADMIN_USER_ID);
+    }
+
+    @Test
+    @DisplayName("비활성 알림이거나 발송 예정 시각이 미래면 due 조회에서 제외한다")
+    void findDueSettingsForUpdateExcludesDisabledAndFutureSettings() {
+        TaskDueEmailAlertSetting setting = settingRepository.findById(ADMIN_USER_ID).orElseThrow();
+        setting.update(false, LocalTime.of(8, 30), "Asia/Seoul");
+        setting.updateNextSendAt(OffsetDateTime.parse("2026-05-25T00:00:00Z"));
+        settingRepository.saveAndFlush(setting);
+
+        assertThat(settingRepository.findDueSettingsForUpdate(
+                OffsetDateTime.parse("2026-05-25T00:01:00Z"),
+                10
+        )).isEmpty();
+
+        setting.update(true, LocalTime.of(8, 30), "Asia/Seoul");
+        setting.updateNextSendAt(OffsetDateTime.parse("2026-05-25T00:02:00Z"));
+        settingRepository.saveAndFlush(setting);
+
+        assertThat(settingRepository.findDueSettingsForUpdate(
+                OffsetDateTime.parse("2026-05-25T00:01:00Z"),
+                10
+        )).isEmpty();
     }
 
     @Test

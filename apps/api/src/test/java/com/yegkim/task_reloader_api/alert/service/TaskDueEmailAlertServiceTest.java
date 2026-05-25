@@ -53,6 +53,9 @@ class TaskDueEmailAlertServiceTest {
     @Mock
     private AuthenticatedUserProvider authenticatedUserProvider;
 
+    @Mock
+    private TaskDueEmailAlertNextSendAtCalculator nextSendAtCalculator;
+
     @InjectMocks
     private TaskDueEmailAlertService taskDueEmailAlertService;
 
@@ -92,8 +95,11 @@ class TaskDueEmailAlertServiceTest {
     @DisplayName("설정 수정 - 활성화/시간/타임존을 갱신한다")
     void updateSettings() {
         TaskDueEmailAlertSetting setting = TaskDueEmailAlertSetting.createDefault(USER_ID);
+        OffsetDateTime nextSendAt = OffsetDateTime.parse("2026-05-25T12:30:00Z");
         when(settingRepository.findByUserIdForUpdate(USER_ID)).thenReturn(Optional.of(setting));
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(nextSendAtCalculator.calculate(true, LocalTime.of(8, 30), "America/New_York"))
+                .thenReturn(nextSendAt);
 
         TaskDueEmailAlertSettingsResponse response = taskDueEmailAlertService.updateSettings(
                 new UpdateTaskDueEmailAlertSettingsRequest(true, LocalTime.of(8, 30), "America/New_York")
@@ -102,6 +108,8 @@ class TaskDueEmailAlertServiceTest {
         assertThat(response.enabled()).isTrue();
         assertThat(response.sendTime()).isEqualTo(LocalTime.of(8, 30));
         assertThat(response.timezone()).isEqualTo("America/New_York");
+        assertThat(setting.getNextSendAt()).isEqualTo(nextSendAt);
+        verify(nextSendAtCalculator).calculate(true, LocalTime.of(8, 30), "America/New_York");
     }
 
     @Test
