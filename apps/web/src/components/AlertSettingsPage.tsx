@@ -145,6 +145,17 @@ export function AlertSettingsPage() {
   const isRecipientDuplicate = normalizedRecipientEmail
     ? recipients.some((recipient) => recipient.email.toLowerCase() === normalizedRecipientEmail)
     : false
+  const isAlertMutationInProgress = isSaving || isAddingRecipient || deletingRecipientId !== null
+  const recipientInlineHint = isRecipientDuplicate
+    ? '이미 등록된 이메일입니다.'
+    : isRecipientLimitReached
+      ? `수신 이메일은 최대 ${settings?.maxRecipientCount ?? 5}개까지만 등록 가능합니다.`
+      : ''
+  const settingsInlineHint = form && !form.timezone.trim()
+    ? '타임존은 필수입니다.'
+    : form && !isFormDirty
+      ? '변경한 내용이 없습니다.'
+      : ''
 
   const handleSubmitSettings = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -288,7 +299,7 @@ export function AlertSettingsPage() {
                 <button
                   type="button"
                   onClick={handleStartEditSettings}
-                  disabled={isEditingSettings || isSaving || isAddingRecipient || deletingRecipientId !== null}
+                  disabled={isEditingSettings || isAlertMutationInProgress}
                 >
                   변경
                 </button>
@@ -365,7 +376,7 @@ export function AlertSettingsPage() {
                     className="modal__close"
                     aria-label="알림 설정 변경 닫기"
                     onClick={handleCancelEditSettings}
-                    disabled={isSaving || isAddingRecipient || deletingRecipientId !== null}
+                    disabled={isAlertMutationInProgress}
                   >
                     ×
                   </button>
@@ -387,7 +398,10 @@ export function AlertSettingsPage() {
                             <input
                               type="checkbox"
                               checked={form.enabled}
-                              onChange={(e) => setForm((prev) => prev ? { ...prev, enabled: e.target.checked } : prev)}
+                              onChange={(e) => {
+                                setActionError(null)
+                                setForm((prev) => prev ? { ...prev, enabled: e.target.checked } : prev)
+                              }}
                               disabled={isSaving}
                             />
                             <span className="alert-settings-toggle__track" aria-hidden="true">
@@ -403,9 +417,12 @@ export function AlertSettingsPage() {
                             <label className="alert-settings-form__field">
                               <span>발송 시간</span>
                               <input
-                                type="time"
-                                value={form.sendTime}
-                                onChange={(e) => setForm((prev) => prev ? { ...prev, sendTime: e.target.value } : prev)}
+                              type="time"
+                              value={form.sendTime}
+                                onChange={(e) => {
+                                  setActionError(null)
+                                  setForm((prev) => prev ? { ...prev, sendTime: e.target.value } : prev)
+                                }}
                                 disabled={isSaving}
                                 required
                               />
@@ -413,10 +430,13 @@ export function AlertSettingsPage() {
                             <label className="alert-settings-form__field">
                               <span>타임존</span>
                               <input
-                                type="text"
-                                list="task-due-email-alert-timezones"
-                                value={form.timezone}
-                                onChange={(e) => setForm((prev) => prev ? { ...prev, timezone: e.target.value } : prev)}
+                              type="text"
+                              list="task-due-email-alert-timezones"
+                              value={form.timezone}
+                                onChange={(e) => {
+                                  setActionError(null)
+                                  setForm((prev) => prev ? { ...prev, timezone: e.target.value } : prev)
+                                }}
                                 disabled={isSaving}
                                 required
                               />
@@ -429,6 +449,11 @@ export function AlertSettingsPage() {
                           </div>
 
                           <div className="alert-settings-form__actions">
+                            {settingsInlineHint && (
+                              <p className="alert-settings-inline-hint" role="status">
+                                {settingsInlineHint}
+                              </p>
+                            )}
                             <button
                               type="button"
                               className="btn-secondary"
@@ -469,12 +494,23 @@ export function AlertSettingsPage() {
                           <input
                             type="email"
                             value={recipientEmail}
-                            onChange={(e) => setRecipientEmail(e.target.value)}
+                            onChange={(e) => {
+                              setRecipientEmail(e.target.value)
+                              setRecipientError(null)
+                            }}
                             placeholder={settings.suggestedEmail}
                             disabled={isAddingRecipient || deletingRecipientId !== null || isRecipientLimitReached}
                             required
                           />
                         </label>
+                        {recipientInlineHint && (
+                          <p
+                            className={`alert-settings-inline-hint ${isRecipientDuplicate || isRecipientLimitReached ? 'alert-settings-inline-hint--error' : ''}`}
+                            role={isRecipientDuplicate || isRecipientLimitReached ? 'alert' : 'status'}
+                          >
+                            {recipientInlineHint}
+                          </p>
+                        )}
                         <div className="alert-settings-recipient-form__actions">
                           <button
                             type="submit"
