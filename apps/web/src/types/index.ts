@@ -19,3 +19,9 @@ export type {
   TaskTrendInsight,
   RecentTaskCompletion,
 } from './insights'
+export type {
+  AddTaskDueEmailAlertRecipientRequest,
+  TaskDueEmailAlertRecipient,
+  TaskDueEmailAlertSettings,
+  UpdateTaskDueEmailAlertSettingsRequest,
+} from './taskDueEmailAlert'
