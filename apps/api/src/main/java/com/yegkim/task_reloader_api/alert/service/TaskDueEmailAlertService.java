@@ -34,6 +34,7 @@ public class TaskDueEmailAlertService {
     private final TaskDueEmailAlertRecipientRepository recipientRepository;
     private final UserRepository userRepository;
     private final AuthenticatedUserProvider authenticatedUserProvider;
+    private final TaskDueEmailAlertNextSendAtCalculator nextSendAtCalculator;
 
     @Transactional
     public TaskDueEmailAlertSettingsResponse getSettings() {
@@ -55,6 +56,11 @@ public class TaskDueEmailAlertService {
                 request.sendTime(),
                 normalizeTimezone(request.timezone())
         );
+        setting.updateNextSendAt(nextSendAtCalculator.calculate(
+                setting.isEnabled(),
+                setting.getSendTime(),
+                setting.getTimezone()
+        ));
 
         return toSettingsResponse(setting, user.getEmail());
     }

@@ -46,6 +46,9 @@ public class TaskDueEmailAlertSetting {
     @Column(name = "last_sent_local_date")
     private LocalDate lastSentLocalDate;
 
+    @Column(name = "next_send_at")
+    private OffsetDateTime nextSendAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
@@ -72,6 +75,10 @@ public class TaskDueEmailAlertSetting {
 
     public void markSent(LocalDate localDate) {
         this.lastSentLocalDate = localDate;
+    }
+
+    public void updateNextSendAt(OffsetDateTime nextSendAt) {
+        this.nextSendAt = nextSendAt;
     }
 
     @PrePersist
