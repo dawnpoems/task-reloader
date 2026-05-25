@@ -10,6 +10,7 @@ import { TaskEditModal } from './components/TaskEditModal'
 import { AuthLoginPage } from './components/AuthLoginPage'
 import { AuthSignupPage } from './components/AuthSignupPage'
 import { AdminApprovalsPage } from './components/AdminApprovalsPage'
+import { AlertSettingsPage } from './components/AlertSettingsPage'
 import { tasksApi } from './api/tasks'
 import { extractErrorMessage } from './api/client'
 import { useAuth } from './auth/AuthContext'
@@ -19,6 +20,7 @@ import './App.css'
 
 const HOME_PATH = '/'
 const INSIGHTS_PATH = '/insights'
+const ALERT_SETTINGS_PATH = '/alerts'
 const LOGIN_PATH = '/auth/login'
 const SIGNUP_PATH = '/auth/signup'
 const ADMIN_APPROVALS_PATH = '/admin/approvals'
@@ -39,6 +41,7 @@ const canAccessPathByRole = (pathname: string, role?: 'USER' | 'ADMIN'): boolean
 const isKnownPath = (pathname: string): boolean => {
   if (pathname === HOME_PATH) return true
   if (pathname === INSIGHTS_PATH) return true
+  if (pathname === ALERT_SETTINGS_PATH) return true
   if (pathname === LOGIN_PATH) return true
   if (pathname === SIGNUP_PATH) return true
   if (pathname === ADMIN_APPROVALS_PATH) return true
@@ -81,6 +84,7 @@ function App() {
   const selectedTaskId = getTaskIdFromPath(pathname)
   const isHomePage = pathname === HOME_PATH
   const isInsightsPage = pathname === INSIGHTS_PATH
+  const isAlertSettingsPage = pathname === ALERT_SETTINGS_PATH
   const isAdminApprovalsPage = pathname === ADMIN_APPROVALS_PATH
   const isDataEnabled = isAuthenticated && !isInitializing
   const canViewAdminPage = user?.role === 'ADMIN'
@@ -395,6 +399,13 @@ function App() {
             >
               인사이트
             </button>
+            <button
+              type="button"
+              className={`app-nav__link ${isAlertSettingsPage ? 'app-nav__link--active' : ''}`}
+              onClick={() => navigateTo(ALERT_SETTINGS_PATH)}
+            >
+              알림 설정
+            </button>
             {canViewAdminPage && (
               <button
                 type="button"
@@ -417,6 +428,8 @@ function App() {
 
         {isAdminApprovalsPage ? (
           <AdminApprovalsPage />
+        ) : isAlertSettingsPage ? (
+          <AlertSettingsPage />
         ) : selectedTaskId ? (
           <TaskDetailPage
             taskId={selectedTaskId}
@@ -506,7 +519,7 @@ function App() {
           onClose={() => setSelectedTask(null)}
         />
       )}
-      {!selectedTaskId && !isInsightsPage && !isAdminApprovalsPage && showForm && (
+      {!selectedTaskId && !isInsightsPage && !isAlertSettingsPage && !isAdminApprovalsPage && showForm && (
         <TaskCreateModal
           onSubmit={handleCreateTask}
           onClose={handleCloseCreateModal}
