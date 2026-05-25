@@ -45,6 +45,7 @@ public class TaskDueEmailAlertMailTemplateRenderer {
         Context context = new Context();
         context.setVariable("localDate", summary.localDate().format(DATE_FORMATTER));
         context.setVariable("timezone", summary.timezone());
+        context.setVariable("appUrl", normalizedAppUrl());
         context.setVariable("dueTodayCount", summary.dueTodayCount());
         context.setVariable("overdueCount", summary.overdueCount());
         context.setVariable("dueTodayTasks", toTemplateTasks(summary.dueTodayTasks()));

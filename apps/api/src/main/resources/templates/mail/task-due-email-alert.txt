@@ -1,6 +1,7 @@
 Task Reloader 작업 마감 알림
 기준일: [(${localDate})]
 타임존: [(${timezone})]
+확인하러가기: [(${appUrl})]
 
 오늘 마감: [(${dueTodayCount})]개
 [# th:if="${#lists.isEmpty(dueTodayTasks)}"]- 없음

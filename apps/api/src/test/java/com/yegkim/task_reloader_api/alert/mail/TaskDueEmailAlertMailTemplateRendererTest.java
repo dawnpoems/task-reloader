@@ -39,6 +39,8 @@ class TaskDueEmailAlertMailTemplateRendererTest {
         assertThat(content.subject()).isEqualTo("[Task Reloader] 오늘 마감 1개, 지난 작업 1개");
         assertThat(content.htmlBody())
                 .contains("작업 마감 알림")
+                .contains("확인하러가기")
+                .contains("href=\"https://task.example.com\"")
                 .contains("2026-05-24")
                 .contains("Asia/Seoul")
                 .contains("https://task.example.com/tasks/10")
@@ -46,6 +48,7 @@ class TaskDueEmailAlertMailTemplateRendererTest {
                 .contains("오늘 작업 &lt;중요&gt;")
                 .doesNotContain("오늘 작업 <중요>");
         assertThat(content.textBody())
+                .contains("확인하러가기: https://task.example.com")
                 .contains("오늘 마감: 1개")
                 .contains("지난 작업: 1개")
                 .contains("- 오늘 작업 <중요> (마감일: 2026-05-24, 링크: https://task.example.com/tasks/10)")
