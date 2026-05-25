@@ -1,13 +1,39 @@
-import { useCallback, useEffect, useState } from 'react'
+import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
 import { taskDueEmailAlertApi } from '../api/taskDueEmailAlert'
 import { extractErrorMessage } from '../api/client'
 import type { TaskDueEmailAlertRecipient, TaskDueEmailAlertSettings } from '../types/taskDueEmailAlert'
 import { ErrorNotice } from './ErrorNotice'
 
+const TIMEZONE_OPTIONS = [
+  'Asia/Seoul',
+  'Asia/Tokyo',
+  'Asia/Singapore',
+  'UTC',
+  'America/New_York',
+  'America/Los_Angeles',
+  'Europe/London',
+  'Europe/Paris',
+  'Australia/Sydney',
+] as const
+
+interface AlertSettingsForm {
+  enabled: boolean
+  sendTime: string
+  timezone: string
+}
+
 function formatSendTime(sendTime: string): string {
   const [hour, minute] = sendTime.split(':')
   if (!hour || !minute) return sendTime
   return `${hour}:${minute}`
+}
+
+function createFormFromSettings(settings: TaskDueEmailAlertSettings): AlertSettingsForm {
+  return {
+    enabled: settings.enabled,
+    sendTime: formatSendTime(settings.sendTime),
+    timezone: settings.timezone,
+  }
 }
 
 function formatLocalDate(value: string | null): string {
@@ -39,12 +65,17 @@ function formatCreatedAt(value: string): string {
 export function AlertSettingsPage() {
   const [settings, setSettings] = useState<TaskDueEmailAlertSettings | null>(null)
   const [recipients, setRecipients] = useState<TaskDueEmailAlertRecipient[]>([])
+  const [form, setForm] = useState<AlertSettingsForm | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
 
   const loadAlertSettings = useCallback(async () => {
     setIsLoading(true)
     setError(null)
+    setActionError(null)
 
     const [settingsRes, recipientsRes] = await Promise.all([
       taskDueEmailAlertApi.getSettings(),
@@ -64,6 +95,7 @@ export function AlertSettingsPage() {
     }
 
     setSettings(settingsRes.data)
+    setForm(createFormFromSettings(settingsRes.data))
     setRecipients(recipientsRes.data)
     setIsLoading(false)
   }, [])
@@ -71,6 +103,52 @@ export function AlertSettingsPage() {
   useEffect(() => {
     loadAlertSettings()
   }, [loadAlertSettings])
+
+  const isFormDirty = useMemo(() => {
+    if (!settings || !form) return false
+    return (
+      form.enabled !== settings.enabled ||
+      form.sendTime !== formatSendTime(settings.sendTime) ||
+      form.timezone.trim() !== settings.timezone
+    )
+  }, [form, settings])
+
+  const handleSubmitSettings = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (!form || isSaving) return
+
+    const timezone = form.timezone.trim()
+    if (!timezone) {
+      setActionError('타임존은 필수입니다.')
+      return
+    }
+
+    setIsSaving(true)
+    setActionError(null)
+    setNotice(null)
+
+    const res = await taskDueEmailAlertApi.updateSettings({
+      enabled: form.enabled,
+      sendTime: form.sendTime,
+      timezone,
+    })
+
+    if (res.success && res.data) {
+      setSettings(res.data)
+      setForm(createFormFromSettings(res.data))
+      setNotice('알림 발송 설정을 저장했습니다.')
+    } else {
+      setActionError(extractErrorMessage(res.error, '알림 발송 설정 저장에 실패했습니다.'))
+    }
+
+    setIsSaving(false)
+  }
+
+  const handleResetSettings = () => {
+    if (!settings || isSaving) return
+    setForm(createFormFromSettings(settings))
+    setActionError(null)
+  }
 
   return (
     <section className="alert-settings-page">
@@ -117,6 +195,89 @@ export function AlertSettingsPage() {
             <section className="alert-settings-panel">
               <div className="alert-settings-panel__header">
                 <div>
+                  <h3>발송 설정</h3>
+                  <p>매일 한 번, 사용자가 설정한 시간과 타임존 기준으로 확인합니다.</p>
+                </div>
+              </div>
+
+              {notice && (
+                <p className="alert-settings-notice" role="status" aria-live="polite">
+                  {notice}
+                </p>
+              )}
+              {actionError && (
+                <p className="alert-settings-action-error" role="alert">
+                  {actionError}
+                </p>
+              )}
+
+              {form && (
+                <form className="alert-settings-form" onSubmit={handleSubmitSettings}>
+                  <label className="alert-settings-toggle">
+                    <input
+                      type="checkbox"
+                      checked={form.enabled}
+                      onChange={(e) => setForm((prev) => prev ? { ...prev, enabled: e.target.checked } : prev)}
+                      disabled={isSaving}
+                    />
+                    <span className="alert-settings-toggle__track" aria-hidden="true">
+                      <span className="alert-settings-toggle__thumb" />
+                    </span>
+                    <span>
+                      <strong>작업 마감 이메일 알림 사용</strong>
+                      <small>{form.enabled ? '설정한 시간에 자동 발송됩니다.' : '알림이 꺼져 있어 이메일을 보내지 않습니다.'}</small>
+                    </span>
+                  </label>
+
+                  <div className="alert-settings-form__grid">
+                    <label className="alert-settings-form__field">
+                      <span>발송 시간</span>
+                      <input
+                        type="time"
+                        value={form.sendTime}
+                        onChange={(e) => setForm((prev) => prev ? { ...prev, sendTime: e.target.value } : prev)}
+                        disabled={isSaving}
+                        required
+                      />
+                    </label>
+                    <label className="alert-settings-form__field">
+                      <span>타임존</span>
+                      <input
+                        type="text"
+                        list="task-due-email-alert-timezones"
+                        value={form.timezone}
+                        onChange={(e) => setForm((prev) => prev ? { ...prev, timezone: e.target.value } : prev)}
+                        disabled={isSaving}
+                        required
+                      />
+                    </label>
+                    <datalist id="task-due-email-alert-timezones">
+                      {TIMEZONE_OPTIONS.map((timezone) => (
+                        <option key={timezone} value={timezone} />
+                      ))}
+                    </datalist>
+                  </div>
+
+                  <div className="alert-settings-form__actions">
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={handleResetSettings}
+                      disabled={isSaving || !isFormDirty}
+                    >
+                      되돌리기
+                    </button>
+                    <button type="submit" disabled={isSaving || !isFormDirty || !form.timezone.trim()}>
+                      {isSaving ? '저장 중...' : '발송 설정 저장'}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </section>
+
+            <section className="alert-settings-panel">
+              <div className="alert-settings-panel__header">
+                <div>
                   <h3>수신 이메일</h3>
                   <p>
                     {recipients.length}/{settings.maxRecipientCount}개 등록됨
@@ -141,13 +302,6 @@ export function AlertSettingsPage() {
                   ))}
                 </ul>
               )}
-            </section>
-
-            <section className="alert-settings-panel alert-settings-panel--next">
-              <h3>다음 작업</h3>
-              <p>
-                다음 단계에서 알림 ON/OFF, 발송 시간, 타임존 저장 UI를 붙이고 그 다음 수신 이메일 관리 UI를 연결합니다.
-              </p>
             </section>
           </div>
         </>
