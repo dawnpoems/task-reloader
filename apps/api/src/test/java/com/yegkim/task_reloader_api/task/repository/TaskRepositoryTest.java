@@ -150,4 +150,50 @@ class TaskRepositoryTest {
         assertThat(saved.getNextDueAt().toLocalTime()).isEqualTo(LocalTime.MIDNIGHT);
         assertThat(saved.getNextDueAt().getOffset()).isEqualTo(ZoneOffset.ofHours(9));
     }
+
+    @Test
+    @DisplayName("작업 마감 이메일 알림용 overdue/today 범위를 nextDueAt 오름차순으로 조회")
+    void findTaskDueEmailAlertRanges() {
+        OffsetDateTime todayStart = OffsetDateTime.parse("2026-05-23T15:00:00Z");
+        OffsetDateTime tomorrowStart = OffsetDateTime.parse("2026-05-24T15:00:00Z");
+
+        Task overdueOlder = task("Overdue Older", todayStart.minusDays(2), true);
+        Task overdueNewer = task("Overdue Newer", todayStart.minusSeconds(1), true);
+        Task dueAtStart = task("Due At Start", todayStart, true);
+        Task dueBeforeEnd = task("Due Before End", tomorrowStart.minusSeconds(1), true);
+        Task upcomingAtEnd = task("Upcoming At End", tomorrowStart, true);
+        Task inactiveOverdue = task("Inactive Overdue", todayStart.minusDays(1), false);
+
+        taskRepository.saveAll(List.of(
+                dueBeforeEnd,
+                inactiveOverdue,
+                overdueNewer,
+                upcomingAtEnd,
+                dueAtStart,
+                overdueOlder
+        ));
+        taskRepository.flush();
+
+        List<Task> overdue = taskRepository
+                .findAllByUserIdAndIsActiveTrueAndNextDueAtBeforeOrderByNextDueAtAsc(TEST_USER_ID, todayStart);
+        List<Task> dueToday = taskRepository
+                .findAllByUserIdAndIsActiveTrueAndNextDueAtGreaterThanEqualAndNextDueAtLessThanOrderByNextDueAtAsc(
+                        TEST_USER_ID,
+                        todayStart,
+                        tomorrowStart
+                );
+
+        assertThat(overdue).containsExactly(overdueOlder, overdueNewer);
+        assertThat(dueToday).containsExactly(dueAtStart, dueBeforeEnd);
+    }
+
+    private Task task(String name, OffsetDateTime nextDueAt, boolean isActive) {
+        return Task.builder()
+                .userId(TEST_USER_ID)
+                .name(name)
+                .everyNDays(1)
+                .nextDueAt(nextDueAt)
+                .isActive(isActive)
+                .build();
+    }
 }

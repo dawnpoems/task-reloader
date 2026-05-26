@@ -1,5 +1,6 @@
 package com.yegkim.task_reloader_api.common.exception;
 
+import com.yegkim.task_reloader_api.alert.exception.TaskDueEmailAlertException;
 import com.yegkim.task_reloader_api.auth.exception.AuthException;
 import com.yegkim.task_reloader_api.common.response.ApiResponse;
 import com.yegkim.task_reloader_api.common.response.ErrorResponse;
@@ -61,6 +62,14 @@ public class GlobalExceptionHandler {
             bodyBuilder.header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.getRetryAfterSeconds()));
         }
         return bodyBuilder.body(error(ex.getCode(), ex.getMessage()));
+    }
+
+    @ExceptionHandler(TaskDueEmailAlertException.class)
+    public ResponseEntity<ApiResponse<Void>> handleTaskDueEmailAlertException(TaskDueEmailAlertException ex) {
+        log.warn("Task due email alert exception requestId={} status={} code={} message={}",
+                currentRequestId(), ex.getStatus(), ex.getCode(), ex.getMessage());
+        return ResponseEntity.status(ex.getStatus())
+                .body(error(ex.getCode(), ex.getMessage()));
     }
 
     @ExceptionHandler(TaskNotFoundException.class)

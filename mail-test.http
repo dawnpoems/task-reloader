@@ -1,0 +1,65 @@
+@baseUrl = http://localhost:8080
+@demoEmail = demo@dawnpoem.kr
+@demoPassword = demo1234!
+@recipientEmail = demo@dawnpoem.kr
+@today = 2026-05-25
+@yesterday = 2026-05-24
+
+### 1. 데모 계정 로그인
+# @name login
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{demoEmail}}",
+  "password": "{{demoPassword}}"
+}
+
+> {%
+    client.global.set("accessToken", response.body.data.accessToken);
+%}
+
+### 2. 작업 마감 이메일 알림 설정 조회
+GET {{baseUrl}}/api/alerts/task-due-email/settings
+Authorization: Bearer {{accessToken}}
+
+### 3. Mailpit 확인용 수신 이메일 등록
+# 이미 등록된 이메일이면 409가 날 수 있습니다. 그 경우 다음 요청을 계속 실행하면 됩니다.
+POST {{baseUrl}}/api/alerts/task-due-email/recipients
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "email": "{{recipientEmail}}"
+}
+
+### 4. 오늘 마감 작업 생성
+POST {{baseUrl}}/api/tasks
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "메일 테스트 오늘 마감 작업",
+  "everyNDays": 1,
+  "startDate": "{{today}}"
+}
+
+### 5. 지난 작업 생성
+POST {{baseUrl}}/api/tasks
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "메일 테스트 지난 작업",
+  "everyNDays": 1,
+  "startDate": "{{yesterday}}"
+}
+
+### 6. 로컬 개발용 작업 마감 이메일 즉시 발송
+# Mailpit UI: http://localhost:8025
+POST {{baseUrl}}/api/alerts/task-due-email/test-send
+Authorization: Bearer {{accessToken}}
+
+### 7. 등록된 수신 이메일 목록 확인
+GET {{baseUrl}}/api/alerts/task-due-email/recipients
+Authorization: Bearer {{accessToken}}

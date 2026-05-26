@@ -1,4 +1,8 @@
 spring:
+  config:
+    import:
+      - optional:file:./infra/.env[.properties]
+      - optional:file:../../infra/.env[.properties]
   application:
     name: task-reloader-api
   datasource:
@@ -13,6 +17,22 @@ spring:
     placeholders:
       auth_admin_email: ${AUTH_ADMIN_EMAIL:admin@task-reloader.local}
       auth_admin_password_hash: ${AUTH_ADMIN_PASSWORD_HASH:__CHANGE_ME_WITH_BCRYPT_HASH__}
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:false}
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS_ENABLE:false}
+
+task-due-email-alert:
+  mail:
+    from: ${TASK_DUE_EMAIL_ALERT_MAIL_FROM:no-reply@task-reloader.local}
+    app-url: ${TASK_RELOADER_APP_URL:http://localhost:5173}
 
 auth:
   jwt:
