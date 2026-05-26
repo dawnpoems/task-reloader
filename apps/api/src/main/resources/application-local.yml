@@ -1,4 +1,8 @@
 spring:
+  config:
+    import:
+      - optional:file:./infra/.env[.properties]
+      - optional:file:../../infra/.env[.properties]
   application:
     name: task-reloader-api
   datasource:

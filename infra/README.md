@@ -124,6 +124,7 @@ docker compose logs -f cloudflared
 ### 작업 마감 이메일 알림 메일 설정
 
 - 실제 메일 발송을 사용하려면 SMTP 제공자에서 발급받은 값을 `infra/.env`에 반영합니다.
+- `local` 프로필로 API를 실행하면 `infra/.env`가 자동으로 반영됩니다.
 - 로컬 개발에서 Mailpit/Mailhog 같은 SMTP 캡처 도구를 쓰면 `MAIL_HOST=localhost`, `MAIL_PORT=1025`, 인증/STARTTLS 비활성화로 테스트할 수 있습니다.
 - 운영 SMTP에서는 제공자 정책에 맞춰 아래 값을 조정합니다.
   - `MAIL_HOST`
