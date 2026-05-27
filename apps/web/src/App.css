@@ -1139,6 +1139,7 @@
   padding-top: 0.75rem;
 }
 
+.today-done-section,
 .dashboard-section,
 .insights-section,
 .detail-card,
@@ -1651,6 +1652,82 @@
   gap: 0.85rem;
 }
 
+.today-done-hero {
+  display: grid;
+  grid-template-columns: minmax(8rem, 0.3fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: center;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  padding: 1rem;
+  background: linear-gradient(135deg, #eff6ff 0%, #ffffff 58%, #f0fdf4 100%);
+}
+
+.today-done-hero__label {
+  display: block;
+  color: #2563eb;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.today-done-hero__value {
+  display: block;
+  color: #0f172a;
+  font-size: 2.4rem;
+  line-height: 1;
+  margin-top: 0.25rem;
+}
+
+.today-done-hero p {
+  margin: 0;
+  color: #334155;
+  font-size: 0.98rem;
+  line-height: 1.5;
+}
+
+.today-done-list {
+  list-style: none;
+  margin: 0.85rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.today-done-item {
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  padding: 0.75rem 0.85rem;
+  background: #f8fbff;
+}
+
+.today-done-item div {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.8rem;
+}
+
+.today-done-item div > span {
+  flex-shrink: 0;
+  color: #64748b;
+  font-size: 0.82rem;
+}
+
+.today-done-item small {
+  display: block;
+  margin-top: 0.4rem;
+  color: #64748b;
+  font-size: 0.79rem;
+  line-height: 1.4;
+}
+
+.today-done-section__note {
+  margin: 0.75rem 0 0;
+  color: #64748b;
+  font-size: 0.82rem;
+}
+
 .insights-overview-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1761,6 +1838,13 @@
   gap: 0.7rem;
   color: #64748b;
   font-size: 0.82rem;
+}
+
+.insights-risky-item__hint {
+  margin: 0.5rem 0 0;
+  color: #475569;
+  font-size: 0.83rem;
+  line-height: 1.45;
 }
 
 .insights-trend {
@@ -2090,6 +2174,7 @@
   .app { padding: 1rem; }
   .app-header h1 { font-size: 1.4rem; }
   .dashboard-grid,
+  .today-done-hero,
   .insights-overview-grid,
   .insights-trend-grid,
   .detail-grid,
@@ -2117,6 +2202,7 @@
     flex-shrink: 1;
   }
   .detail-page__header,
+  .today-done-item div,
   .recent-completion-card__top,
   .task-card__top,
   .task-card__layout {

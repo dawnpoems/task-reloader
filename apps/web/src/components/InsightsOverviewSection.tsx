@@ -31,15 +31,16 @@ function formatPercent(value: number): string {
   return `${value.toFixed(1)}%`
 }
 
-function formatDelayDays(days: number): string {
-  if (days <= 0) return '0.00일'
-  return `${days.toFixed(2)}일`
-}
-
 function toRiskReasonLabel(reason: string): string {
   if (reason === 'OVERDUE_7D_PLUS') return '7일 이상 지연'
   if (reason === 'NO_COMPLETION_30D') return '30일 무완료'
   return reason
+}
+
+function toRiskReasonDescription(reason: string): string {
+  if (reason === 'OVERDUE_7D_PLUS') return '다음 예정일이 7일 넘게 지나서 일정 재조정이 필요합니다.'
+  if (reason === 'NO_COMPLETION_30D') return '최근 30일 동안 완료 이력이 없어 작업 유지 여부를 확인해야 합니다.'
+  return '작업 상태를 확인해야 합니다.'
 }
 
 export function InsightsOverviewSection({
@@ -49,48 +50,47 @@ export function InsightsOverviewSection({
 }: InsightsOverviewSectionProps) {
   const data = overview ?? EMPTY_OVERVIEW
   const riskyTasks = data.riskyTasks ?? []
-  const topByCompletion = data.topCompletionTrends ?? []
-  const topByDelayed = data.topDelayedTrends ?? []
-  const topByDelayRate = data.topDelayRateTrends ?? []
+  const overdueRiskCount = riskyTasks.filter((task) => task.reasons.includes('OVERDUE_7D_PLUS')).length
+  const staleRiskCount = riskyTasks.filter((task) => task.reasons.includes('NO_COMPLETION_30D')).length
 
   return (
     <section className="insights-section">
       <div className="section-header">
         <div>
-          <h2>인사이트 요약</h2>
+          <h2>확인할 신호</h2>
           <p>
-            최근 {isLoading ? '-' : data.periodDays}일 성과를 기준으로 완료/지연 패턴을 확인합니다.
+            전체 목록에서 놓치기 쉬운 방치, 지연, 무완료 작업만 골라봅니다.
           </p>
         </div>
       </div>
 
       <div className="insights-overview-grid">
-        <article className="summary-card summary-card--today">
-          <span className="summary-card__label">완료율</span>
+        <article className="summary-card summary-card--overdue">
+          <span className="summary-card__label">리스크 작업</span>
           <strong className="summary-card__value">
-            {isLoading ? '-' : formatPercent(data.completionRatePct)}
+            {isLoading ? '-' : data.riskyTaskCount}
           </strong>
           <small className="summary-card__meta">
-            {isLoading ? '-' : `${data.completedTaskCount}/${data.activeTaskCount} Task`}
+            전체 활성 작업 {isLoading ? '-' : data.activeTaskCount}개 중
           </small>
         </article>
 
         <article className="summary-card summary-card--overdue">
-          <span className="summary-card__label">지연율</span>
+          <span className="summary-card__label">오래 지연</span>
           <strong className="summary-card__value">
-            {isLoading ? '-' : formatPercent(data.delayRatePct)}
+            {isLoading ? '-' : overdueRiskCount}
           </strong>
           <small className="summary-card__meta">
-            {isLoading ? '-' : `${data.delayedCompletionCount}/${data.completionCount} 완료`}
+            7일 이상 지난 작업
           </small>
         </article>
 
         <article className="summary-card">
-          <span className="summary-card__label">평균 지연날짜</span>
+          <span className="summary-card__label">무완료 신호</span>
           <strong className="summary-card__value">
-            {isLoading ? '-' : formatDelayDays(data.averageDelayDays)}
+            {isLoading ? '-' : staleRiskCount}
           </strong>
-          <small className="summary-card__meta">지연된 완료만 기준</small>
+          <small className="summary-card__meta">30일간 완료 이력 없음</small>
         </article>
       </div>
 
@@ -99,13 +99,13 @@ export function InsightsOverviewSection({
           <span>집계 기간 계산 중...</span>
         ) : (
           <span>
-            집계 기간: {formatDate(data.periodStart)} ~ {formatDate(data.periodEnd)} ({data.timezone}) · 리스크 작업 {data.riskyTaskCount}개
+            기준 기간: {formatDate(data.periodStart)} ~ {formatDate(data.periodEnd)} ({data.timezone}) · 최근 {data.periodDays}일 완료율 {formatPercent(data.completionRatePct)}
           </span>
         )}
       </div>
 
       <div className="insights-risky">
-        <h3>리스크 작업</h3>
+        <h3>개입이 필요한 작업</h3>
         {isLoading ? (
           <p className="section-state">불러오는 중...</p>
         ) : riskyTasks.length === 0 ? (
@@ -134,74 +134,12 @@ export function InsightsOverviewSection({
                   <span>다음 예정 {formatDateTime(task.nextDueAt)}</span>
                   <span>마지막 완료 {formatDateTime(task.lastCompletedAt ?? undefined)}</span>
                 </div>
+                <p className="insights-risky-item__hint">
+                  {toRiskReasonDescription(task.reasons[0])}
+                </p>
               </li>
             ))}
           </ul>
-        )}
-      </div>
-
-      <div className="insights-trend">
-        <h3>작업별 추세 Top 5</h3>
-        {isLoading ? (
-          <p className="section-state">불러오는 중...</p>
-        ) : topByCompletion.length === 0 && topByDelayed.length === 0 && topByDelayRate.length === 0 ? (
-          <p className="section-state">해당 기간 완료 이력이 없습니다.</p>
-        ) : (
-          <div className="insights-trend-grid">
-            <article className="insights-trend-card">
-              <h4>완료 건수</h4>
-              <ol className="insights-trend-ranking">
-                {topByCompletion.map((trend, index) => (
-                  <li key={`completion-${trend.taskId}`}>
-                    <button
-                      type="button"
-                      className="link-button insight-rank__task"
-                      onClick={() => onOpenTask(trend.taskId)}
-                    >
-                      {index + 1}. {trend.taskName}
-                    </button>
-                    <span className="insight-rank__value">{trend.completionCount}회</span>
-                  </li>
-                ))}
-              </ol>
-            </article>
-
-            <article className="insights-trend-card">
-              <h4>지연 건수</h4>
-              <ol className="insights-trend-ranking">
-                {topByDelayed.map((trend, index) => (
-                  <li key={`delayed-${trend.taskId}`}>
-                    <button
-                      type="button"
-                      className="link-button insight-rank__task"
-                      onClick={() => onOpenTask(trend.taskId)}
-                    >
-                      {index + 1}. {trend.taskName}
-                    </button>
-                    <span className="insight-rank__value">{trend.delayedCount}회</span>
-                  </li>
-                ))}
-              </ol>
-            </article>
-
-            <article className="insights-trend-card">
-              <h4>지연률</h4>
-              <ol className="insights-trend-ranking">
-                {topByDelayRate.map((trend, index) => (
-                  <li key={`delay-rate-${trend.taskId}`}>
-                    <button
-                      type="button"
-                      className="link-button insight-rank__task"
-                      onClick={() => onOpenTask(trend.taskId)}
-                    >
-                      {index + 1}. {trend.taskName}
-                    </button>
-                    <span className="insight-rank__value">{formatPercent(trend.delayRatePct)}</span>
-                  </li>
-                ))}
-              </ol>
-            </article>
-          </div>
         )}
       </div>
     </section>
