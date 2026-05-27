@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
-import { tasksApi } from '../api/tasks'
-import { extractErrorMessage } from '../api/client'
+import { useId, useRef, useState } from 'react'
+import { useModalFocusTrap } from '../hooks/useModalFocusTrap'
+import { useTaskCompletions } from '../hooks/useTaskCompletions'
 import { formatDateTime } from '../lib/utils'
 import type { Task, UpdateTaskRequest } from '../types/task'
-import type { TaskCompletion } from '../types/taskCompletion'
 
 interface TaskEditModalProps {
   task: Task
@@ -22,102 +21,33 @@ const todayDateInput = (): string => {
 
 export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditModalProps) {
   const titleId = useId()
-  const modalRef = useRef<HTMLDivElement | null>(null)
   const nameInputRef = useRef<HTMLInputElement | null>(null)
-  const previouslyFocusedElementRef = useRef<HTMLElement | null>(
-    document.activeElement instanceof HTMLElement ? document.activeElement : null
-  )
   const [name, setName] = useState(task.name)
   const [everyNDays, setEveryNDays] = useState(task.everyNDays)
   const [startDate, setStartDate] = useState(task.startDate ?? todayDateInput())
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [completions, setCompletions] = useState<TaskCompletion[]>([])
-  const [isLoadingCompletions, setIsLoadingCompletions] = useState(true)
-  const [completionsError, setCompletionsError] = useState<string | null>(null)
   const isBusy = isSubmitting || isDeleting
-
-  useLayoutEffect(() => {
-    const previousFocusTarget = previouslyFocusedElementRef.current
-    const rafId = window.requestAnimationFrame(() => {
-      nameInputRef.current?.focus()
-    })
-    const timeoutId = window.setTimeout(() => {
-      nameInputRef.current?.focus()
-    }, 60)
-
-    return () => {
-      window.cancelAnimationFrame(rafId)
-      window.clearTimeout(timeoutId)
-      if (!previousFocusTarget) return
-      window.requestAnimationFrame(() => {
-        previousFocusTarget.focus()
-      })
-    }
-  }, [])
-
-  const fetchCompletions = useCallback(async () => {
-    setIsLoadingCompletions(true)
-    setCompletionsError(null)
-
-    const res = await tasksApi.getCompletions(task.id)
-    if (res.success && res.data) {
-      setCompletions(res.data)
-    } else {
-      setCompletions([])
-      setCompletionsError(extractErrorMessage(res.error, '완료 이력을 불러오지 못했습니다. 다시 시도해 주세요.'))
-    }
-    setIsLoadingCompletions(false)
-  }, [task.id])
-
-  useEffect(() => {
-    fetchCompletions()
-  }, [fetchCompletions])
+  const {
+    completions,
+    isLoading: isLoadingCompletions,
+    error: completionsError,
+    refetch: fetchCompletions,
+  } = useTaskCompletions(task.id, {
+    errorMessage: '완료 이력을 불러오지 못했습니다. 다시 시도해 주세요.',
+  })
 
   const requestClose = () => {
     if (isBusy) return
     onClose()
   }
 
-  const handleModalKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'Escape') {
-      if (isBusy) return
-      e.preventDefault()
-      requestClose()
-      return
-    }
-
-    if (e.key !== 'Tab') return
-
-    const modalEl = modalRef.current
-    if (!modalEl) return
-
-    const focusables = Array.from(
-      modalEl.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-      )
-    ).filter((el) => !el.hasAttribute('disabled') && el.tabIndex >= 0)
-
-    if (focusables.length === 0) return
-
-    const first = focusables[0]
-    const last = focusables[focusables.length - 1]
-    const active = document.activeElement as HTMLElement | null
-
-    if (e.shiftKey) {
-      if (active === first || !modalEl.contains(active)) {
-        e.preventDefault()
-        last.focus()
-      }
-      return
-    }
-
-    if (active === last) {
-      e.preventDefault()
-      first.focus()
-    }
-  }
+  const { modalRef, handleKeyDown: handleModalKeyDown } = useModalFocusTrap<HTMLDivElement>({
+    onRequestClose: requestClose,
+    isCloseDisabled: isBusy,
+    initialFocusRef: nameInputRef,
+  })
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault()

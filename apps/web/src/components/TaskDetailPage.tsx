@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { tasksApi } from '../api/tasks'
+import { useTaskCompletions } from '../hooks/useTaskCompletions'
+import { useTaskDetail } from '../hooks/useTaskDetail'
 import { formatDate, formatDateTime } from '../lib/utils'
 import { ErrorNotice } from './ErrorNotice'
 import type { Task } from '../types/task'
@@ -14,14 +15,6 @@ interface TaskDetailPageProps {
 }
 
 export function TaskDetailPage({ taskId, refreshToken = 0, onBack, onEdit, onComplete }: TaskDetailPageProps) {
-  const [task, setTask] = useState<Task | null>(null)
-  const [completions, setCompletions] = useState<TaskCompletion[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [isCompletionsLoading, setIsCompletionsLoading] = useState(true)
-  const [loadError, setLoadError] = useState<string | null>(null)
-  const [completionsError, setCompletionsError] = useState<string | null>(null)
-  const [taskRetryToken, setTaskRetryToken] = useState(0)
-  const [completionsRetryToken, setCompletionsRetryToken] = useState(0)
   const [isCompleting, setIsCompleting] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [viewMonth, setViewMonth] = useState(() => {
@@ -29,6 +22,17 @@ export function TaskDetailPage({ taskId, refreshToken = 0, onBack, onEdit, onCom
     return new Date(now.getFullYear(), now.getMonth(), 1)
   })
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null)
+  const { task, isLoading, error: loadError, refetch: refetchTask } = useTaskDetail(taskId, refreshToken)
+  const {
+    completions,
+    isLoading: isCompletionsLoading,
+    error: completionsError,
+    refetch: refetchCompletions,
+  } = useTaskCompletions(taskId, {
+    year: viewMonth.getFullYear(),
+    month: viewMonth.getMonth() + 1,
+    refreshToken,
+  })
 
   const toKstDateKey = (dateTime: string): string =>
     new Date(dateTime).toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' })
@@ -73,55 +77,6 @@ export function TaskDetailPage({ taskId, refreshToken = 0, onBack, onEdit, onCom
   )
 
   useEffect(() => {
-    let active = true
-
-    const fetchTask = async () => {
-      setIsLoading(true)
-      setLoadError(null)
-
-      const taskRes = await tasksApi.getById(taskId)
-
-      if (!active) return
-
-      if (taskRes.success && taskRes.data) {
-        setTask(taskRes.data)
-      } else {
-        setTask(null)
-        setLoadError('Task 상세 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.')
-      }
-      setIsLoading(false)
-    }
-
-    fetchTask()
-    return () => { active = false }
-  }, [taskId, refreshToken, taskRetryToken])
-
-  useEffect(() => {
-    let active = true
-
-    const fetchMonthCompletions = async () => {
-      setIsCompletionsLoading(true)
-      setCompletionsError(null)
-      const year = viewMonth.getFullYear()
-      const month = viewMonth.getMonth() + 1
-      const completionsRes = await tasksApi.getCompletions(taskId, { year, month })
-
-      if (!active) return
-
-      if (completionsRes.success && completionsRes.data) {
-        setCompletions(completionsRes.data)
-      } else {
-        setCompletions([])
-        setCompletionsError('완료 이력을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.')
-      }
-      setIsCompletionsLoading(false)
-    }
-
-    fetchMonthCompletions()
-    return () => { active = false }
-  }, [taskId, viewMonth, refreshToken, completionsRetryToken])
-
-  useEffect(() => {
     if (!selectedDateKey) return
     if (!selectedDateKey.startsWith(monthPrefix)) {
       setSelectedDateKey(null)
@@ -140,15 +95,7 @@ export function TaskDetailPage({ taskId, refreshToken = 0, onBack, onEdit, onCom
         return
       }
 
-      const year = viewMonth.getFullYear()
-      const month = viewMonth.getMonth() + 1
-      const [taskRes, completionsRes] = await Promise.all([
-        tasksApi.getById(taskId),
-        tasksApi.getCompletions(taskId, { year, month }),
-      ])
-
-      if (taskRes.success && taskRes.data) setTask(taskRes.data)
-      if (completionsRes.success && completionsRes.data) setCompletions(completionsRes.data)
+      await Promise.all([refetchTask(), refetchCompletions()])
     } finally {
       setIsCompleting(false)
     }
@@ -166,7 +113,7 @@ export function TaskDetailPage({ taskId, refreshToken = 0, onBack, onEdit, onCom
         </button>
         <ErrorNotice
           message={loadError ?? 'Task를 찾을 수 없습니다. 목록으로 돌아간 뒤 다시 열어 주세요.'}
-          onRetry={() => setTaskRetryToken((prev) => prev + 1)}
+          onRetry={refetchTask}
         />
       </section>
     )
@@ -284,7 +231,7 @@ export function TaskDetailPage({ taskId, refreshToken = 0, onBack, onEdit, onCom
             {isCompletionsLoading ? (
               <p className="section-state">완료 이력을 불러오는 중...</p>
             ) : completionsError ? (
-              <ErrorNotice message={completionsError} onRetry={() => setCompletionsRetryToken((prev) => prev + 1)} />
+              <ErrorNotice message={completionsError} onRetry={refetchCompletions} />
             ) : !selectedDateKey ? (
               <p className="section-state">날짜를 선택하면 완료 이력을 확인할 수 있습니다.</p>
             ) : selectedCompletions.length === 0 ? (
