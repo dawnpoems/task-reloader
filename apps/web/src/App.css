@@ -1841,6 +1841,19 @@
   line-height: 1.45;
 }
 
+.insights-risky-item__actions {
+  margin-top: 0.7rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.insights-risky-item__actions button {
+  min-height: 2rem;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.82rem;
+}
+
 .insights-trend {
   margin-top: 1rem;
   border-top: 1px dashed #dbe2ea;

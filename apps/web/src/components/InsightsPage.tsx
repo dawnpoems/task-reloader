@@ -10,6 +10,8 @@ interface InsightsPageProps {
   isLoading: boolean
   error: string | null
   onOpenTask: (taskId: number) => void
+  onEditTask: (taskId: number) => void
+  onDeleteTask: (taskId: number) => Promise<boolean>
   onRetry: () => void
 }
 
@@ -20,6 +22,8 @@ export function InsightsPage({
   isLoading,
   error,
   onOpenTask,
+  onEditTask,
+  onDeleteTask,
   onRetry,
 }: InsightsPageProps) {
   return (
@@ -37,6 +41,8 @@ export function InsightsPage({
         overview={overview}
         isLoading={isLoading}
         onOpenTask={onOpenTask}
+        onEditTask={onEditTask}
+        onDeleteTask={onDeleteTask}
       />
     </>
   )

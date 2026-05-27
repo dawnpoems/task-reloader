@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { formatDate, formatDateTime } from '../lib/utils'
 import type { InsightsOverview } from '../types/insights'
 
@@ -5,6 +6,8 @@ interface InsightsOverviewSectionProps {
   overview: InsightsOverview | null
   isLoading: boolean
   onOpenTask: (taskId: number) => void
+  onEditTask: (taskId: number) => void
+  onDeleteTask: (taskId: number) => Promise<boolean>
 }
 
 const EMPTY_OVERVIEW: InsightsOverview = {
@@ -47,11 +50,35 @@ export function InsightsOverviewSection({
   overview,
   isLoading,
   onOpenTask,
+  onEditTask,
+  onDeleteTask,
 }: InsightsOverviewSectionProps) {
+  const [deletingTaskIds, setDeletingTaskIds] = useState<Set<number>>(new Set())
   const data = overview ?? EMPTY_OVERVIEW
   const riskyTasks = data.riskyTasks ?? []
   const overdueRiskCount = riskyTasks.filter((task) => task.reasons.includes('OVERDUE_7D_PLUS')).length
   const staleRiskCount = riskyTasks.filter((task) => task.reasons.includes('NO_COMPLETION_30D')).length
+
+  const handleDelete = async (taskId: number, taskName: string) => {
+    const confirmed = window.confirm(`"${taskName}" Task를 삭제할까요?`)
+    if (!confirmed) return
+
+    setDeletingTaskIds((prev) => {
+      const next = new Set(prev)
+      next.add(taskId)
+      return next
+    })
+
+    try {
+      await onDeleteTask(taskId)
+    } finally {
+      setDeletingTaskIds((prev) => {
+        const next = new Set(prev)
+        next.delete(taskId)
+        return next
+      })
+    }
+  }
 
   return (
     <section className="insights-section">
@@ -112,33 +139,58 @@ export function InsightsOverviewSection({
           <p className="section-state">현재 리스크 작업이 없습니다.</p>
         ) : (
           <ul className="insights-risky-list">
-            {riskyTasks.map((task) => (
-              <li key={task.taskId} className="insights-risky-item">
-                <div className="insights-risky-item__title">
-                  <button
-                    type="button"
-                    className="link-button"
-                    onClick={() => onOpenTask(task.taskId)}
-                  >
-                    {task.taskName}
-                  </button>
-                  <div className="insights-risky-item__reasons">
-                    {task.reasons.map((reason) => (
-                      <span key={reason} className="insights-risky-item__reason-chip">
-                        {toRiskReasonLabel(reason)}
-                      </span>
-                    ))}
+            {riskyTasks.map((task) => {
+              const canManageStaleTask = task.reasons.includes('NO_COMPLETION_30D')
+              const isDeleting = deletingTaskIds.has(task.taskId)
+
+              return (
+                <li key={task.taskId} className="insights-risky-item">
+                  <div className="insights-risky-item__title">
+                    <button
+                      type="button"
+                      className="link-button"
+                      onClick={() => onOpenTask(task.taskId)}
+                    >
+                      {task.taskName}
+                    </button>
+                    <div className="insights-risky-item__reasons">
+                      {task.reasons.map((reason) => (
+                        <span key={reason} className="insights-risky-item__reason-chip">
+                          {toRiskReasonLabel(reason)}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                </div>
-                <div className="insights-risky-item__meta">
-                  <span>다음 예정 {formatDateTime(task.nextDueAt)}</span>
-                  <span>마지막 완료 {formatDateTime(task.lastCompletedAt ?? undefined)}</span>
-                </div>
-                <p className="insights-risky-item__hint">
-                  {toRiskReasonDescription(task.reasons[0])}
-                </p>
-              </li>
-            ))}
+                  <div className="insights-risky-item__meta">
+                    <span>다음 예정 {formatDateTime(task.nextDueAt)}</span>
+                    <span>마지막 완료 {formatDateTime(task.lastCompletedAt ?? undefined)}</span>
+                  </div>
+                  <p className="insights-risky-item__hint">
+                    {toRiskReasonDescription(task.reasons[0])}
+                  </p>
+                  {canManageStaleTask && (
+                    <div className="insights-risky-item__actions">
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={() => onEditTask(task.taskId)}
+                        disabled={isDeleting}
+                      >
+                        변경
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-delete"
+                        onClick={() => handleDelete(task.taskId, task.taskName)}
+                        disabled={isDeleting}
+                      >
+                        {isDeleting ? '삭제 중...' : '삭제'}
+                      </button>
+                    </div>
+                  )}
+                </li>
+              )
+            })}
           </ul>
         )}
       </div>

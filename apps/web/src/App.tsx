@@ -274,6 +274,15 @@ function App() {
     return ok
   }
 
+  const handleEditTaskFromInsights = async (id: number) => {
+    const res = await tasksApi.getById(id)
+    if (res.success && res.data) {
+      setSelectedTask(res.data)
+      return
+    }
+    window.alert(extractErrorMessage(res.error, 'Task 정보를 불러오지 못했습니다.'))
+  }
+
   const handleCompleteTask = async (id: number) => {
     setCompletingTaskIds((prev) => {
       const next = new Set(prev)
@@ -459,6 +468,8 @@ function App() {
             isLoading={isInsightsLoading}
             error={insightsError}
             onOpenTask={(taskId) => navigateTo(`/tasks/${taskId}`)}
+            onEditTask={handleEditTaskFromInsights}
+            onDeleteTask={handleDeleteTask}
             onRetry={refetchInsights}
           />
         ) : isLoading ? (
