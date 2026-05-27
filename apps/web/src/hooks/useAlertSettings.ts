@@ -67,13 +67,13 @@ export function useAlertSettings() {
       taskDueEmailAlertApi.getRecipients(),
     ])
 
-    if (!settingsRes.success || !settingsRes.data) {
+    if (!settingsRes.success) {
       setError(extractErrorMessage(settingsRes.error, '알림 설정을 불러오지 못했습니다.'))
       setIsLoading(false)
       return
     }
 
-    if (!recipientsRes.success || !recipientsRes.data) {
+    if (!recipientsRes.success) {
       setError(extractErrorMessage(recipientsRes.error, '수신 이메일 목록을 불러오지 못했습니다.'))
       setIsLoading(false)
       return
@@ -140,7 +140,7 @@ export function useAlertSettings() {
       timezone,
     })
 
-    if (res.success && res.data) {
+    if (res.success) {
       setSettings(res.data)
       setForm(createFormFromSettings(res.data))
       setNotice('알림 발송 설정을 저장했습니다.')
@@ -198,7 +198,7 @@ export function useAlertSettings() {
 
     const res = await taskDueEmailAlertApi.addRecipient({ email })
 
-    if (res.success && res.data) {
+    if (res.success) {
       const addedRecipient = res.data
       const nextRecipients = [...recipients, addedRecipient]
 

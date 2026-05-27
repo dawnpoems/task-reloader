@@ -34,7 +34,7 @@ export function useTaskCompletions(
     const res = await tasksApi.getCompletions(taskId, query)
     if (requestId !== requestIdRef.current) return
 
-    if (res.success && res.data) {
+    if (res.success) {
       setCompletions(res.data)
     } else {
       setCompletions([])

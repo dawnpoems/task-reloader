@@ -64,7 +64,7 @@ export function useAdminApprovals() {
     setLoadError(null)
 
     const res = await authApi.getPendingUsers()
-    if (res.success && res.data) {
+    if (res.success) {
       setPendingUsers(res.data)
     } else {
       setLoadError(extractErrorMessage(res.error, '승인 대기 사용자 목록을 불러오지 못했습니다.'))
@@ -77,7 +77,7 @@ export function useAdminApprovals() {
     setNonPendingError(null)
 
     const res = await authApi.getNonPendingUsers()
-    if (res.success && res.data) {
+    if (res.success) {
       setNonPendingUsers(sortByCreatedAtAsc(res.data))
       setIsNonPendingLoaded(true)
     } else {

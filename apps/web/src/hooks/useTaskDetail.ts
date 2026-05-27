@@ -17,7 +17,7 @@ export function useTaskDetail(taskId: number, refreshToken = 0) {
     const taskRes = await tasksApi.getById(taskId)
     if (requestId !== requestIdRef.current) return
 
-    if (taskRes.success && taskRes.data) {
+    if (taskRes.success) {
       setTask(taskRes.data)
     } else {
       setTask(null)

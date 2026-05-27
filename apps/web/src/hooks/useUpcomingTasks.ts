@@ -24,7 +24,7 @@ export function useUpcomingTasks(enabled: boolean) {
     setIsLoading(true)
     setError(null)
     const res = await tasksApi.getAll('UPCOMING')
-    if (res.success && res.data) {
+    if (res.success) {
       setTasks(res.data)
       setIsLoaded(true)
     } else {

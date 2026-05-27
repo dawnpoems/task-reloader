@@ -196,7 +196,7 @@ function App() {
 
   const handleEditTaskFromInsights = async (id: number) => {
     const res = await tasksApi.getById(id)
-    if (res.success && res.data) {
+    if (res.success) {
       setSelectedTask(res.data)
       return
     }

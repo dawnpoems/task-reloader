@@ -33,21 +33,21 @@ export function useInsights(enabled = true): UseInsightsReturn {
       tasksApi.getTodayCompletions(),
     ])
 
-    if (dashboardRes.success && dashboardRes.data) {
+    if (dashboardRes.success) {
       setDashboard(dashboardRes.data)
     } else {
       setDashboard(null)
       setError('인사이트를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.')
     }
 
-    if (overviewRes.success && overviewRes.data) {
+    if (overviewRes.success) {
       setOverview(overviewRes.data)
     } else {
       setOverview(null)
       setError((prev) => prev ?? '인사이트 요약을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.')
     }
 
-    if (todayRes.success && todayRes.data) {
+    if (todayRes.success) {
       setTodayCompletions(todayRes.data)
     } else {
       setTodayCompletions([])
