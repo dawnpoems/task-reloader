@@ -8,7 +8,8 @@
 
 ## 결정
 
-- A안으로 진행해 `ApiResponse<T>`를 `success` discriminated union으로 전환했다.
+- 검토한 선택지는 `TypeScript 타입 중심의 응답 분기 개선`과 `응답 JSON shape 런타임 검증까지 포함하는 개선`이었다.
+- 이번 작업에서는 `TypeScript 타입 중심의 응답 분기 개선`을 진행해 `ApiResponse<T>`를 `success` discriminated union으로 전환했다.
 - `ApiResponse<void>`는 성공 시 `data`가 없어도 되는 타입으로 두고, 그 외 성공 응답은 `data: T`를 요구하도록 했다.
 - 런타임 응답 shape 검증까지 강제하는 작업은 이번 범위에서 제외했다.
 

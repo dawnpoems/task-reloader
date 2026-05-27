@@ -4,6 +4,7 @@ import { useInsights } from './hooks/useInsights'
 import { useDashboardSummary } from './hooks/useDashboardSummary'
 import { useBrowserNavigation } from './hooks/useBrowserNavigation'
 import { useUpcomingTasks } from './hooks/useUpcomingTasks'
+import { useTaskWorkflow } from './hooks/useTaskWorkflow'
 import { InsightsPage } from './components/InsightsPage'
 import { ErrorNotice } from './components/ErrorNotice'
 import { HomePage } from './components/HomePage'
@@ -42,9 +43,6 @@ function App() {
   const { pathname, navigateTo, replaceTo } = useBrowserNavigation()
   const [showForm, setShowForm] = useState(false)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
-  const [completingTaskIds, setCompletingTaskIds] = useState<Set<number>>(new Set())
-  const [completedTaskIds, setCompletedTaskIds] = useState<Set<number>>(new Set())
-  const [detailRefreshToken, setDetailRefreshToken] = useState(0)
   const [restoreCreateButtonFocus, setRestoreCreateButtonFocus] = useState(false)
   const [loginNotice, setLoginNotice] = useState<string | null>(null)
   const createTaskButtonRef = useRef<HTMLButtonElement | null>(null)
@@ -91,6 +89,31 @@ function App() {
     fetchTasks: fetchUpcomingTasks,
     toggleOpen: toggleUpcomingOpen,
   } = useUpcomingTasks(isDataEnabled)
+  const {
+    completingTaskIds,
+    completedTaskIds,
+    detailRefreshToken,
+    refreshAll,
+    handleCreateTask,
+    handleUpdateTask,
+    handleDeleteTask,
+    handleCompleteTask,
+    handleCompleteTaskFromDetail,
+  } = useTaskWorkflow({
+    isDataEnabled,
+    selectedTaskId,
+    isUpcomingLoaded,
+    refetchDueNow: refetch,
+    refetchInsights,
+    refetchDashboard,
+    fetchUpcomingTasks,
+    createTask,
+    updateTask,
+    completeTask,
+    deleteTask,
+    onCreateSuccess: () => setShowForm(false),
+    onSelectedTaskDeleted: () => navigateTo(HOME_PATH),
+  })
 
   useEffect(() => {
     if (!restoreCreateButtonFocus || showForm) return
@@ -153,46 +176,7 @@ function App() {
 
     setShowForm(false)
     setSelectedTask(null)
-    setCompletingTaskIds(new Set())
-    setCompletedTaskIds(new Set())
   }, [isDataEnabled])
-
-  const refreshAll = async () => {
-    if (!isDataEnabled) return
-
-    const tasksToRefresh = [refetch(), refetchInsights(), refetchDashboard()]
-    if (isUpcomingLoaded) {
-      tasksToRefresh.push(fetchUpcomingTasks())
-    }
-    await Promise.all(tasksToRefresh)
-  }
-
-  const handleCreateTask = async (req: Parameters<typeof createTask>[0]) => {
-    const ok = await createTask(req)
-    if (ok) {
-      await refreshAll()
-      setShowForm(false)
-    }
-    return ok
-  }
-
-  const handleUpdateTask = async (id: number, request: Parameters<typeof updateTask>[1]) => {
-    const ok = await updateTask(id, request)
-    if (ok) {
-      await refreshAll()
-      setDetailRefreshToken((prev) => prev + 1)
-    }
-    return ok
-  }
-
-  const handleDeleteTask = async (id: number) => {
-    const ok = await deleteTask(id)
-    if (ok) {
-      await refreshAll()
-      if (selectedTaskId === id) navigateTo(HOME_PATH)
-    }
-    return ok
-  }
 
   const handleEditTaskFromInsights = async (id: number) => {
     const res = await tasksApi.getById(id)
@@ -201,53 +185,6 @@ function App() {
       return
     }
     window.alert(extractErrorMessage(res.error, 'Task 정보를 불러오지 못했습니다.'))
-  }
-
-  const handleCompleteTask = async (id: number) => {
-    setCompletingTaskIds((prev) => {
-      const next = new Set(prev)
-      next.add(id)
-      return next
-    })
-
-    try {
-      const ok = await completeTask(id)
-      if (ok) {
-        setCompletedTaskIds((prev) => {
-          const next = new Set(prev)
-          next.add(id)
-          return next
-        })
-
-        await new Promise((resolve) => setTimeout(resolve, 1150))
-        await refreshAll()
-      }
-      return ok
-    } finally {
-      setCompletingTaskIds((prev) => {
-        const next = new Set(prev)
-        next.delete(id)
-        return next
-      })
-      setCompletedTaskIds((prev) => {
-        if (!prev.has(id)) return prev
-        const next = new Set(prev)
-        next.delete(id)
-        return next
-      })
-    }
-  }
-
-  const handleCompleteTaskFromDetail = async (id: number) => {
-    const ok = await completeTask(id)
-    if (!ok) return false
-
-    const tasksToRefresh = [refetch(), refetchDashboard()]
-    if (isUpcomingLoaded) {
-      tasksToRefresh.push(fetchUpcomingTasks())
-    }
-    await Promise.all(tasksToRefresh)
-    return true
   }
 
   const handleCloseCreateModal = () => {

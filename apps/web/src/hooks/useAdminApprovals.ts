@@ -5,7 +5,7 @@ import type { PendingUser, UserStatus } from '../types/auth'
 
 export type ActionKind = 'approve' | 'reject' | 'set-approved' | 'set-rejected'
 
-interface ActionState {
+export interface ActionState {
   userId: number
   kind: ActionKind
 }

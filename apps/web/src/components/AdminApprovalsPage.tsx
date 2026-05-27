@@ -1,52 +1,11 @@
-import { useId, useRef } from 'react'
-import { isStatusToggleAction, useAdminApprovals } from '../hooks/useAdminApprovals'
-import { useModalFocusTrap } from '../hooks/useModalFocusTrap'
-import type { ActionKind } from '../hooks/useAdminApprovals'
+import { useId } from 'react'
+import { useAdminApprovals } from '../hooks/useAdminApprovals'
+import { AdminApprovalsConfirmModal } from './AdminApprovalsConfirmModal'
+import { PendingApprovalList, ReviewedApprovalSection } from './AdminApprovalsUserLists'
 import { ErrorNotice } from './ErrorNotice'
-
-function formatCreatedAt(value: string): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString('ko-KR', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
-function getActionLabel(kind: ActionKind): string {
-  if (kind === 'approve') return '승인'
-  if (kind === 'reject') return '거절'
-  if (kind === 'set-approved') return '승인 상태로 변경'
-  return '거절 상태로 변경'
-}
-
-function getActionButtonClass(kind: ActionKind): string {
-  if (kind === 'reject' || kind === 'set-rejected') return 'admin-approvals__reject'
-  return 'admin-approvals__approve'
-}
-
-function getActionSubmitLabel(kind: ActionKind): string {
-  if (kind === 'approve') return '승인 진행'
-  if (kind === 'reject') return '거절 진행'
-  if (kind === 'set-approved') return '승인으로 변경'
-  return '거절로 변경'
-}
-
-function getActionSubmittingLabel(kind: ActionKind): string {
-  if (kind === 'approve') return '승인 처리 중...'
-  if (kind === 'reject') return '거절 처리 중...'
-  if (kind === 'set-approved') return '승인으로 변경 중...'
-  return '거절로 변경 중...'
-}
 
 export function AdminApprovalsPage() {
   const searchInputId = useId()
-  const confirmTitleId = useId()
-  const confirmDescriptionId = useId()
-  const confirmButtonRef = useRef<HTMLButtonElement | null>(null)
   const {
     isLoading,
     isNonPendingLoading,
@@ -77,22 +36,6 @@ export function AdminApprovalsPage() {
     filteredNonPendingCount,
     toggleNonPendingOpen,
   } = useAdminApprovals()
-  const { modalRef, handleKeyDown: handleConfirmModalKeyDown } = useModalFocusTrap<HTMLDivElement>({
-    isOpen: confirmTarget !== null,
-    onRequestClose: requestCloseConfirmModal,
-    isCloseDisabled: isActionBusy,
-    initialFocusRef: confirmButtonRef,
-    restoreFocusRef: previousFocusedElementRef,
-  })
-
-  const confirmActionLabel = confirmTarget ? getActionLabel(confirmTarget.kind) : ''
-  const confirmActionButtonClass = confirmTarget ? getActionButtonClass(confirmTarget.kind) : 'admin-approvals__approve'
-  const confirmSubmitLabel = confirmTarget ? getActionSubmitLabel(confirmTarget.kind) : ''
-  const confirmSubmittingLabel = confirmTarget ? getActionSubmittingLabel(confirmTarget.kind) : ''
-  const isConfirmingCurrentAction =
-    !!confirmTarget &&
-    actionState?.userId === confirmTarget.user.userId &&
-    actionState?.kind === confirmTarget.kind
 
   return (
     <section className="admin-approvals" aria-labelledby="admin-approvals-title">
@@ -147,149 +90,38 @@ export function AdminApprovalsPage() {
       ) : filteredPendingCount === 0 ? (
         <p className="admin-approvals__empty admin-approvals__empty--filter">검색 조건과 일치하는 사용자가 없습니다.</p>
       ) : (
-        <ul className="admin-approvals__list">
-          {filteredPendingUsers.map((user) => {
-            const isApproving = actionState?.userId === user.userId && actionState.kind === 'approve'
-            const isRejecting = actionState?.userId === user.userId && actionState.kind === 'reject'
-            const isDisabled = isInteractionLocked
-
-            return (
-              <li key={user.userId} className="admin-approvals__item">
-                <div className="admin-approvals__meta">
-                  <p className="admin-approvals__email">{user.email}</p>
-                  <p className="admin-approvals__detail">
-                    역할: {user.role} · 상태: {user.status} · 가입일: {formatCreatedAt(user.createdAt)}
-                  </p>
-                </div>
-                <div className="admin-approvals__actions admin-approvals__actions--decision">
-                  <button
-                    type="button"
-                    className="admin-approvals__approve"
-                    disabled={isDisabled}
-                    onClick={(event) => openConfirmModal(user, 'approve', event.currentTarget)}
-                  >
-                    {isApproving ? '승인 중...' : '승인'}
-                  </button>
-                  <button
-                    type="button"
-                    className="admin-approvals__reject"
-                    disabled={isDisabled}
-                    onClick={(event) => openConfirmModal(user, 'reject', event.currentTarget)}
-                  >
-                    {isRejecting ? '거절 중...' : '거절'}
-                  </button>
-                </div>
-              </li>
-            )
-          })}
-        </ul>
+        <PendingApprovalList
+          users={filteredPendingUsers}
+          actionState={actionState}
+          isInteractionLocked={isInteractionLocked}
+          onOpenConfirm={openConfirmModal}
+        />
       )}
 
-      <section className="admin-approvals__secondary">
-        <button
-          type="button"
-          className="btn-secondary admin-approvals__secondary-toggle"
-          onClick={toggleNonPendingOpen}
-          disabled={isInteractionLocked || isNonPendingLoading}
-        >
-          {isNonPendingOpen ? '승인/거절 사용자 접기' : `승인/거절 사용자 보기${isNonPendingLoaded ? ` (${nonPendingCount})` : ''}`}
-        </button>
-
-        {isNonPendingOpen && (
-          <div className="admin-approvals__secondary-content">
-            <p className="admin-approvals__summary">승인/거절 {nonPendingCount}명 · 표시 {filteredNonPendingCount}명</p>
-            {nonPendingError && <ErrorNotice message={nonPendingError} onRetry={loadNonPendingUsers} />}
-
-            {isNonPendingLoading ? (
-              <p className="app-loading">승인/거절 사용자 목록을 불러오는 중...</p>
-            ) : nonPendingError ? null : nonPendingCount === 0 ? (
-              <p className="admin-approvals__empty">승인/거절된 사용자가 없습니다.</p>
-            ) : filteredNonPendingCount === 0 ? (
-              <p className="admin-approvals__empty admin-approvals__empty--filter">검색 조건과 일치하는 사용자가 없습니다.</p>
-            ) : (
-              <ul className="admin-approvals__list">
-                {filteredNonPendingUsers.map((user) => {
-                  const toggleKind: ActionKind = user.status === 'APPROVED' ? 'set-rejected' : 'set-approved'
-                  const isToggling = actionState?.userId === user.userId && isStatusToggleAction(actionState.kind)
-                  const isApproved = user.status === 'APPROVED'
-                  const toggleLabel = isApproved ? '승인' : '거절'
-                  const toggleHint = isApproved ? '클릭하면 거절로 변경' : '클릭하면 승인으로 변경'
-
-                  return (
-                    <li key={user.userId} className="admin-approvals__item">
-                      <div className="admin-approvals__meta">
-                        <p className="admin-approvals__email">{user.email}</p>
-                        <p className="admin-approvals__detail">
-                          역할: {user.role} · 상태: {user.status} · 가입일: {formatCreatedAt(user.createdAt)}
-                        </p>
-                      </div>
-                      <div className="admin-approvals__actions admin-approvals__actions--toggle">
-                        <button
-                          type="button"
-                          className={`admin-approvals__status-toggle ${isApproved ? 'admin-approvals__status-toggle--approved' : 'admin-approvals__status-toggle--rejected'}`}
-                          aria-label={`${user.email} 상태를 ${isApproved ? '거절' : '승인'}으로 변경`}
-                          disabled={isInteractionLocked}
-                          onClick={(event) => openConfirmModal(user, toggleKind, event.currentTarget)}
-                        >
-                          <span className="admin-approvals__status-toggle-track" aria-hidden="true">
-                            <span className="admin-approvals__status-toggle-thumb" />
-                          </span>
-                          <span>{isToggling ? '변경 중...' : toggleLabel}</span>
-                        </button>
-                        <p className="admin-approvals__toggle-hint">{toggleHint}</p>
-                      </div>
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-          </div>
-        )}
-      </section>
+      <ReviewedApprovalSection
+        users={filteredNonPendingUsers}
+        actionState={actionState}
+        isOpen={isNonPendingOpen}
+        isLoaded={isNonPendingLoaded}
+        isLoading={isNonPendingLoading}
+        error={nonPendingError}
+        isInteractionLocked={isInteractionLocked}
+        totalCount={nonPendingCount}
+        filteredCount={filteredNonPendingCount}
+        onToggle={toggleNonPendingOpen}
+        onRetry={loadNonPendingUsers}
+        onOpenConfirm={openConfirmModal}
+      />
 
       {confirmTarget && (
-        <div className="modal-backdrop" onClick={requestCloseConfirmModal}>
-          <div
-            ref={modalRef}
-            className="modal admin-approvals__modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={confirmTitleId}
-            aria-describedby={confirmDescriptionId}
-            tabIndex={-1}
-            onClick={(event) => event.stopPropagation()}
-            onKeyDown={handleConfirmModalKeyDown}
-          >
-            <div className="modal__header">
-              <h2 id={confirmTitleId}>{confirmActionLabel} 확인</h2>
-              <button className="modal__close" onClick={requestCloseConfirmModal} aria-label="닫기" disabled={isActionBusy}>
-                ✕
-              </button>
-            </div>
-
-            <div className="modal__body">
-              <p id={confirmDescriptionId} className="admin-approvals__modal-message">
-                아래 사용자를 정말 {confirmActionLabel}할까요?
-                <strong className="admin-approvals__modal-email">{confirmTarget.user.email}</strong>
-              </p>
-
-              <div className="modal__actions admin-approvals__modal-actions">
-                <button type="button" className="btn-secondary" onClick={requestCloseConfirmModal} disabled={isActionBusy}>
-                  취소
-                </button>
-                <button
-                  ref={confirmButtonRef}
-                  type="button"
-                  className={confirmActionButtonClass}
-                  onClick={submitAction}
-                  disabled={isActionBusy}
-                >
-                  {isConfirmingCurrentAction ? confirmSubmittingLabel : confirmSubmitLabel}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <AdminApprovalsConfirmModal
+          confirmTarget={confirmTarget}
+          actionState={actionState}
+          isActionBusy={isActionBusy}
+          restoreFocusRef={previousFocusedElementRef}
+          onClose={requestCloseConfirmModal}
+          onSubmit={submitAction}
+        />
       )}
     </section>
   )
