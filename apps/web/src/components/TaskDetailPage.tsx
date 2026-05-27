@@ -218,7 +218,7 @@ export function TaskDetailPage({ taskId, refreshToken = 0, onBack, onEdit, onCom
         <section className="detail-card">
           <h3>기본 정보</h3>
           <dl className="detail-card__list">
-            <div><dt>반복 주기</dt><dd>매 {task.everyNDays}일</dd></div>
+            <div><dt>반복 주기</dt><dd>{task.everyNDays}일마다 반복</dd></div>
             <div><dt>다음 예정</dt><dd>{formatDateTime(task.nextDueAt)}</dd></div>
             <div><dt>시작일</dt><dd>{task.startDate ?? '-'}</dd></div>
             <div><dt>최근 완료</dt><dd>{formatDateTime(task.completedAt)}</dd></div>

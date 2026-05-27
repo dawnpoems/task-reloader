@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTasks } from './hooks/useTasks'
 import { useInsights } from './hooks/useInsights'
+import { useDashboardSummary } from './hooks/useDashboardSummary'
 import { InsightsPage } from './components/InsightsPage'
 import { ErrorNotice } from './components/ErrorNotice'
 import { TaskSection } from './components/TaskSection'
@@ -108,13 +109,18 @@ function App() {
   } = useTasks('DUE_NOW', isDataEnabled)
 
   const {
-    dashboard,
+    dashboard: insightsDashboard,
     overview,
     recentCompletions,
     isLoading: isInsightsLoading,
     error: insightsError,
     refetch: refetchInsights,
   } = useInsights(isInsightsPage && isDataEnabled)
+  const {
+    dashboard,
+    error: dashboardError,
+    refetch: refetchDashboard,
+  } = useDashboardSummary(isHomePage && isDataEnabled)
 
   useEffect(() => {
     const handlePopState = () => setPathname(window.location.pathname)
@@ -234,7 +240,7 @@ function App() {
   const refreshAll = async () => {
     if (!isDataEnabled) return
 
-    const tasksToRefresh = [refetch(), refetchInsights()]
+    const tasksToRefresh = [refetch(), refetchInsights(), refetchDashboard()]
     if (isUpcomingLoaded) {
       tasksToRefresh.push(fetchUpcomingTasks())
     }
@@ -307,7 +313,7 @@ function App() {
     const ok = await completeTask(id)
     if (!ok) return false
 
-    const tasksToRefresh = [refetch()]
+    const tasksToRefresh = [refetch(), refetchDashboard()]
     if (isUpcomingLoaded) {
       tasksToRefresh.push(fetchUpcomingTasks())
     }
@@ -430,6 +436,7 @@ function App() {
 
       <main className="app-main">
         {shouldShowGlobalError && error && <ErrorNotice message={error} onRetry={refreshAll} />}
+        {shouldShowGlobalError && !error && dashboardError && <ErrorNotice message={dashboardError} onRetry={refreshAll} />}
         {toast && <p className="app-toast" role="status" aria-live="polite">{toast}</p>}
 
         {isAdminApprovalsPage ? (
@@ -446,7 +453,7 @@ function App() {
           />
         ) : isInsightsPage ? (
           <InsightsPage
-            dashboard={dashboard}
+            dashboard={insightsDashboard}
             overview={overview}
             recentCompletions={recentCompletions}
             isLoading={isInsightsLoading}

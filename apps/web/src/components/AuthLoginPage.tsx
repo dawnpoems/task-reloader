@@ -34,6 +34,15 @@ export function AuthLoginPage({ onLogin, onGoSignup, noticeMessage, onDismissNot
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { isActive: isRateLimited, remainingSeconds, startCountdown, clearCountdown } = useRetryAfterCountdown()
 
+  const handleUseDemoAccount = () => {
+    setEmail(DEMO_ACCOUNT_EMAIL)
+    setPassword(DEMO_ACCOUNT_PASSWORD)
+    setIsDemoAccountOpen(true)
+    setError(null)
+    setAccountStateNotice(null)
+    clearCountdown()
+  }
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (isRateLimited) return
@@ -105,9 +114,9 @@ export function AuthLoginPage({ onLogin, onGoSignup, noticeMessage, onDismissNot
           className="auth-demo-toggle"
           aria-expanded={isDemoAccountOpen}
           aria-controls="demo-account-panel"
-          onClick={() => setIsDemoAccountOpen((prev) => !prev)}
+          onClick={handleUseDemoAccount}
         >
-          {isDemoAccountOpen ? '데모 계정 숨기기' : '데모 계정으로 빠르게 체험하기'}
+          데모 계정으로 빠르게 체험하기
         </button>
         {isDemoAccountOpen && (
           <div id="demo-account-panel" className="auth-demo-panel" role="region" aria-live="polite">
