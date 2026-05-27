@@ -64,6 +64,12 @@ const clearPostLoginRedirect = (): void => {
   window.sessionStorage.removeItem(POST_LOGIN_REDIRECT_KEY)
 }
 
+const loginPathWithEmailPrefill = (): string => {
+  const email = new URLSearchParams(window.location.search).get('email')?.trim()
+  if (!email) return LOGIN_PATH
+  return `${LOGIN_PATH}?email=${encodeURIComponent(email)}`
+}
+
 function App() {
   const { user, isAuthenticated, isInitializing, login, signup, logout } = useAuth()
   const [pathname, setPathname] = useState(window.location.pathname)
@@ -142,7 +148,7 @@ function App() {
       return
     }
     window.history.pushState({}, '', nextPath)
-    setPathname(nextPath)
+    setPathname(window.location.pathname)
   }, [])
 
   const replaceTo = useCallback((nextPath: string) => {
@@ -151,7 +157,7 @@ function App() {
       return
     }
     window.history.replaceState({}, '', nextPath)
-    setPathname(nextPath)
+    setPathname(window.location.pathname)
   }, [])
 
   useEffect(() => {
@@ -165,7 +171,7 @@ function App() {
     if (!isAuthenticated) {
       if (!isPublicPath(pathname)) {
         savePostLoginRedirect(pathname)
-        replaceTo(LOGIN_PATH)
+        replaceTo(loginPathWithEmailPrefill())
       }
       return
     }

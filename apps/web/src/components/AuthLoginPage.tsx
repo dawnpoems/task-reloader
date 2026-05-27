@@ -19,8 +19,14 @@ interface AuthLoginPageProps {
   onDismissNotice?: () => void
 }
 
+function getEmailPrefillFromUrl(): string {
+  const email = new URLSearchParams(window.location.search).get('email')?.trim() ?? ''
+  if (email.length > 255) return ''
+  return email
+}
+
 export function AuthLoginPage({ onLogin, onGoSignup, noticeMessage, onDismissNotice }: AuthLoginPageProps) {
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(getEmailPrefillFromUrl)
   const [password, setPassword] = useState('')
   const [isDemoAccountOpen, setIsDemoAccountOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)

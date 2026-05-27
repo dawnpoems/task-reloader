@@ -3,6 +3,8 @@ package com.yegkim.task_reloader_api.alert.mail;
 import com.yegkim.task_reloader_api.alert.config.TaskDueEmailAlertMailConfig;
 import com.yegkim.task_reloader_api.alert.dto.TaskDueEmailAlertMailContent;
 import com.yegkim.task_reloader_api.alert.dto.TaskDueEmailAlertSummary;
+import com.yegkim.task_reloader_api.auth.entity.User;
+import com.yegkim.task_reloader_api.auth.repository.UserRepository;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
@@ -23,19 +25,24 @@ public class TaskDueEmailAlertMailSender {
     private final JavaMailSender javaMailSender;
     private final TaskDueEmailAlertMailTemplateRenderer templateRenderer;
     private final TaskDueEmailAlertMailConfig mailConfig;
+    private final UserRepository userRepository;
 
     public int send(TaskDueEmailAlertSummary summary, List<String> recipients) {
         if (summary.isEmpty() || recipients == null || recipients.isEmpty()) {
             return 0;
         }
 
-        TaskDueEmailAlertMailContent content = templateRenderer.render(summary);
+        String prefillEmail = userRepository.findById(summary.userId())
+                .map(User::getEmail)
+                .orElse(null);
         int sentCount = 0;
         for (String recipient : recipients) {
             if (recipient == null || recipient.isBlank()) {
                 continue;
             }
-            sendOne(recipient, content);
+            String normalizedRecipient = recipient.trim();
+            TaskDueEmailAlertMailContent content = templateRenderer.render(summary, prefillEmail);
+            sendOne(normalizedRecipient, content);
             sentCount += 1;
         }
         return sentCount;
