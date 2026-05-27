@@ -378,6 +378,33 @@ class TaskControllerTest {
     }
 
     @Test
+    @DisplayName("오늘 완료 작업 조회 - 성공")
+    void testGetTodayCompletionsSuccess() throws Exception {
+        OffsetDateTime now = OffsetDateTime.now();
+        RecentTaskCompletionResponse response = RecentTaskCompletionResponse.builder()
+                .id(101L)
+                .taskId(1L)
+                .taskName("Today Task")
+                .completedAt(now.minusHours(1))
+                .previousDueAt(now.minusDays(1))
+                .nextDueAt(now.plusDays(6))
+                .build();
+
+        when(taskService.findTodayCompletions()).thenReturn(List.of(response));
+
+        mockMvc.perform(get("/api/insights/today-completions")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].taskId", is(1)))
+                .andExpect(jsonPath("$.data[0].taskName", is("Today Task")))
+                .andExpect(jsonPath("$.error").doesNotExist());
+
+        verify(taskService, times(1)).findTodayCompletions();
+    }
+
+    @Test
     @DisplayName("인사이트 overview 조회 - 성공")
     void testGetInsightsOverviewSuccess() throws Exception {
         OffsetDateTime now = OffsetDateTime.now();

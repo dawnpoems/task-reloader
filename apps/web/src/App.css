@@ -1722,12 +1722,6 @@
   line-height: 1.4;
 }
 
-.today-done-section__note {
-  margin: 0.75rem 0 0;
-  color: #64748b;
-  font-size: 0.82rem;
-}
-
 .insights-overview-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

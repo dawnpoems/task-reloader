@@ -3,7 +3,7 @@ import type { DashboardSummary, RecentTaskCompletion } from '../types/insights'
 
 interface TodayDoneSectionProps {
   dashboard: DashboardSummary | null
-  recentCompletions: RecentTaskCompletion[]
+  todayCompletions: RecentTaskCompletion[]
   isLoading: boolean
   onOpenTask: (taskId: number) => void
 }
@@ -44,14 +44,11 @@ function buildTodaySummary(completedToday: number, scheduledCompleted: number, o
 
 export function TodayDoneSection({
   dashboard,
-  recentCompletions,
+  todayCompletions,
   isLoading,
   onOpenTask,
 }: TodayDoneSectionProps) {
   const todayKey = getKstDateKey(new Date())
-  const todayCompletions = recentCompletions.filter((completion) =>
-    isSameKstDate(completion.completedAt, todayKey)
-  )
   const completedToday = dashboard?.completedToday ?? todayCompletions.length
   const scheduledCompleted = todayCompletions.filter((completion) =>
     isSameKstDate(completion.previousDueAt, todayKey)
@@ -59,7 +56,6 @@ export function TodayDoneSection({
   const overdueCleared = todayCompletions.filter((completion) =>
     getKstDateKey(new Date(completion.previousDueAt)) < todayKey
   ).length
-  const hiddenCompletionCount = Math.max(0, completedToday - todayCompletions.length)
 
   return (
     <section className="today-done-section">
@@ -103,11 +99,6 @@ export function TodayDoneSection({
               </li>
             ))}
           </ul>
-          {hiddenCompletionCount > 0 && (
-            <p className="today-done-section__note">
-              최근 완료 목록 기준으로 {todayCompletions.length}개를 표시했습니다. 오늘 완료한 나머지 {hiddenCompletionCount}개는 상세 완료 이력에서 확인할 수 있습니다.
-            </p>
-          )}
         </>
       )}
     </section>

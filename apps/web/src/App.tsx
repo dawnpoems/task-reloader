@@ -111,7 +111,7 @@ function App() {
   const {
     dashboard: insightsDashboard,
     overview,
-    recentCompletions,
+    todayCompletions,
     isLoading: isInsightsLoading,
     error: insightsError,
     refetch: refetchInsights,
@@ -455,7 +455,7 @@ function App() {
           <InsightsPage
             dashboard={insightsDashboard}
             overview={overview}
-            recentCompletions={recentCompletions}
+            todayCompletions={todayCompletions}
             isLoading={isInsightsLoading}
             error={insightsError}
             onOpenTask={(taskId) => navigateTo(`/tasks/${taskId}`)}

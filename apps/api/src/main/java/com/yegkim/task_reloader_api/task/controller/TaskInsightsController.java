@@ -43,4 +43,10 @@ public class TaskInsightsController {
     public ApiResponse<List<RecentTaskCompletionResponse>> getRecentCompletions() {
         return ApiResponse.success(taskService.findRecentCompletions());
     }
+
+    @Operation(summary = "오늘 완료 작업 조회")
+    @GetMapping("/today-completions")
+    public ApiResponse<List<RecentTaskCompletionResponse>> getTodayCompletions() {
+        return ApiResponse.success(taskService.findTodayCompletions());
+    }
 }

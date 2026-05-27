@@ -39,9 +39,21 @@ public interface TaskCompletionRepository extends JpaRepository<TaskCompletion, 
             OffsetDateTime endExclusive
     );
 
+    List<TaskCompletion> findByUserIdAndCompletedAtGreaterThanEqualAndCompletedAtLessThanOrderByCompletedAtDesc(
+            Long userId,
+            OffsetDateTime startInclusive,
+            OffsetDateTime endExclusive
+    );
+
     long countByCompletedAtBetween(OffsetDateTime start, OffsetDateTime end);
 
     long countByUserIdAndCompletedAtBetween(Long userId, OffsetDateTime start, OffsetDateTime end);
+
+    long countByUserIdAndCompletedAtGreaterThanEqualAndCompletedAtLessThan(
+            Long userId,
+            OffsetDateTime startInclusive,
+            OffsetDateTime endExclusive
+    );
 
     long countByUserId(Long userId);
 

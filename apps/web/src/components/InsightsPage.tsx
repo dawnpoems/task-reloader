@@ -6,7 +6,7 @@ import type { DashboardSummary, InsightsOverview, RecentTaskCompletion } from '.
 interface InsightsPageProps {
   dashboard: DashboardSummary | null
   overview: InsightsOverview | null
-  recentCompletions: RecentTaskCompletion[]
+  todayCompletions: RecentTaskCompletion[]
   isLoading: boolean
   error: string | null
   onOpenTask: (taskId: number) => void
@@ -16,7 +16,7 @@ interface InsightsPageProps {
 export function InsightsPage({
   dashboard,
   overview,
-  recentCompletions,
+  todayCompletions,
   isLoading,
   error,
   onOpenTask,
@@ -29,7 +29,7 @@ export function InsightsPage({
       )}
       <TodayDoneSection
         dashboard={dashboard}
-        recentCompletions={recentCompletions}
+        todayCompletions={todayCompletions}
         isLoading={isLoading}
         onOpenTask={onOpenTask}
       />

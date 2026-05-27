@@ -42,6 +42,9 @@ export const tasksApi = {
   getRecentCompletions: (): Promise<ApiResponse<RecentTaskCompletion[]>> =>
     apiClient.get<RecentTaskCompletion[]>('/insights/recent-completions'),
 
+  getTodayCompletions: (): Promise<ApiResponse<RecentTaskCompletion[]>> =>
+    apiClient.get<RecentTaskCompletion[]>('/insights/today-completions'),
+
   create: (request: CreateTaskRequest): Promise<ApiResponse<Task>> =>
     apiClient.post<Task>('/tasks', request),
 
