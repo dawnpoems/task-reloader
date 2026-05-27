@@ -81,6 +81,14 @@ public class TaskDueEmailAlertSetting {
         this.nextSendAt = nextSendAt;
     }
 
+    public void resetToDefault() {
+        this.enabled = false;
+        this.sendTime = DEFAULT_SEND_TIME;
+        this.timezone = DEFAULT_TIMEZONE;
+        this.lastSentLocalDate = null;
+        this.nextSendAt = null;
+    }
+
     @PrePersist
     protected void onCreate() {
         OffsetDateTime now = OffsetDateTime.now();

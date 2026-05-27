@@ -51,12 +51,16 @@ public class TaskDueEmailAlertDeliveryService {
 
     private void deliverOne(TaskDueEmailAlertSetting setting) {
         LocalDate localDate = currentLocalDate(setting.getTimezone());
-        if (deliveryLogRepository.findByUserIdAndLocalDateForUpdate(setting.getUserId(), localDate).isPresent()) {
+        TaskDueEmailAlertDeliveryLog existingLog = deliveryLogRepository
+                .findByUserIdAndLocalDateForUpdate(setting.getUserId(), localDate)
+                .orElse(null);
+        if (existingLog != null && existingLog.getStatus() != TaskDueEmailAlertDeliveryStatus.FAILED) {
             advanceNextSendAt(setting);
             log.info(
-                    "Task due email alert skipped because delivery log already exists userId={} localDate={}",
+                    "Task due email alert skipped because non-retryable delivery log already exists userId={} localDate={} status={}",
                     setting.getUserId(),
-                    localDate
+                    localDate,
+                    existingLog.getStatus()
             );
             return;
         }
@@ -68,6 +72,7 @@ public class TaskDueEmailAlertDeliveryService {
 
         if (recipients.isEmpty()) {
             recordDeliveryLog(
+                    existingLog,
                     setting,
                     localDate,
                     TaskDueEmailAlertDeliveryStatus.SKIPPED,
@@ -80,6 +85,7 @@ public class TaskDueEmailAlertDeliveryService {
         }
         if (summary.isEmpty()) {
             recordDeliveryLog(
+                    existingLog,
                     setting,
                     localDate,
                     TaskDueEmailAlertDeliveryStatus.SKIPPED,
@@ -96,6 +102,7 @@ public class TaskDueEmailAlertDeliveryService {
             try {
                 int sentCount = mailSender.send(summary, recipients);
                 recordDeliveryLog(
+                        existingLog,
                         setting,
                         localDate,
                         TaskDueEmailAlertDeliveryStatus.SENT,
@@ -119,6 +126,7 @@ public class TaskDueEmailAlertDeliveryService {
         }
 
         recordDeliveryLog(
+                existingLog,
                 setting,
                 localDate,
                 TaskDueEmailAlertDeliveryStatus.FAILED,
@@ -134,6 +142,7 @@ public class TaskDueEmailAlertDeliveryService {
     }
 
     private void recordDeliveryLog(
+            TaskDueEmailAlertDeliveryLog existingLog,
             TaskDueEmailAlertSetting setting,
             LocalDate localDate,
             TaskDueEmailAlertDeliveryStatus status,
@@ -141,6 +150,11 @@ public class TaskDueEmailAlertDeliveryService {
             int recipientCount,
             String errorMessage
     ) {
+        if (existingLog != null) {
+            existingLog.recordResult(status, attemptCount, recipientCount, errorMessage);
+            return;
+        }
+
         deliveryLogRepository.save(TaskDueEmailAlertDeliveryLog.create(
                 setting.getUserId(),
                 localDate,

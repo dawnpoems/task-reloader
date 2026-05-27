@@ -19,14 +19,29 @@ interface AuthLoginPageProps {
   onDismissNotice?: () => void
 }
 
+function getEmailPrefillFromUrl(): string {
+  const email = new URLSearchParams(window.location.search).get('email')?.trim() ?? ''
+  if (email.length > 255) return ''
+  return email
+}
+
 export function AuthLoginPage({ onLogin, onGoSignup, noticeMessage, onDismissNotice }: AuthLoginPageProps) {
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(getEmailPrefillFromUrl)
   const [password, setPassword] = useState('')
   const [isDemoAccountOpen, setIsDemoAccountOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [accountStateNotice, setAccountStateNotice] = useState<{ tone: 'pending' | 'rejected'; message: string } | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { isActive: isRateLimited, remainingSeconds, startCountdown, clearCountdown } = useRetryAfterCountdown()
+
+  const handleUseDemoAccount = () => {
+    setEmail(DEMO_ACCOUNT_EMAIL)
+    setPassword(DEMO_ACCOUNT_PASSWORD)
+    setIsDemoAccountOpen(true)
+    setError(null)
+    setAccountStateNotice(null)
+    clearCountdown()
+  }
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -99,9 +114,9 @@ export function AuthLoginPage({ onLogin, onGoSignup, noticeMessage, onDismissNot
           className="auth-demo-toggle"
           aria-expanded={isDemoAccountOpen}
           aria-controls="demo-account-panel"
-          onClick={() => setIsDemoAccountOpen((prev) => !prev)}
+          onClick={handleUseDemoAccount}
         >
-          {isDemoAccountOpen ? '데모 계정 숨기기' : '데모 계정으로 빠르게 체험하기'}
+          데모 계정으로 빠르게 체험하기
         </button>
         {isDemoAccountOpen && (
           <div id="demo-account-panel" className="auth-demo-panel" role="region" aria-live="polite">

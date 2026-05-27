@@ -17,4 +17,6 @@ public interface TaskDueEmailAlertRecipientRepository extends JpaRepository<Task
     Optional<TaskDueEmailAlertRecipient> findByIdAndUserId(Long id, Long userId);
 
     long deleteByIdAndUserId(Long id, Long userId);
+
+    long deleteByUserId(Long userId);
 }

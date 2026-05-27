@@ -156,6 +156,7 @@ export function AlertSettingsPage() {
     : form && !isFormDirty
       ? '변경한 내용이 없습니다.'
       : ''
+  const lastFailedDelivery = settings?.lastDelivery?.status === 'FAILED' ? settings.lastDelivery : null
 
   const handleSubmitSettings = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -311,6 +312,27 @@ export function AlertSettingsPage() {
                 </p>
               )}
 
+              {lastFailedDelivery && (
+                <div className="alert-settings-delivery-failure" role="alert">
+                  <div>
+                    <span>최근 발송 실패</span>
+                    <strong>{formatLocalDate(lastFailedDelivery.localDate)} 알림을 보내지 못했습니다.</strong>
+                  </div>
+                  <p>
+                    마지막 시도: {formatCreatedAt(lastFailedDelivery.updatedAt)}
+                    {' · '}
+                    {lastFailedDelivery.attemptCount}회 시도
+                    {' · '}
+                    수신자 {lastFailedDelivery.recipientCount}명
+                  </p>
+                  {lastFailedDelivery.errorMessage && (
+                    <p className="alert-settings-delivery-failure__reason">
+                      실패 사유: {lastFailedDelivery.errorMessage}
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div className="alert-settings-summary" aria-label="현재 발송 설정">
                 <div className="alert-settings-summary__grid">
                   <div className="alert-settings-summary__item">
@@ -326,7 +348,7 @@ export function AlertSettingsPage() {
                   <div className="alert-settings-summary__item">
                     <span>최근 발송일</span>
                     <strong>{formatLocalDate(settings.lastSentLocalDate)}</strong>
-                    <p>하루에 한 번만 발송됩니다.</p>
+                    <p>{lastFailedDelivery ? '실패한 발송은 다시 예약하면 재시도됩니다.' : '성공한 발송일 기준입니다.'}</p>
                   </div>
                 </div>
 
