@@ -143,6 +143,8 @@ docker compose logs -f cloudflared
 - `DEMO_ACCOUNT_RESET_ENABLED=true`:
   - 앱 시작 직후 1회 즉시 리셋
   - `DEMO_ACCOUNT_RESET_CRON`, `DEMO_ACCOUNT_RESET_ZONE_ID` 기준 주기 리셋
+  - 데모 계정의 등록된 이메일 알림 수신자 삭제
+  - 이메일 알림 사용 여부 끄기, 발송 시간 `09:00`, 타임존 `Asia/Seoul`로 초기화
 - `DEMO_ACCOUNT_RESET_SEED_ENABLED=true`:
   - 리셋 후 샘플 Task 자동 재생성
 - `DEMO_ACCOUNT_RESET_SEED_ENABLED=false`:

@@ -4,6 +4,7 @@ import com.yegkim.task_reloader_api.alert.config.TaskDueEmailAlertMailConfig;
 import com.yegkim.task_reloader_api.alert.dto.TaskDueEmailAlertMailContent;
 import com.yegkim.task_reloader_api.alert.dto.TaskDueEmailAlertSummary;
 import com.yegkim.task_reloader_api.alert.dto.TaskDueEmailAlertTaskItem;
+import com.yegkim.task_reloader_api.auth.repository.UserRepository;
 import jakarta.mail.Message;
 import jakarta.mail.internet.MimeMessage;
 import org.junit.jupiter.api.DisplayName;
@@ -17,6 +18,7 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -35,11 +37,13 @@ class TaskDueEmailAlertMailSenderTest {
     private final JavaMailSender javaMailSender = mock(JavaMailSender.class);
     private final TaskDueEmailAlertMailTemplateRenderer templateRenderer =
             mock(TaskDueEmailAlertMailTemplateRenderer.class);
+    private final UserRepository userRepository = mock(UserRepository.class);
     private final JavaMailSenderImpl mimeMessageFactory = new JavaMailSenderImpl();
     private final TaskDueEmailAlertMailSender sender = new TaskDueEmailAlertMailSender(
             javaMailSender,
             templateRenderer,
-            new TaskDueEmailAlertMailConfig("no-reply@task-reloader.local", "https://task.example.com")
+            new TaskDueEmailAlertMailConfig("no-reply@task-reloader.local", "https://task.example.com"),
+            userRepository
     );
 
     @Test
@@ -64,7 +68,8 @@ class TaskDueEmailAlertMailSenderTest {
     @DisplayName("공백 수신자는 건너뛰고 유효한 수신자에게만 개별 발송한다")
     void sendOnlyValidRecipients() throws Exception {
         TaskDueEmailAlertSummary summary = nonEmptySummary();
-        when(templateRenderer.render(summary)).thenReturn(content());
+        when(userRepository.findById(1L)).thenReturn(Optional.empty());
+        when(templateRenderer.render(summary, null)).thenReturn(content());
         when(javaMailSender.createMimeMessage()).thenAnswer(invocation -> mimeMessageFactory.createMimeMessage());
 
         int sentCount = sender.send(summary, Arrays.asList("owner@example.com", "   ", null, "team@example.com"));
@@ -85,7 +90,8 @@ class TaskDueEmailAlertMailSenderTest {
     @DisplayName("SMTP 발송 실패는 작업 마감 이메일 알림 예외로 감싼다")
     void wrapMailSendFailure() {
         TaskDueEmailAlertSummary summary = nonEmptySummary();
-        when(templateRenderer.render(summary)).thenReturn(content());
+        when(userRepository.findById(1L)).thenReturn(Optional.empty());
+        when(templateRenderer.render(summary, null)).thenReturn(content());
         when(javaMailSender.createMimeMessage()).thenReturn(mimeMessageFactory.createMimeMessage());
         doThrow(new MailSendException("smtp failed")).when(javaMailSender).send(any(MimeMessage.class));
 
@@ -110,7 +116,7 @@ class TaskDueEmailAlertMailSenderTest {
     @DisplayName("수신자가 모두 공백이면 SMTP 발송하지 않는다")
     void skipAllBlankRecipients() {
         TaskDueEmailAlertSummary summary = nonEmptySummary();
-        when(templateRenderer.render(summary)).thenReturn(content());
+        when(userRepository.findById(1L)).thenReturn(Optional.empty());
 
         int sentCount = sender.send(summary, List.of(" ", "\t"));
 

@@ -1,5 +1,8 @@
 package com.yegkim.task_reloader_api.task.service;
 
+import com.yegkim.task_reloader_api.alert.repository.TaskDueEmailAlertRecipientRepository;
+import com.yegkim.task_reloader_api.alert.entity.TaskDueEmailAlertSetting;
+import com.yegkim.task_reloader_api.alert.repository.TaskDueEmailAlertSettingRepository;
 import com.yegkim.task_reloader_api.auth.entity.RefreshToken;
 import com.yegkim.task_reloader_api.auth.entity.User;
 import com.yegkim.task_reloader_api.auth.entity.UserRole;
@@ -22,6 +25,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -50,6 +54,10 @@ class DemoAccountDataResetSchedulerTest {
     @Mock
     private RefreshTokenRepository refreshTokenRepository;
     @Mock
+    private TaskDueEmailAlertRecipientRepository taskDueEmailAlertRecipientRepository;
+    @Mock
+    private TaskDueEmailAlertSettingRepository taskDueEmailAlertSettingRepository;
+    @Mock
     private Clock clock;
 
     @InjectMocks
@@ -72,6 +80,8 @@ class DemoAccountDataResetSchedulerTest {
         scheduler.resetDemoAccountDataDaily();
 
         verify(taskRepository, never()).deleteByUserId(org.mockito.ArgumentMatchers.anyLong());
+        verify(taskDueEmailAlertRecipientRepository, never()).deleteByUserId(org.mockito.ArgumentMatchers.anyLong());
+        verify(taskDueEmailAlertSettingRepository, never()).findByUserIdForUpdate(org.mockito.ArgumentMatchers.anyLong());
         verify(refreshTokenRepository, never()).findAllByUserIdAndRevokedAtIsNull(org.mockito.ArgumentMatchers.anyLong());
         verify(taskRepository, never()).saveAll(anyList());
     }
@@ -82,12 +92,15 @@ class DemoAccountDataResetSchedulerTest {
         User demoUser = user(101L, "demo@dawnpoem.kr");
         RefreshToken tokenA = refreshToken(demoUser, "token-hash-a");
         RefreshToken tokenB = refreshToken(demoUser, "token-hash-b");
+        TaskDueEmailAlertSetting alertSetting = enabledAlertSetting(101L);
 
         when(userRepository.findByEmail("demo@dawnpoem.kr")).thenReturn(Optional.of(demoUser));
         when(taskRepository.countByUserIdAndIsActiveTrue(101L)).thenReturn(4L);
         when(taskRepository.countByUserId(101L)).thenReturn(7L);
         when(taskCompletionRepository.countByUserId(101L)).thenReturn(19L);
         when(refreshTokenRepository.findAllByUserIdAndRevokedAtIsNull(101L)).thenReturn(List.of(tokenA, tokenB));
+        when(taskDueEmailAlertRecipientRepository.deleteByUserId(101L)).thenReturn(2L);
+        when(taskDueEmailAlertSettingRepository.findByUserIdForUpdate(101L)).thenReturn(Optional.of(alertSetting));
         when(taskRepository.deleteByUserId(101L)).thenReturn(7L);
 
         scheduler.resetDemoAccountDataDaily();
@@ -98,7 +111,10 @@ class DemoAccountDataResetSchedulerTest {
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<Task>> seedTasksCaptor = ArgumentCaptor.forClass(List.class);
+        verify(taskDueEmailAlertRecipientRepository).deleteByUserId(101L);
+        verify(taskDueEmailAlertSettingRepository).findByUserIdForUpdate(101L);
         verify(taskRepository).saveAll(seedTasksCaptor.capture());
+        assertAlertSettingReset(alertSetting);
 
         List<Task> seededTasks = seedTasksCaptor.getValue();
         assertThat(seededTasks).hasSize(6);
@@ -134,19 +150,25 @@ class DemoAccountDataResetSchedulerTest {
 
         User demoUser = user(202L, "demo@dawnpoem.kr");
         RefreshToken token = refreshToken(demoUser, "token-hash-c");
+        TaskDueEmailAlertSetting alertSetting = enabledAlertSetting(202L);
 
         when(userRepository.findByEmail("demo@dawnpoem.kr")).thenReturn(Optional.of(demoUser));
         when(taskRepository.countByUserIdAndIsActiveTrue(202L)).thenReturn(2L);
         when(taskRepository.countByUserId(202L)).thenReturn(3L);
         when(taskCompletionRepository.countByUserId(202L)).thenReturn(11L);
         when(refreshTokenRepository.findAllByUserIdAndRevokedAtIsNull(202L)).thenReturn(List.of(token));
+        when(taskDueEmailAlertRecipientRepository.deleteByUserId(202L)).thenReturn(1L);
+        when(taskDueEmailAlertSettingRepository.findByUserIdForUpdate(202L)).thenReturn(Optional.of(alertSetting));
         when(taskRepository.deleteByUserId(202L)).thenReturn(3L);
 
         scheduler.resetDemoAccountDataDaily();
 
+        verify(taskDueEmailAlertRecipientRepository).deleteByUserId(202L);
+        verify(taskDueEmailAlertSettingRepository).findByUserIdForUpdate(202L);
         verify(taskRepository).deleteByUserId(202L);
         verify(taskRepository, never()).saveAll(anyList());
         assertThat(token.getRevokedAt()).isEqualTo(OffsetDateTime.ofInstant(FIXED_NOW, ZoneOffset.UTC));
+        assertAlertSettingReset(alertSetting);
     }
 
     @Test
@@ -154,19 +176,25 @@ class DemoAccountDataResetSchedulerTest {
     void resetDemoAccountDataOnStartup_seedEnabled_resetsAndSeedsTasks() {
         User demoUser = user(303L, "demo@dawnpoem.kr");
         RefreshToken token = refreshToken(demoUser, "token-hash-startup");
+        TaskDueEmailAlertSetting alertSetting = enabledAlertSetting(303L);
 
         when(userRepository.findByEmail("demo@dawnpoem.kr")).thenReturn(Optional.of(demoUser));
         when(taskRepository.countByUserIdAndIsActiveTrue(303L)).thenReturn(5L);
         when(taskRepository.countByUserId(303L)).thenReturn(8L);
         when(taskCompletionRepository.countByUserId(303L)).thenReturn(20L);
         when(refreshTokenRepository.findAllByUserIdAndRevokedAtIsNull(303L)).thenReturn(List.of(token));
+        when(taskDueEmailAlertRecipientRepository.deleteByUserId(303L)).thenReturn(3L);
+        when(taskDueEmailAlertSettingRepository.findByUserIdForUpdate(303L)).thenReturn(Optional.of(alertSetting));
         when(taskRepository.deleteByUserId(303L)).thenReturn(8L);
 
         scheduler.resetDemoAccountDataOnStartup();
 
+        verify(taskDueEmailAlertRecipientRepository).deleteByUserId(303L);
+        verify(taskDueEmailAlertSettingRepository).findByUserIdForUpdate(303L);
         verify(taskRepository).deleteByUserId(303L);
         verify(taskRepository).saveAll(anyList());
         assertThat(token.getRevokedAt()).isEqualTo(OffsetDateTime.ofInstant(FIXED_NOW, ZoneOffset.UTC));
+        assertAlertSettingReset(alertSetting);
     }
 
     private User user(Long id, String email) {
@@ -185,5 +213,24 @@ class DemoAccountDataResetSchedulerTest {
                 .tokenHash(tokenHash)
                 .expiresAt(OffsetDateTime.ofInstant(FIXED_NOW.plusSeconds(3600), ZoneOffset.UTC))
                 .build();
+    }
+
+    private TaskDueEmailAlertSetting enabledAlertSetting(Long userId) {
+        return TaskDueEmailAlertSetting.builder()
+                .userId(userId)
+                .enabled(true)
+                .sendTime(LocalTime.of(18, 30))
+                .timezone("America/New_York")
+                .lastSentLocalDate(LocalDate.of(2026, 5, 9))
+                .nextSendAt(OffsetDateTime.parse("2026-05-10T09:30:00Z"))
+                .build();
+    }
+
+    private void assertAlertSettingReset(TaskDueEmailAlertSetting alertSetting) {
+        assertThat(alertSetting.isEnabled()).isFalse();
+        assertThat(alertSetting.getSendTime()).isEqualTo(LocalTime.of(9, 0));
+        assertThat(alertSetting.getTimezone()).isEqualTo("Asia/Seoul");
+        assertThat(alertSetting.getLastSentLocalDate()).isNull();
+        assertThat(alertSetting.getNextSendAt()).isNull();
     }
 }

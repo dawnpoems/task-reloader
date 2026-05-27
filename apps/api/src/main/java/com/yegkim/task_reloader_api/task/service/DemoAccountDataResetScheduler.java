@@ -1,5 +1,8 @@
 package com.yegkim.task_reloader_api.task.service;
 
+import com.yegkim.task_reloader_api.alert.repository.TaskDueEmailAlertRecipientRepository;
+import com.yegkim.task_reloader_api.alert.entity.TaskDueEmailAlertSetting;
+import com.yegkim.task_reloader_api.alert.repository.TaskDueEmailAlertSettingRepository;
 import com.yegkim.task_reloader_api.auth.entity.RefreshToken;
 import com.yegkim.task_reloader_api.auth.entity.User;
 import com.yegkim.task_reloader_api.auth.repository.RefreshTokenRepository;
@@ -44,6 +47,8 @@ public class DemoAccountDataResetScheduler {
     private final TaskRepository taskRepository;
     private final TaskCompletionRepository taskCompletionRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final TaskDueEmailAlertRecipientRepository taskDueEmailAlertRecipientRepository;
+    private final TaskDueEmailAlertSettingRepository taskDueEmailAlertSettingRepository;
     private final Clock clock;
 
     @Value("${demo.account.reset.email:demo@dawnpoem.kr}")
@@ -87,11 +92,17 @@ public class DemoAccountDataResetScheduler {
         List<RefreshToken> activeTokens = refreshTokenRepository.findAllByUserIdAndRevokedAtIsNull(userId);
         activeTokens.forEach(token -> token.revoke(nowUtc));
 
+        long deletedAlertRecipientCount = taskDueEmailAlertRecipientRepository.deleteByUserId(userId);
+        taskDueEmailAlertSettingRepository.findByUserIdForUpdate(userId)
+                .orElseGet(() -> taskDueEmailAlertSettingRepository.saveAndFlush(
+                        TaskDueEmailAlertSetting.createDefault(userId)
+                ))
+                .resetToDefault();
         long deletedTaskCount = taskRepository.deleteByUserId(userId);
         int seededTaskCount = seedEnabled ? seedDefaultTasks(userId) : 0;
 
         log.info(
-                "Demo account reset completed trigger={} email={} userId={} activeTasksBefore={} totalTasksBefore={} completionsBefore={} revokedTokens={} deletedTasks={} seededTasks={}",
+                "Demo account reset completed trigger={} email={} userId={} activeTasksBefore={} totalTasksBefore={} completionsBefore={} revokedTokens={} deletedAlertRecipients={} deletedTasks={} seededTasks={}",
                 trigger,
                 normalizedEmail,
                 userId,
@@ -99,6 +110,7 @@ public class DemoAccountDataResetScheduler {
                 totalTaskCount,
                 completionCount,
                 activeTokens.size(),
+                deletedAlertRecipientCount,
                 deletedTaskCount,
                 seededTaskCount
         );
