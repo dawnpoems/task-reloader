@@ -1,12 +1,15 @@
 package com.yegkim.task_reloader_api.alert.service;
 
 import com.yegkim.task_reloader_api.alert.dto.AddTaskDueEmailAlertRecipientRequest;
+import com.yegkim.task_reloader_api.alert.dto.TaskDueEmailAlertLastDeliveryResponse;
 import com.yegkim.task_reloader_api.alert.dto.TaskDueEmailAlertRecipientResponse;
 import com.yegkim.task_reloader_api.alert.dto.TaskDueEmailAlertSettingsResponse;
 import com.yegkim.task_reloader_api.alert.dto.UpdateTaskDueEmailAlertSettingsRequest;
+import com.yegkim.task_reloader_api.alert.entity.TaskDueEmailAlertDeliveryLog;
 import com.yegkim.task_reloader_api.alert.entity.TaskDueEmailAlertRecipient;
 import com.yegkim.task_reloader_api.alert.entity.TaskDueEmailAlertSetting;
 import com.yegkim.task_reloader_api.alert.exception.TaskDueEmailAlertException;
+import com.yegkim.task_reloader_api.alert.repository.TaskDueEmailAlertDeliveryLogRepository;
 import com.yegkim.task_reloader_api.alert.repository.TaskDueEmailAlertRecipientRepository;
 import com.yegkim.task_reloader_api.alert.repository.TaskDueEmailAlertSettingRepository;
 import com.yegkim.task_reloader_api.auth.entity.User;
@@ -32,6 +35,7 @@ public class TaskDueEmailAlertService {
 
     private final TaskDueEmailAlertSettingRepository settingRepository;
     private final TaskDueEmailAlertRecipientRepository recipientRepository;
+    private final TaskDueEmailAlertDeliveryLogRepository deliveryLogRepository;
     private final UserRepository userRepository;
     private final AuthenticatedUserProvider authenticatedUserProvider;
     private final TaskDueEmailAlertNextSendAtCalculator nextSendAtCalculator;
@@ -142,7 +146,22 @@ public class TaskDueEmailAlertService {
                 setting.getTimezone(),
                 setting.getLastSentLocalDate(),
                 suggestedEmail,
-                MAX_RECIPIENT_COUNT
+                MAX_RECIPIENT_COUNT,
+                deliveryLogRepository.findFirstByUserIdOrderByUpdatedAtDesc(setting.getUserId())
+                        .map(this::toLastDeliveryResponse)
+                        .orElse(null)
+        );
+    }
+
+    private TaskDueEmailAlertLastDeliveryResponse toLastDeliveryResponse(TaskDueEmailAlertDeliveryLog deliveryLog) {
+        return new TaskDueEmailAlertLastDeliveryResponse(
+                deliveryLog.getStatus(),
+                deliveryLog.getLocalDate(),
+                deliveryLog.getAttemptCount(),
+                deliveryLog.getRecipientCount(),
+                deliveryLog.getErrorMessage(),
+                deliveryLog.getCreatedAt(),
+                deliveryLog.getUpdatedAt()
         );
     }
 

@@ -7,6 +7,7 @@ import com.yegkim.task_reloader_api.alert.dto.UpdateTaskDueEmailAlertSettingsReq
 import com.yegkim.task_reloader_api.alert.entity.TaskDueEmailAlertRecipient;
 import com.yegkim.task_reloader_api.alert.entity.TaskDueEmailAlertSetting;
 import com.yegkim.task_reloader_api.alert.exception.TaskDueEmailAlertException;
+import com.yegkim.task_reloader_api.alert.repository.TaskDueEmailAlertDeliveryLogRepository;
 import com.yegkim.task_reloader_api.alert.repository.TaskDueEmailAlertRecipientRepository;
 import com.yegkim.task_reloader_api.alert.repository.TaskDueEmailAlertSettingRepository;
 import com.yegkim.task_reloader_api.auth.entity.User;
@@ -48,6 +49,9 @@ class TaskDueEmailAlertServiceTest {
     private TaskDueEmailAlertRecipientRepository recipientRepository;
 
     @Mock
+    private TaskDueEmailAlertDeliveryLogRepository deliveryLogRepository;
+
+    @Mock
     private UserRepository userRepository;
 
     @Mock
@@ -80,6 +84,7 @@ class TaskDueEmailAlertServiceTest {
         when(settingRepository.findById(USER_ID)).thenReturn(Optional.empty());
         when(settingRepository.save(any(TaskDueEmailAlertSetting.class))).thenReturn(defaultSetting);
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(deliveryLogRepository.findFirstByUserIdOrderByUpdatedAtDesc(USER_ID)).thenReturn(Optional.empty());
 
         TaskDueEmailAlertSettingsResponse response = taskDueEmailAlertService.getSettings();
 
@@ -100,6 +105,7 @@ class TaskDueEmailAlertServiceTest {
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
         when(nextSendAtCalculator.calculate(true, LocalTime.of(8, 30), "America/New_York"))
                 .thenReturn(nextSendAt);
+        when(deliveryLogRepository.findFirstByUserIdOrderByUpdatedAtDesc(USER_ID)).thenReturn(Optional.empty());
 
         TaskDueEmailAlertSettingsResponse response = taskDueEmailAlertService.updateSettings(
                 new UpdateTaskDueEmailAlertSettingsRequest(true, LocalTime.of(8, 30), "America/New_York")

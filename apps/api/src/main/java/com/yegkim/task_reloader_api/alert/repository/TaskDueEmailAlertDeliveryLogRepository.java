@@ -19,6 +19,8 @@ public interface TaskDueEmailAlertDeliveryLogRepository extends JpaRepository<Ta
 
     List<TaskDueEmailAlertDeliveryLog> findAllByUserIdOrderByCreatedAtDesc(Long userId);
 
+    Optional<TaskDueEmailAlertDeliveryLog> findFirstByUserIdOrderByUpdatedAtDesc(Long userId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select deliveryLog
