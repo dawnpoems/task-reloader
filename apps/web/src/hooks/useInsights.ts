@@ -5,7 +5,7 @@ import type { DashboardSummary, InsightsOverview, RecentTaskCompletion } from '.
 interface UseInsightsReturn {
   dashboard: DashboardSummary | null
   overview: InsightsOverview | null
-  recentCompletions: RecentTaskCompletion[]
+  todayCompletions: RecentTaskCompletion[]
   isLoading: boolean
   error: string | null
   refetch: () => Promise<void>
@@ -14,7 +14,7 @@ interface UseInsightsReturn {
 export function useInsights(enabled = true): UseInsightsReturn {
   const [dashboard, setDashboard] = useState<DashboardSummary | null>(null)
   const [overview, setOverview] = useState<InsightsOverview | null>(null)
-  const [recentCompletions, setRecentCompletions] = useState<RecentTaskCompletion[]>([])
+  const [todayCompletions, setTodayCompletions] = useState<RecentTaskCompletion[]>([])
   const [isLoading, setIsLoading] = useState(enabled)
   const [error, setError] = useState<string | null>(null)
 
@@ -27,31 +27,31 @@ export function useInsights(enabled = true): UseInsightsReturn {
     setIsLoading(true)
     setError(null)
 
-    const [dashboardRes, overviewRes, recentRes] = await Promise.all([
+    const [dashboardRes, overviewRes, todayRes] = await Promise.all([
       tasksApi.getDashboard(),
       tasksApi.getOverview({ days: 30, top: 5 }),
-      tasksApi.getRecentCompletions(),
+      tasksApi.getTodayCompletions(),
     ])
 
-    if (dashboardRes.success && dashboardRes.data) {
+    if (dashboardRes.success) {
       setDashboard(dashboardRes.data)
     } else {
       setDashboard(null)
       setError('인사이트를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.')
     }
 
-    if (overviewRes.success && overviewRes.data) {
+    if (overviewRes.success) {
       setOverview(overviewRes.data)
     } else {
       setOverview(null)
       setError((prev) => prev ?? '인사이트 요약을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.')
     }
 
-    if (recentRes.success && recentRes.data) {
-      setRecentCompletions(recentRes.data)
+    if (todayRes.success) {
+      setTodayCompletions(todayRes.data)
     } else {
-      setRecentCompletions([])
-      setError((prev) => prev ?? '최근 완료 작업을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.')
+      setTodayCompletions([])
+      setError((prev) => prev ?? '오늘 완료 작업을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.')
     }
 
     setIsLoading(false)
@@ -65,5 +65,5 @@ export function useInsights(enabled = true): UseInsightsReturn {
     fetchInsights()
   }, [enabled, fetchInsights])
 
-  return { dashboard, overview, recentCompletions, isLoading, error, refetch: fetchInsights }
+  return { dashboard, overview, todayCompletions, isLoading, error, refetch: fetchInsights }
 }

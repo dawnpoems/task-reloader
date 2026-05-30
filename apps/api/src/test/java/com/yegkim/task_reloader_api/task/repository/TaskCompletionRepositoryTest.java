@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -46,6 +47,9 @@ class TaskCompletionRepositoryTest {
 
     @Autowired
     private TaskCompletionRepository taskCompletionRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Test
     @DisplayName("특정 작업의 완료 이력을 최신 완료 시각 순으로 조회")
@@ -192,5 +196,76 @@ class TaskCompletionRepositoryTest {
                 .findByCompletedAtGreaterThanEqualAndCompletedAtLessThan(start, end);
 
         assertThat(result).containsExactlyInAnyOrder(atStart, inBetween);
+    }
+
+    @Test
+    @DisplayName("사용자의 오늘 완료 이력을 최신 완료 시각 순으로 조회")
+    void findByUserIdAndCompletedAtRangeOrderByCompletedAtDesc() {
+        Long otherUserId = jdbcTemplate.queryForObject("""
+                INSERT INTO users (email, password_hash, role, status, created_at, updated_at)
+                VALUES ('other-user@example.com', 'hash', 'USER', 'APPROVED', NOW(), NOW())
+                RETURNING id
+                """, Long.class);
+
+        OffsetDateTime todayStart = OffsetDateTime.parse("2026-05-27T15:00:00Z");
+        OffsetDateTime tomorrowStart = OffsetDateTime.parse("2026-05-28T15:00:00Z");
+
+        Task task = taskRepository.save(Task.builder()
+                .userId(TEST_USER_ID)
+                .name("Today Task")
+                .everyNDays(3)
+                .nextDueAt(todayStart.plusDays(3))
+                .isActive(true)
+                .build());
+        Task otherUserTask = taskRepository.save(Task.builder()
+                .userId(otherUserId)
+                .name("Other User Task")
+                .everyNDays(3)
+                .nextDueAt(todayStart.plusDays(3))
+                .isActive(true)
+                .build());
+
+        taskCompletionRepository.save(TaskCompletion.builder()
+                .task(task)
+                .completedAt(todayStart.minusSeconds(1))
+                .previousDueAt(todayStart.minusDays(1))
+                .nextDueAt(todayStart.plusDays(2))
+                .build());
+        TaskCompletion older = taskCompletionRepository.save(TaskCompletion.builder()
+                .task(task)
+                .completedAt(todayStart.plusHours(1))
+                .previousDueAt(todayStart)
+                .nextDueAt(todayStart.plusDays(3))
+                .build());
+        TaskCompletion newer = taskCompletionRepository.save(TaskCompletion.builder()
+                .task(task)
+                .completedAt(todayStart.plusHours(8))
+                .previousDueAt(todayStart.plusHours(7))
+                .nextDueAt(todayStart.plusDays(3))
+                .build());
+        taskCompletionRepository.save(TaskCompletion.builder()
+                .task(otherUserTask)
+                .completedAt(todayStart.plusHours(9))
+                .previousDueAt(todayStart)
+                .nextDueAt(todayStart.plusDays(3))
+                .build());
+        taskCompletionRepository.save(TaskCompletion.builder()
+                .task(task)
+                .completedAt(tomorrowStart)
+                .previousDueAt(todayStart)
+                .nextDueAt(tomorrowStart.plusDays(3))
+                .build());
+
+        List<TaskCompletion> result = taskCompletionRepository
+                .findByUserIdAndCompletedAtGreaterThanEqualAndCompletedAtLessThanOrderByCompletedAtDesc(
+                        TEST_USER_ID, todayStart, tomorrowStart
+                );
+        long count = taskCompletionRepository
+                .countByUserIdAndCompletedAtGreaterThanEqualAndCompletedAtLessThan(
+                        TEST_USER_ID, todayStart, tomorrowStart
+                );
+
+        assertThat(result).containsExactly(newer, older);
+        assertThat(count).isEqualTo(2);
     }
 }

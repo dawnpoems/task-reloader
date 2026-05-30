@@ -1,0 +1,33 @@
+# 작업 단위: p1-task-due-email-alert-settings-api
+
+## 문제
+- 작업 마감 이메일 알림 설정과 수신 이메일을 화면에서 관리하려면 백엔드 API가 필요하다.
+- 로그인 아이디 이메일을 기본 추천값으로 내려주고, 수신 이메일 최대 5개/중복 방지 규칙을 서비스 계층에서 강제해야 한다.
+
+## 결정
+- API 경로는 향후 다른 알림 기능 확장을 고려해 `/api/alerts/task-due-email` 하위로 둔다.
+- 설정 조회 응답에는 로그인 아이디 이메일을 `suggestedEmail`로 포함한다.
+- 수신 이메일은 저장 전 공백 제거 및 소문자 정규화를 적용한다.
+
+## 트레이드오프
+- 장점: 알림 기능이 늘어나도 `/api/alerts/*` 구조로 확장하기 쉽다.
+- 단점: DB/도메인 이름인 `task_due_email_alert`와 API 경로가 완전히 같은 형태는 아니므로 문서에서 매핑을 명확히 유지해야 한다.
+
+## 구현 요약
+- `TaskDueEmailAlertController` 추가
+- `TaskDueEmailAlertService` 추가
+- 설정 조회/수정 DTO와 수신자 추가/응답 DTO 추가
+- 수신 이메일 최대 5개 제한, 중복 이메일 차단, 타임존 검증 로직 추가
+- 작업 마감 이메일 알림 전용 예외와 공통 예외 핸들러 연결
+- 컨트롤러/서비스 자동화 테스트 추가
+
+## 테스트 방법
+- `TaskDueEmailAlertControllerTest`에서 설정 조회/수정, 수신자 목록/추가/삭제, validation/error response를 검증한다.
+- `TaskDueEmailAlertServiceTest`에서 로그인 이메일 추천값, 기본 설정 생성, 타임존 검증, 수신자 최대 5개 제한, 이메일 정규화/중복 차단, 삭제 예외를 검증한다.
+
+## 관련 테스트
+- `apps/api/src/test/java/com/yegkim/task_reloader_api/alert/controller/TaskDueEmailAlertControllerTest.java`
+- `apps/api/src/test/java/com/yegkim/task_reloader_api/alert/service/TaskDueEmailAlertServiceTest.java`
+
+## 한 줄 요약
+- 작업 마감 이메일 알림 설정과 수신 이메일 관리를 위한 `/api/alerts/task-due-email` API 및 자동화 테스트를 추가했다.

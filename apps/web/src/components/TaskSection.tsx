@@ -61,7 +61,7 @@ export function TaskSection({
 
                 {/* 부가 정보 - 구석에 작게 */}
                 <div className="task-card__meta">
-                  <span>매 {task.everyNDays}일마다</span>
+                  <span>{task.everyNDays}일마다 반복</span>
                   {task.startDate && <span>시작 {task.startDate}</span>}
                   <span>생성 {formatDate(task.createdAt)}</span>
                 </div>

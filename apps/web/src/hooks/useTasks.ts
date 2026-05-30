@@ -46,7 +46,7 @@ export function useTasks(filter: TaskStatusFilter = 'ALL', enabled = true): UseT
     setIsLoading(true)
     setError(null)
     const res = await tasksApi.getAll(filter)
-    if (res.success && res.data) {
+    if (res.success) {
       setTasks(res.data)
     } else {
       setError('Task를 불러오지 못했습니다. 페이지를 새로고침하거나 잠시 후 다시 시도해 주세요.')
