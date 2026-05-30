@@ -1,0 +1,11 @@
+# Mixed Peak 500 Log Extract
+window_utc: 2026-05-17T04:34:00Z ~ 2026-05-17T05:13:00Z
+total_500_access_lines: 0
+recent_completions_500_lines: 0
+recent_completions_request_ids: 0
+
+## recent-completions 500 access lines
+
+## requestId trace
+
+## db errors (optional)
