@@ -25,7 +25,7 @@ export function useDashboardSummary(enabled = true): UseDashboardSummaryReturn {
     setIsLoading(true)
     setError(null)
     const res = await tasksApi.getDashboard()
-    if (res.success && res.data) {
+    if (res.success) {
       setDashboard(res.data)
     } else {
       setDashboard(null)

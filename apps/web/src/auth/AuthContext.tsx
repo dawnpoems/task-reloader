@@ -50,7 +50,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     refreshPromiseRef.current = (async () => {
       const res = await authApi.refresh()
-      if (res.success && res.data?.accessToken) {
+      if (res.success && res.data.accessToken) {
         setAccessToken(res.data.accessToken)
         return res.data.accessToken
       }
@@ -65,7 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loadMe = useCallback(async (): Promise<AuthUser | null> => {
     const res = await authApi.me()
-    if (res.success && res.data) {
+    if (res.success) {
       const nextUser = toAuthUser(res.data)
       setUser(nextUser)
       return nextUser
@@ -131,7 +131,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async (request: LoginRequest): Promise<AuthActionResult> => {
     const res = await authApi.login(request)
-    if (!res.success || !res.data) {
+    if (!res.success) {
       return {
         success: false,
         code: extractErrorCode(res.error),

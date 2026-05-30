@@ -10,11 +10,18 @@ export interface ApiError {
   retryAfterSeconds?: number
 }
 
-export interface ApiResponse<T> {
-  success: boolean
-  data?: T
-  error?: ApiError | string
+export type ApiErrorBody = ApiError | string
+
+type ApiSuccess<T> = [T] extends [void]
+  ? { success: true; data?: undefined }
+  : { success: true; data: T }
+
+interface ApiFailure {
+  success: false
+  error: ApiErrorBody
 }
+
+export type ApiResponse<T = void> = ApiSuccess<T> | ApiFailure
 
 interface RequestOptions extends RequestInit {
   skipAuth?: boolean
@@ -112,12 +119,16 @@ async function parseResponse<T>(response: Response): Promise<ApiResponse<T>> {
   const retryAfterSeconds = parseRetryAfterSeconds(response.headers.get('retry-after'))
 
   if (response.status === 204 || response.status === 205 || response.headers.get('content-length') === '0') {
-    return { success: response.ok }
+    if (response.ok) return { success: true } as ApiResponse<T>
+    return {
+      success: false,
+      error: { code: 'HTTP_ERROR', message: `요청에 실패했습니다. (HTTP ${response.status})` },
+    }
   }
 
   const text = await response.text()
   if (!text.trim()) {
-    if (response.ok) return { success: true }
+    if (response.ok) return { success: true } as ApiResponse<T>
     return {
       success: false,
       error: { code: 'HTTP_ERROR', message: `요청에 실패했습니다. (HTTP ${response.status})` },
@@ -126,8 +137,19 @@ async function parseResponse<T>(response: Response): Promise<ApiResponse<T>> {
 
   try {
     const body = JSON.parse(text) as ApiResponse<T>
-    if (!response.ok && retryAfterSeconds !== undefined) {
-      if (body.error && typeof body.error !== 'string') {
+    if (!response.ok) {
+      if (body.success) {
+        return {
+          success: false,
+          error: { code: 'HTTP_ERROR', message: `요청에 실패했습니다. (HTTP ${response.status})`, retryAfterSeconds },
+        }
+      }
+
+      if (retryAfterSeconds === undefined) {
+        return body
+      }
+
+      if (typeof body.error !== 'string') {
         return {
           ...body,
           error: { ...body.error, retryAfterSeconds },
@@ -142,7 +164,7 @@ async function parseResponse<T>(response: Response): Promise<ApiResponse<T>> {
       }
 
       return {
-        ...body,
+        success: false,
         error: { code: 'HTTP_ERROR', message: `요청에 실패했습니다. (HTTP ${response.status})`, retryAfterSeconds },
       }
     }
@@ -198,7 +220,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
 
 // error 필드가 객체({ code, message })이면 message를, 문자열이면 그대로 반환
 export function extractErrorMessage(
-  error: ApiResponse<unknown>['error'],
+  error: ApiErrorBody | undefined,
   fallback = '알 수 없는 오류가 발생했습니다.'
 ): string {
   if (!error) return fallback
@@ -206,12 +228,12 @@ export function extractErrorMessage(
   return error.message || fallback
 }
 
-export function extractErrorCode(error: ApiResponse<unknown>['error']): string | undefined {
+export function extractErrorCode(error: ApiErrorBody | undefined): string | undefined {
   if (!error || typeof error === 'string') return undefined
   return error.code
 }
 
-export function extractRetryAfterSeconds(error: ApiResponse<unknown>['error']): number | undefined {
+export function extractRetryAfterSeconds(error: ApiErrorBody | undefined): number | undefined {
   if (!error || typeof error === 'string') return undefined
   if (typeof error.retryAfterSeconds !== 'number') return undefined
   return error.retryAfterSeconds >= 0 ? error.retryAfterSeconds : undefined

@@ -1,26 +1,29 @@
 import { ErrorNotice } from './ErrorNotice'
-import { DashboardSummaryCards } from './DashboardSummaryCards'
 import { InsightsOverviewSection } from './InsightsOverviewSection'
-import { RecentCompletionsSection } from './RecentCompletionsSection'
+import { TodayDoneSection } from './TodayDoneSection'
 import type { DashboardSummary, InsightsOverview, RecentTaskCompletion } from '../types/insights'
 
 interface InsightsPageProps {
   dashboard: DashboardSummary | null
   overview: InsightsOverview | null
-  recentCompletions: RecentTaskCompletion[]
+  todayCompletions: RecentTaskCompletion[]
   isLoading: boolean
   error: string | null
   onOpenTask: (taskId: number) => void
+  onEditTask: (taskId: number) => void
+  onDeleteTask: (taskId: number) => Promise<boolean>
   onRetry: () => void
 }
 
 export function InsightsPage({
   dashboard,
   overview,
-  recentCompletions,
+  todayCompletions,
   isLoading,
   error,
   onOpenTask,
+  onEditTask,
+  onDeleteTask,
   onRetry,
 }: InsightsPageProps) {
   return (
@@ -28,16 +31,18 @@ export function InsightsPage({
       {error && (
         <ErrorNotice message={error} onRetry={onRetry} />
       )}
-      <DashboardSummaryCards dashboard={dashboard} isLoading={isLoading} />
+      <TodayDoneSection
+        dashboard={dashboard}
+        todayCompletions={todayCompletions}
+        isLoading={isLoading}
+        onOpenTask={onOpenTask}
+      />
       <InsightsOverviewSection
         overview={overview}
         isLoading={isLoading}
         onOpenTask={onOpenTask}
-      />
-      <RecentCompletionsSection
-        recentCompletions={recentCompletions}
-        isLoading={isLoading}
-        onOpenTask={onOpenTask}
+        onEditTask={onEditTask}
+        onDeleteTask={onDeleteTask}
       />
     </>
   )

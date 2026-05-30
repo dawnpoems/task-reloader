@@ -12,6 +12,23 @@
         "iconColor": "rgba(0, 211, 255, 1)",
         "name": "Annotations & Alerts",
         "type": "dashboard"
+      },
+      {
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": false,
+        "iconColor": "rgba(255, 96, 96, 1)",
+        "name": "Load Test Events",
+        "target": {
+          "limit": 200,
+          "matchAny": false,
+          "tags": ["loadtest", "mixed"],
+          "type": "tags"
+        },
+        "type": "dashboard"
       }
     ]
   },

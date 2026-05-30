@@ -1,4 +1,5 @@
 import { apiClient, ApiResponse } from './client'
+import { withQuery } from './query'
 import type { Task, CreateTaskRequest, UpdateTaskRequest, TaskStatusFilter } from '../types/task'
 import type { DashboardSummary, InsightsOverview, RecentTaskCompletion } from '../types/insights'
 import type { TaskCompletion } from '../types/taskCompletion'
@@ -15,7 +16,7 @@ interface InsightsOverviewQuery {
 
 export const tasksApi = {
   getAll: (filter: TaskStatusFilter = 'ALL'): Promise<ApiResponse<Task[]>> =>
-    apiClient.get<Task[]>(`/tasks?status=${filter}`),
+    apiClient.get<Task[]>(withQuery('/tasks', { status: filter })),
 
   getById: (id: number): Promise<ApiResponse<Task>> =>
     apiClient.get<Task>(`/tasks/${id}`),
@@ -24,10 +25,12 @@ export const tasksApi = {
     const hasYear = query?.year !== undefined
     const hasMonth = query?.month !== undefined
 
-    if (hasYear && hasMonth) {
-      return apiClient.get<TaskCompletion[]>(`/tasks/${id}/completions?year=${query?.year}&month=${query?.month}`)
-    }
-    return apiClient.get<TaskCompletion[]>(`/tasks/${id}/completions`)
+    return apiClient.get<TaskCompletion[]>(
+      withQuery(`/tasks/${id}/completions`, {
+        year: hasYear && hasMonth ? query?.year : undefined,
+        month: hasYear && hasMonth ? query?.month : undefined,
+      })
+    )
   },
 
   getDashboard: (): Promise<ApiResponse<DashboardSummary>> =>
@@ -36,11 +39,14 @@ export const tasksApi = {
   getOverview: (query: InsightsOverviewQuery = {}): Promise<ApiResponse<InsightsOverview>> => {
     const days = query.days ?? 30
     const top = query.top ?? 5
-    return apiClient.get<InsightsOverview>(`/insights/overview?days=${days}&top=${top}`)
+    return apiClient.get<InsightsOverview>(withQuery('/insights/overview', { days, top }))
   },
 
   getRecentCompletions: (): Promise<ApiResponse<RecentTaskCompletion[]>> =>
     apiClient.get<RecentTaskCompletion[]>('/insights/recent-completions'),
+
+  getTodayCompletions: (): Promise<ApiResponse<RecentTaskCompletion[]>> =>
+    apiClient.get<RecentTaskCompletion[]>('/insights/today-completions'),
 
   create: (request: CreateTaskRequest): Promise<ApiResponse<Task>> =>
     apiClient.post<Task>('/tasks', request),

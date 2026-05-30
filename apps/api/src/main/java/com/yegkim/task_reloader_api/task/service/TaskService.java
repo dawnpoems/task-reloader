@@ -145,6 +145,21 @@ public class TaskService {
                 .toList();
     }
 
+    public List<RecentTaskCompletionResponse> findTodayCompletions() {
+        Long userId = authenticatedUserProvider.currentUserId();
+        TimeWindow window = currentWindow();
+        OffsetDateTime todayStart = window.getTodayStartUtc().atOffset(ZoneOffset.UTC);
+        OffsetDateTime tomorrowStart = window.getTomorrowStartUtc().atOffset(ZoneOffset.UTC);
+
+        return taskCompletionRepository
+                .findByUserIdAndCompletedAtGreaterThanEqualAndCompletedAtLessThanOrderByCompletedAtDesc(
+                        userId, todayStart, tomorrowStart
+                )
+                .stream()
+                .map(this::toRecentCompletionResponse)
+                .toList();
+    }
+
     public DashboardSummaryResponse getDashboardSummary() {
         Long userId = authenticatedUserProvider.currentUserId();
         TimeWindow window = currentWindow();
@@ -169,7 +184,10 @@ public class TaskService {
                 .overdueTasks(overdue)
                 .todayTasks(today)
                 .upcomingTasks(upcoming)
-                .completedToday(taskCompletionRepository.countByUserIdAndCompletedAtBetween(userId, todayStart, tomorrowStart))
+                .completedToday(taskCompletionRepository
+                        .countByUserIdAndCompletedAtGreaterThanEqualAndCompletedAtLessThan(
+                                userId, todayStart, tomorrowStart
+                        ))
                 .completedLast7Days(taskCompletionRepository.countByUserIdAndCompletedAtGreaterThanEqual(userId, sevenDaysAgo))
                 .build();
     }

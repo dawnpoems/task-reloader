@@ -1,0 +1,4 @@
+RUN_DIR=infra/load/results/local-mixed-peak-20260517-043551
+STARTED_AT=2026-05-17T04:35:51+00:00
+FINISHED_AT=-
+DURATION_SEC=-

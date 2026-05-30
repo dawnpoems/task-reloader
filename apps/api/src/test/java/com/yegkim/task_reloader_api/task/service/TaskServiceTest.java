@@ -103,6 +103,11 @@ class TaskServiceTest {
                         .findByCompletedAtGreaterThanEqualAndCompletedAtLessThan(invocation.getArgument(1), invocation.getArgument(2)));
         lenient().when(taskCompletionRepository.countByUserIdAndCompletedAtBetween(anyLong(), any(), any()))
                 .thenAnswer(invocation -> taskCompletionRepository.countByCompletedAtBetween(invocation.getArgument(1), invocation.getArgument(2)));
+        lenient().when(taskCompletionRepository
+                .countByUserIdAndCompletedAtGreaterThanEqualAndCompletedAtLessThan(anyLong(), any(), any()))
+                .thenAnswer(invocation -> taskCompletionRepository.countByCompletedAtBetween(
+                        invocation.getArgument(1), invocation.getArgument(2)
+                ));
         lenient().when(taskCompletionRepository.countByUserIdAndCompletedAtGreaterThanEqual(anyLong(), any()))
                 .thenAnswer(invocation -> taskCompletionRepository.countByCompletedAtGreaterThanEqual(invocation.getArgument(1)));
 
@@ -472,9 +477,56 @@ class TaskServiceTest {
     }
 
     @Test
+    @DisplayName("오늘 완료 작업 조회 - KST 오늘 범위 전체를 최신 완료 순으로 반환")
+    void testFindTodayCompletionsSuccess() {
+        Instant now = Instant.parse("2026-05-28T05:00:00Z");
+        when(clock.instant()).thenReturn(now);
+        OffsetDateTime todayStart = OffsetDateTime.parse("2026-05-27T15:00:00Z");
+        OffsetDateTime tomorrowStart = OffsetDateTime.parse("2026-05-28T15:00:00Z");
+
+        TaskCompletion newer = TaskCompletion.builder()
+                .id(11L)
+                .task(task)
+                .completedAt(todayStart.plusHours(10))
+                .previousDueAt(todayStart.plusHours(8))
+                .nextDueAt(todayStart.plusDays(7))
+                .build();
+        TaskCompletion older = TaskCompletion.builder()
+                .id(10L)
+                .task(task)
+                .completedAt(todayStart.plusHours(2))
+                .previousDueAt(todayStart.minusDays(1))
+                .nextDueAt(todayStart.plusDays(6))
+                .build();
+
+        when(taskCompletionRepository
+                .findByUserIdAndCompletedAtGreaterThanEqualAndCompletedAtLessThanOrderByCompletedAtDesc(
+                        USER_ID, todayStart, tomorrowStart
+                ))
+                .thenReturn(List.of(newer, older));
+
+        List<RecentTaskCompletionResponse> result = taskService.findTodayCompletions();
+
+        assertThat(result).hasSize(2);
+        assertThat(result).extracting(RecentTaskCompletionResponse::getId)
+                .containsExactly(11L, 10L);
+        assertThat(result).extracting(RecentTaskCompletionResponse::getTaskName)
+                .containsExactly(task.getName(), task.getName());
+        verify(taskCompletionRepository, times(1))
+                .findByUserIdAndCompletedAtGreaterThanEqualAndCompletedAtLessThanOrderByCompletedAtDesc(
+                        USER_ID, todayStart, tomorrowStart
+                );
+    }
+
+    @Test
     @DisplayName("대시보드 요약 조회 - 상태별 작업 수와 완료 통계를 계산")
     void testGetDashboardSummarySuccess() {
-        OffsetDateTime now = OffsetDateTime.now();
+        Instant fixedNow = Instant.parse("2026-05-28T05:00:00Z");
+        when(clock.instant()).thenReturn(fixedNow);
+        OffsetDateTime now = fixedNow.atOffset(ZoneOffset.UTC);
+        OffsetDateTime todayStart = OffsetDateTime.parse("2026-05-27T15:00:00Z");
+        OffsetDateTime tomorrowStart = OffsetDateTime.parse("2026-05-28T15:00:00Z");
+
         Task overdueTask = Task.builder().id(1L).name("Overdue").everyNDays(2).nextDueAt(now.minusDays(2)).isActive(true).build();
         Task todayTask = Task.builder().id(2L).name("Today").everyNDays(2).nextDueAt(now).isActive(true).build();
         Task upcomingTask = Task.builder().id(3L).name("Upcoming").everyNDays(2).nextDueAt(now.plusDays(2)).isActive(true).build();
@@ -483,8 +535,12 @@ class TaskServiceTest {
         when(taskStatusResolver.resolve(eq(overdueTask.getNextDueAt().toInstant()), any())).thenReturn(TaskStatus.OVERDUE);
         when(taskStatusResolver.resolve(eq(todayTask.getNextDueAt().toInstant()), any())).thenReturn(TaskStatus.TODAY);
         when(taskStatusResolver.resolve(eq(upcomingTask.getNextDueAt().toInstant()), any())).thenReturn(TaskStatus.UPCOMING);
-        when(taskCompletionRepository.countByCompletedAtBetween(any(), any())).thenReturn(2L);
-        when(taskCompletionRepository.countByCompletedAtGreaterThanEqual(any())).thenReturn(8L);
+        doReturn(2L).when(taskCompletionRepository)
+                .countByUserIdAndCompletedAtGreaterThanEqualAndCompletedAtLessThan(
+                        USER_ID, todayStart, tomorrowStart
+                );
+        doReturn(8L).when(taskCompletionRepository)
+                .countByUserIdAndCompletedAtGreaterThanEqual(anyLong(), any());
 
         DashboardSummaryResponse result = taskService.getDashboardSummary();
 
@@ -494,6 +550,11 @@ class TaskServiceTest {
         assertThat(result.getUpcomingTasks()).isEqualTo(1);
         assertThat(result.getCompletedToday()).isEqualTo(2);
         assertThat(result.getCompletedLast7Days()).isEqualTo(8);
+        verify(taskCompletionRepository, times(1))
+                .countByUserIdAndCompletedAtGreaterThanEqualAndCompletedAtLessThan(
+                        USER_ID, todayStart, tomorrowStart
+                );
+        verify(taskCompletionRepository, never()).countByUserIdAndCompletedAtBetween(anyLong(), any(), any());
     }
 
     @Test
