@@ -218,46 +218,97 @@ BASE_URL=http://localhost:8080 k6 run infra/load/k6-smoke.js
 - `http_req_duration p(95)`: 95퍼센타일 응답시간 (기본 목표 `< 800ms`)
 - `checks`: 응답 검증 성공률 (기본 목표 `> 99%`)
 
-### 여러 GET API를 함께 검증하고 싶을 때
+### 통합 실행 스크립트 (run-matrix.sh)
 
-아래 스크립트는 목록/인사이트 GET API를 한 번에 호출하고, Task가 존재하면 상세/월별 완료이력 GET까지 함께 확인합니다.
+`infra/load/run-matrix.sh`로 `read / mixed / soak`를 동일 포맷으로 실행할 수 있습니다.
+
+read matrix만 실행 (기본):
 
 ```bash
-BASE_URL=http://localhost:8080 k6 run infra/load/k6-read-suite.js
+./infra/load/run-matrix.sh
 ```
 
-주요 확인 대상:
-- `/api/tasks?status=DUE_NOW`
-- `/api/tasks?status=UPCOMING`
-- `/api/insights/dashboard`
-- `/api/insights/overview?days=30&top=5`
-- `/api/insights/recent-completions`
-- (Task 존재 시) `/api/tasks/{id}`, `/api/tasks/{id}/completions?year=YYYY&month=MM`
-
-### 확장 버전 (batch + 환경변수 + fallback taskId)
-
-`k6-read-suite-extended.js`는 아래 기능을 추가로 제공합니다.
-
-- `http.batch` 기반 병렬 GET 호출
-- 환경변수로 부하 세기 조정 (`VUS`, `DURATION`, `SLEEP_SECONDS`)
-- Task 목록이 비어도 `TASK_ID`를 지정하면 상세/완료이력 API 강제 검증
-
-기본 실행:
+mixed peak만 실행:
 
 ```bash
-BASE_URL=http://localhost:8080 k6 run infra/load/k6-read-suite-extended.js
+SUITE_MODE=mixed ./infra/load/run-matrix.sh
 ```
 
-부하 강도 조정:
+soak만 실행:
 
 ```bash
-BASE_URL=http://localhost:8080 VUS=30 DURATION=3m SLEEP_SECONDS=0.5 k6 run infra/load/k6-read-suite-extended.js
+SUITE_MODE=soak SOAK_VUS=60 SOAK_DURATION=2h ./infra/load/run-matrix.sh
 ```
 
-목록이 비어 있을 때 fallback taskId 지정:
+3개 시나리오 연속 실행:
 
 ```bash
-BASE_URL=http://localhost:8080 TASK_ID=1 k6 run infra/load/k6-read-suite-extended.js
+SUITE_MODE=all ./infra/load/run-matrix.sh
+```
+
+공통 환경변수 예시:
+
+- `BASE_URL` (기본 `http://127.0.0.1:3000`)
+- `AUTH_EMAIL`, `AUTH_PASSWORD`
+- `MATRIX_NAME` (결과 디렉터리 이름)
+- `RESULT_ROOT` (결과 루트, 기본 `infra/load/results`)
+- `SUMMARY_AFTER_RUN` (`true|false`, 기본 `true`) 실행 후 `k6-summary.tsv/txt` 자동 생성
+
+요약만 다시 뽑고 싶으면:
+
+```bash
+./infra/load/summarize-k6-result.sh infra/load/results/<result-dir>
+```
+
+시작/종료시간 빠른 확인:
+
+```bash
+cat infra/load/results/<result-dir>/k6-run-window.txt
+cat infra/load/results/<result-dir>/k6-summary.txt
+```
+
+### Grafana 어노테이션 자동 생성 (공용)
+
+`infra/load/create-grafana-annotations.sh`는 mixed 결과 디렉터리에서 실행 시간대를 읽어,  
+Grafana에 공용(org) annotation을 한 번에 생성합니다.
+
+- 생성 항목: 시각선 5개 + 구간(region) 4개
+- 동일 태그를 조회하는 여러 대시보드에서 재사용 가능
+- 기본 시간 정렬: 분 단위 반올림(`ROUND_TO_MINUTE=true`)
+- 중복 방지: 동일 이벤트가 있으면 기본 스킵(`SKIP_EXISTING=true`)
+
+미리보기(DRY_RUN):
+
+```bash
+DRY_RUN=true ./infra/load/create-grafana-annotations.sh infra/load/results/<mixed-result-dir>
+```
+
+실제 생성(토큰 인증):
+
+```bash
+GRAFANA_URL=http://127.0.0.1:3001 \
+GRAFANA_TOKEN=<grafana_api_token> \
+ANNOTATION_TAGS=loadtest,mixed,2026-05-17 \
+./infra/load/create-grafana-annotations.sh infra/load/results/<mixed-result-dir>
+```
+
+중복 탐지/정리(먼저 DRY_RUN 권장):
+
+```bash
+# 리포트만
+DRY_RUN=true \
+GRAFANA_URL=http://127.0.0.1:3001 \
+GRAFANA_USER=<user> \
+GRAFANA_PASSWORD=<pass> \
+./infra/load/dedupe-grafana-annotations.sh infra/load/results/<mixed-result-dir>
+
+# 실제 삭제 (기본: 가장 오래된 1개 유지, 나머지 삭제)
+DRY_RUN=false \
+KEEP_MODE=oldest \
+GRAFANA_URL=http://127.0.0.1:3001 \
+GRAFANA_USER=<user> \
+GRAFANA_PASSWORD=<pass> \
+./infra/load/dedupe-grafana-annotations.sh infra/load/results/<mixed-result-dir>
 ```
 
 ### Cloudflare 우회(홈서버 localhost 직행) 인증 포함 읽기 부하 테스트
@@ -290,6 +341,44 @@ k6 run infra/load/k6-auth-read-local.js
 참고:
 - 이 스크립트는 `/api/auth/refresh`를 부하 대상에 포함하지 않습니다.
 - 기본적으로 로그인 호출은 `setup()`에서 1회만 수행해 auth rate-limit 영향을 최소화합니다.
+
+### 인증 포함 혼합 부하(Mixed Peak: read+write)
+
+read/write 혼합 부하를 단계적으로 올려 운영 구간 안정성을 확인할 때 사용합니다.
+
+기본 실행(권장):
+
+```bash
+BASE_URL=http://127.0.0.1:3000 \
+AUTH_EMAIL=demo@dawnpoem.kr \
+AUTH_PASSWORD='demo1234!' \
+WRITE_RATIO_PERCENT=30 \
+k6 run infra/load/k6-auth-mixed-peak-local.js
+```
+
+주요 기본값:
+- `WARMUP_DURATION=5m`, `WARMUP_VUS=20`
+- `RAMP_TO_PEAK_DURATION=5m`, `PEAK_VUS=50`
+- `PEAK_HOLD_DURATION=20m`
+- `RAMP_DOWN_DURATION=5m`
+
+즉, 기본 부하 패턴은 `0→20(5m) → 20→50(5m) → 50 유지(20m) → 50→0(5m)`입니다.
+
+### 인증 포함 장시간 안정성(Soak: read 중심 + 소량 write)
+
+장시간 실행 중 지연 드리프트/에러율/리소스 추세를 확인할 때 사용합니다.
+
+기본 실행(권장):
+
+```bash
+BASE_URL=http://127.0.0.1:3000 \
+AUTH_EMAIL=demo@dawnpoem.kr \
+AUTH_PASSWORD='demo1234!' \
+SOAK_VUS=60 \
+SOAK_DURATION=2h \
+WRITE_RATIO_PERCENT=15 \
+k6 run infra/load/k6-auth-soak-local.js
+```
 
 ## 로컬 개발 모드 (DB만 Docker)
 
