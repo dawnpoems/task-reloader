@@ -1,5 +1,6 @@
 package com.yegkim.task_reloader_api.task.repository;
 
+import com.yegkim.task_reloader_api.task.dto.RecentTaskCompletionResponse;
 import com.yegkim.task_reloader_api.task.entity.Task;
 import com.yegkim.task_reloader_api.task.entity.TaskCompletion;
 import org.junit.jupiter.api.DisplayName;
@@ -7,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -267,5 +269,72 @@ class TaskCompletionRepositoryTest {
 
         assertThat(result).containsExactly(newer, older);
         assertThat(count).isEqualTo(2);
+
+        List<RecentTaskCompletionResponse> projectionResult = taskCompletionRepository
+                .findRecentCompletionResponsesByUserIdAndCompletedAtRange(
+                        TEST_USER_ID, todayStart, tomorrowStart
+                );
+
+        assertThat(projectionResult).extracting(RecentTaskCompletionResponse::getId)
+                .containsExactly(newer.getId(), older.getId());
+        assertThat(projectionResult).extracting(RecentTaskCompletionResponse::getTaskId)
+                .containsExactly(task.getId(), task.getId());
+        assertThat(projectionResult).extracting(RecentTaskCompletionResponse::getTaskName)
+                .containsExactly(task.getName(), task.getName());
+    }
+
+    @Test
+    @DisplayName("최근 완료 응답 projection은 작업 정보를 조인해서 최신 순으로 반환")
+    void findRecentCompletionResponsesByUserId() {
+        Long otherUserId = jdbcTemplate.queryForObject("""
+                INSERT INTO users (email, password_hash, role, status, created_at, updated_at)
+                VALUES ('projection-other-user@example.com', 'hash', 'USER', 'APPROVED', NOW(), NOW())
+                RETURNING id
+                """, Long.class);
+
+        OffsetDateTime now = OffsetDateTime.parse("2026-05-30T13:00:00Z");
+        Task task = taskRepository.save(Task.builder()
+                .userId(TEST_USER_ID)
+                .name("Projection Task")
+                .everyNDays(3)
+                .nextDueAt(now.plusDays(3))
+                .isActive(true)
+                .build());
+        Task otherUserTask = taskRepository.save(Task.builder()
+                .userId(otherUserId)
+                .name("Other User Projection Task")
+                .everyNDays(3)
+                .nextDueAt(now.plusDays(3))
+                .isActive(true)
+                .build());
+
+        TaskCompletion older = taskCompletionRepository.save(TaskCompletion.builder()
+                .task(task)
+                .completedAt(now.minusHours(2))
+                .previousDueAt(now.minusDays(1))
+                .nextDueAt(now.plusDays(2))
+                .build());
+        TaskCompletion newer = taskCompletionRepository.save(TaskCompletion.builder()
+                .task(task)
+                .completedAt(now.minusHours(1))
+                .previousDueAt(now.minusHours(2))
+                .nextDueAt(now.plusDays(3))
+                .build());
+        taskCompletionRepository.save(TaskCompletion.builder()
+                .task(otherUserTask)
+                .completedAt(now)
+                .previousDueAt(now.minusHours(1))
+                .nextDueAt(now.plusDays(3))
+                .build());
+
+        List<RecentTaskCompletionResponse> result = taskCompletionRepository
+                .findRecentCompletionResponsesByUserId(TEST_USER_ID, PageRequest.of(0, 5));
+
+        assertThat(result).extracting(RecentTaskCompletionResponse::getId)
+                .containsExactly(newer.getId(), older.getId());
+        assertThat(result).extracting(RecentTaskCompletionResponse::getTaskId)
+                .containsExactly(task.getId(), task.getId());
+        assertThat(result).extracting(RecentTaskCompletionResponse::getTaskName)
+                .containsExactly(task.getName(), task.getName());
     }
 }

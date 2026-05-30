@@ -27,6 +27,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.PageRequest;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -458,22 +459,29 @@ class TaskServiceTest {
     @DisplayName("최근 완료 작업 조회 - 최신 완료 순으로 최대 5건 반환")
     void testFindRecentCompletionsSuccess() {
         OffsetDateTime now = OffsetDateTime.now();
-        TaskCompletion completion = TaskCompletion.builder()
+        RecentTaskCompletionResponse response = RecentTaskCompletionResponse.builder()
                 .id(10L)
-                .task(task)
+                .taskId(task.getId())
+                .taskName(task.getName())
                 .completedAt(now.minusHours(1))
                 .previousDueAt(now.minusDays(1))
                 .nextDueAt(now.plusDays(6))
                 .build();
 
-        when(taskCompletionRepository.findTop5ByOrderByCompletedAtDesc()).thenReturn(List.of(completion));
+        when(taskCompletionRepository.findRecentCompletionResponsesByUserId(
+                USER_ID,
+                PageRequest.of(0, 5)
+        )).thenReturn(List.of(response));
 
         List<RecentTaskCompletionResponse> result = taskService.findRecentCompletions();
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getTaskId()).isEqualTo(task.getId());
         assertThat(result.get(0).getTaskName()).isEqualTo(task.getName());
-        verify(taskCompletionRepository, times(1)).findTop5ByOrderByCompletedAtDesc();
+        verify(taskCompletionRepository, times(1)).findRecentCompletionResponsesByUserId(
+                USER_ID,
+                PageRequest.of(0, 5)
+        );
     }
 
     @Test
@@ -484,23 +492,25 @@ class TaskServiceTest {
         OffsetDateTime todayStart = OffsetDateTime.parse("2026-05-27T15:00:00Z");
         OffsetDateTime tomorrowStart = OffsetDateTime.parse("2026-05-28T15:00:00Z");
 
-        TaskCompletion newer = TaskCompletion.builder()
+        RecentTaskCompletionResponse newer = RecentTaskCompletionResponse.builder()
                 .id(11L)
-                .task(task)
+                .taskId(task.getId())
+                .taskName(task.getName())
                 .completedAt(todayStart.plusHours(10))
                 .previousDueAt(todayStart.plusHours(8))
                 .nextDueAt(todayStart.plusDays(7))
                 .build();
-        TaskCompletion older = TaskCompletion.builder()
+        RecentTaskCompletionResponse older = RecentTaskCompletionResponse.builder()
                 .id(10L)
-                .task(task)
+                .taskId(task.getId())
+                .taskName(task.getName())
                 .completedAt(todayStart.plusHours(2))
                 .previousDueAt(todayStart.minusDays(1))
                 .nextDueAt(todayStart.plusDays(6))
                 .build();
 
         when(taskCompletionRepository
-                .findByUserIdAndCompletedAtGreaterThanEqualAndCompletedAtLessThanOrderByCompletedAtDesc(
+                .findRecentCompletionResponsesByUserIdAndCompletedAtRange(
                         USER_ID, todayStart, tomorrowStart
                 ))
                 .thenReturn(List.of(newer, older));
@@ -513,7 +523,7 @@ class TaskServiceTest {
         assertThat(result).extracting(RecentTaskCompletionResponse::getTaskName)
                 .containsExactly(task.getName(), task.getName());
         verify(taskCompletionRepository, times(1))
-                .findByUserIdAndCompletedAtGreaterThanEqualAndCompletedAtLessThanOrderByCompletedAtDesc(
+                .findRecentCompletionResponsesByUserIdAndCompletedAtRange(
                         USER_ID, todayStart, tomorrowStart
                 );
     }
