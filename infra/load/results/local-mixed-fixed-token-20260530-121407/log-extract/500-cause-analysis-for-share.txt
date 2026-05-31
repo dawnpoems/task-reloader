@@ -1,0 +1,16 @@
+# Fixed Token Mixed 500 Cause Extract
+window_utc: 2026-05-30T12:11:11Z ~ 2026-05-30T12:52:20Z
+result_dir: infra/load/results/local-mixed-fixed-token-20260530-121407
+total_500_access_lines: 0
+recent_completions_500_lines: 0
+recent_completions_request_ids: 0
+
+## all 500 access lines
+
+## recent-completions 500 access lines
+
+## requestId stack traces
+
+## likely exception keywords
+
+## db errors
