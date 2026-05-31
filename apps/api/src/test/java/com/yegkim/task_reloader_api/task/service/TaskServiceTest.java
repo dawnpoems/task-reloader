@@ -9,6 +9,7 @@ import com.yegkim.task_reloader_api.task.dto.DashboardSummaryResponse;
 import com.yegkim.task_reloader_api.task.dto.InsightsOverviewResponse;
 import com.yegkim.task_reloader_api.task.dto.RecentTaskCompletionResponse;
 import com.yegkim.task_reloader_api.task.dto.RiskyTaskInsightResponse;
+import com.yegkim.task_reloader_api.task.dto.TaskCompletionInsightRow;
 import com.yegkim.task_reloader_api.task.dto.TaskCompletionResponse;
 import com.yegkim.task_reloader_api.task.dto.TaskResponse;
 import com.yegkim.task_reloader_api.task.dto.TaskTrendInsightResponse;
@@ -598,31 +599,13 @@ class TaskServiceTest {
                 .isActive(true)
                 .build();
 
-        TaskCompletion c1 = TaskCompletion.builder()
-                .id(101L)
-                .task(task1)
-                .completedAt(now.minusDays(1))
-                .previousDueAt(now.minusDays(2))
-                .nextDueAt(now.plusDays(6))
-                .build(); // delayed
-        TaskCompletion c2 = TaskCompletion.builder()
-                .id(102L)
-                .task(task2)
-                .completedAt(now.minusDays(2))
-                .previousDueAt(now.minusDays(2))
-                .nextDueAt(now.plusDays(5))
-                .build(); // on-time
-        TaskCompletion c3 = TaskCompletion.builder()
-                .id(103L)
-                .task(task1)
-                .completedAt(now.minusDays(3))
-                .previousDueAt(now.minusDays(4))
-                .nextDueAt(now.plusDays(4))
-                .build(); // delayed
+        TaskCompletionInsightRow c1 = insightRow(task1, now.minusDays(1), now.minusDays(2)); // delayed
+        TaskCompletionInsightRow c2 = insightRow(task2, now.minusDays(2), now.minusDays(2)); // on-time
+        TaskCompletionInsightRow c3 = insightRow(task1, now.minusDays(3), now.minusDays(4)); // delayed
 
         when(clock.instant()).thenReturn(fixedNow);
         when(taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc()).thenReturn(List.of(task1, task2, task3));
-        when(taskCompletionRepository.findByCompletedAtGreaterThanEqualAndCompletedAtLessThan(any(), any()))
+        when(taskCompletionRepository.findInsightRowsByUserIdAndCompletedAtRange(anyLong(), any(), any()))
                 .thenReturn(List.of(c1, c2, c3));
 
         InsightsOverviewResponse result = taskService.getInsightsOverview(30, 5);
@@ -673,7 +656,7 @@ class TaskServiceTest {
 
         when(clock.instant()).thenReturn(fixedNow);
         when(taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc()).thenReturn(List.of());
-        when(taskCompletionRepository.findByCompletedAtGreaterThanEqualAndCompletedAtLessThan(any(), any()))
+        when(taskCompletionRepository.findInsightRowsByUserIdAndCompletedAtRange(anyLong(), any(), any()))
                 .thenReturn(List.of());
 
         InsightsOverviewResponse result = taskService.getInsightsOverview(30, 5);
@@ -727,38 +710,14 @@ class TaskServiceTest {
                 .isActive(false)
                 .build();
 
-        TaskCompletion active1Delayed = TaskCompletion.builder()
-                .id(1001L)
-                .task(active1)
-                .completedAt(now.minusDays(1))
-                .previousDueAt(now.minusDays(2))
-                .nextDueAt(now.plusDays(6))
-                .build();
-        TaskCompletion active1OnTime = TaskCompletion.builder()
-                .id(1002L)
-                .task(active1)
-                .completedAt(now.minusDays(3))
-                .previousDueAt(now.minusDays(3))
-                .nextDueAt(now.plusDays(4))
-                .build();
-        TaskCompletion active2OnTime = TaskCompletion.builder()
-                .id(1003L)
-                .task(active2)
-                .completedAt(now.minusDays(2))
-                .previousDueAt(now.minusDays(2))
-                .nextDueAt(now.plusDays(5))
-                .build();
-        TaskCompletion inactiveDelayed = TaskCompletion.builder()
-                .id(1004L)
-                .task(inactive)
-                .completedAt(now.minusDays(1))
-                .previousDueAt(now.minusDays(2))
-                .nextDueAt(now.plusDays(6))
-                .build();
+        TaskCompletionInsightRow active1Delayed = insightRow(active1, now.minusDays(1), now.minusDays(2));
+        TaskCompletionInsightRow active1OnTime = insightRow(active1, now.minusDays(3), now.minusDays(3));
+        TaskCompletionInsightRow active2OnTime = insightRow(active2, now.minusDays(2), now.minusDays(2));
+        TaskCompletionInsightRow inactiveDelayed = insightRow(inactive, now.minusDays(1), now.minusDays(2));
 
         when(clock.instant()).thenReturn(fixedNow);
         when(taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc()).thenReturn(List.of(active1, active2));
-        when(taskCompletionRepository.findByCompletedAtGreaterThanEqualAndCompletedAtLessThan(any(), any()))
+        when(taskCompletionRepository.findInsightRowsByUserIdAndCompletedAtRange(anyLong(), any(), any()))
                 .thenReturn(List.of(active1Delayed, active1OnTime, active2OnTime, inactiveDelayed));
 
         InsightsOverviewResponse result = taskService.getInsightsOverview(30, 5);
@@ -820,7 +779,7 @@ class TaskServiceTest {
         when(clock.instant()).thenReturn(fixedNow);
         when(taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc())
                 .thenReturn(List.of(exactOverdueBoundary, exactRecentBoundary, overdueRisky, staleCompletionRisky));
-        when(taskCompletionRepository.findByCompletedAtGreaterThanEqualAndCompletedAtLessThan(any(), any()))
+        when(taskCompletionRepository.findInsightRowsByUserIdAndCompletedAtRange(anyLong(), any(), any()))
                 .thenReturn(List.of());
 
         InsightsOverviewResponse result = taskService.getInsightsOverview(30, 5);
@@ -865,40 +824,15 @@ class TaskServiceTest {
                 .isActive(true)
                 .build();
 
-        TaskCompletion t1Delayed = TaskCompletion.builder()
-                .id(201L).task(task1)
-                .completedAt(now.minusDays(1))
-                .previousDueAt(now.minusDays(2))
-                .nextDueAt(now.plusDays(6))
-                .build();
-        TaskCompletion t1OnTime = TaskCompletion.builder()
-                .id(202L).task(task1)
-                .completedAt(now.minusDays(3))
-                .previousDueAt(now.minusDays(3))
-                .nextDueAt(now.plusDays(4))
-                .build();
-        TaskCompletion t2Delayed = TaskCompletion.builder()
-                .id(203L).task(task2)
-                .completedAt(now.minusDays(2))
-                .previousDueAt(now.minusDays(3))
-                .nextDueAt(now.plusDays(5))
-                .build();
-        TaskCompletion t2OnTime = TaskCompletion.builder()
-                .id(204L).task(task2)
-                .completedAt(now.minusDays(4))
-                .previousDueAt(now.minusDays(4))
-                .nextDueAt(now.plusDays(3))
-                .build();
-        TaskCompletion t3Delayed = TaskCompletion.builder()
-                .id(205L).task(task3)
-                .completedAt(now.minusDays(1))
-                .previousDueAt(now.minusDays(2))
-                .nextDueAt(now.plusDays(6))
-                .build();
+        TaskCompletionInsightRow t1Delayed = insightRow(task1, now.minusDays(1), now.minusDays(2));
+        TaskCompletionInsightRow t1OnTime = insightRow(task1, now.minusDays(3), now.minusDays(3));
+        TaskCompletionInsightRow t2Delayed = insightRow(task2, now.minusDays(2), now.minusDays(3));
+        TaskCompletionInsightRow t2OnTime = insightRow(task2, now.minusDays(4), now.minusDays(4));
+        TaskCompletionInsightRow t3Delayed = insightRow(task3, now.minusDays(1), now.minusDays(2));
 
         when(clock.instant()).thenReturn(fixedNow);
         when(taskRepository.findAllByIsActiveTrueOrderByNextDueAtAsc()).thenReturn(List.of(task1, task2, task3));
-        when(taskCompletionRepository.findByCompletedAtGreaterThanEqualAndCompletedAtLessThan(any(), any()))
+        when(taskCompletionRepository.findInsightRowsByUserIdAndCompletedAtRange(anyLong(), any(), any()))
                 .thenReturn(List.of(t3Delayed, t2OnTime, t1Delayed, t2Delayed, t1OnTime));
 
         InsightsOverviewResponse result = taskService.getInsightsOverview(30, 2);
@@ -1372,5 +1306,18 @@ class TaskServiceTest {
         verify(taskCompletionRepository, times(1)).save(any(TaskCompletion.class));
         verify(taskRepository, times(1)).findByIdForUpdate(1L);
         verify(taskMapper, times(1)).toResponse(previouslyCompletedTask);
+    }
+
+    private TaskCompletionInsightRow insightRow(
+            Task task,
+            OffsetDateTime completedAt,
+            OffsetDateTime previousDueAt
+    ) {
+        return new TaskCompletionInsightRow(
+                task.getId(),
+                task.getName(),
+                completedAt,
+                previousDueAt
+        );
     }
 }

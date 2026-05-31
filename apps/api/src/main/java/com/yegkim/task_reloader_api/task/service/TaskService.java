@@ -11,6 +11,7 @@ import com.yegkim.task_reloader_api.task.dto.DashboardSummaryResponse;
 import com.yegkim.task_reloader_api.task.dto.InsightsOverviewResponse;
 import com.yegkim.task_reloader_api.task.dto.RecentTaskCompletionResponse;
 import com.yegkim.task_reloader_api.task.dto.RiskyTaskInsightResponse;
+import com.yegkim.task_reloader_api.task.dto.TaskCompletionInsightRow;
 import com.yegkim.task_reloader_api.task.dto.TaskCompletionResponse;
 import com.yegkim.task_reloader_api.task.dto.TaskTrendInsightResponse;
 import com.yegkim.task_reloader_api.task.dto.UpdateTaskRequest;
@@ -211,8 +212,8 @@ public class TaskService {
         Set<Long> activeTaskIds = activeTasks.stream()
                 .map(Task::getId)
                 .collect(java.util.stream.Collectors.toSet());
-        List<TaskCompletion> completions = taskCompletionRepository
-                .findByUserIdAndCompletedAtGreaterThanEqualAndCompletedAtLessThan(userId, periodStart, nowUtc);
+        List<TaskCompletionInsightRow> completions = taskCompletionRepository
+                .findInsightRowsByUserIdAndCompletedAtRange(userId, periodStart, nowUtc);
 
         long activeTaskCount = activeTasks.size();
         List<RiskyTaskInsightResponse> riskyTasks = activeTasks.stream()
@@ -249,12 +250,12 @@ public class TaskService {
 
         Map<Long, TrendAccumulator> trendByTask = new HashMap<>();
 
-        for (TaskCompletion completion : completions) {
-            Long taskId = completion.getTask().getId();
+        for (TaskCompletionInsightRow completion : completions) {
+            Long taskId = completion.getTaskId();
             if (!activeTaskIds.contains(taskId)) {
                 continue;
             }
-            String taskName = completion.getTask().getName();
+            String taskName = completion.getTaskName();
             completedTaskIds.add(taskId);
 
             boolean delayed = completion.getCompletedAt().isAfter(completion.getPreviousDueAt());

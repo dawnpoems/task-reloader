@@ -1,6 +1,7 @@
 package com.yegkim.task_reloader_api.task.repository;
 
 import com.yegkim.task_reloader_api.task.dto.RecentTaskCompletionResponse;
+import com.yegkim.task_reloader_api.task.dto.TaskCompletionInsightRow;
 import com.yegkim.task_reloader_api.task.entity.Task;
 import com.yegkim.task_reloader_api.task.entity.TaskCompletion;
 import org.junit.jupiter.api.DisplayName;
@@ -281,6 +282,71 @@ class TaskCompletionRepositoryTest {
                 .containsExactly(task.getId(), task.getId());
         assertThat(projectionResult).extracting(RecentTaskCompletionResponse::getTaskName)
                 .containsExactly(task.getName(), task.getName());
+    }
+
+    @Test
+    @DisplayName("인사이트 overview projection은 작업 정보를 조인해서 기간 내 완료 행을 반환")
+    void findInsightRowsByUserIdAndCompletedAtRange() {
+        Long otherUserId = jdbcTemplate.queryForObject("""
+                INSERT INTO users (email, password_hash, role, status, created_at, updated_at)
+                VALUES ('insight-row-other-user@example.com', 'hash', 'USER', 'APPROVED', NOW(), NOW())
+                RETURNING id
+                """, Long.class);
+
+        OffsetDateTime start = OffsetDateTime.parse("2026-05-01T00:00:00Z");
+        OffsetDateTime end = OffsetDateTime.parse("2026-06-01T00:00:00Z");
+
+        Task task = taskRepository.save(Task.builder()
+                .userId(TEST_USER_ID)
+                .name("Insight Row Task")
+                .everyNDays(3)
+                .nextDueAt(start.plusDays(3))
+                .isActive(true)
+                .build());
+        Task otherUserTask = taskRepository.save(Task.builder()
+                .userId(otherUserId)
+                .name("Other User Insight Row Task")
+                .everyNDays(3)
+                .nextDueAt(start.plusDays(3))
+                .isActive(true)
+                .build());
+
+        TaskCompletion older = taskCompletionRepository.save(TaskCompletion.builder()
+                .task(task)
+                .completedAt(start.plusDays(1))
+                .previousDueAt(start)
+                .nextDueAt(start.plusDays(3))
+                .build());
+        TaskCompletion newer = taskCompletionRepository.save(TaskCompletion.builder()
+                .task(task)
+                .completedAt(start.plusDays(2))
+                .previousDueAt(start.plusDays(2))
+                .nextDueAt(start.plusDays(5))
+                .build());
+        taskCompletionRepository.save(TaskCompletion.builder()
+                .task(task)
+                .completedAt(start.minusSeconds(1))
+                .previousDueAt(start.minusDays(1))
+                .nextDueAt(start.plusDays(2))
+                .build());
+        taskCompletionRepository.save(TaskCompletion.builder()
+                .task(otherUserTask)
+                .completedAt(start.plusDays(3))
+                .previousDueAt(start.plusDays(2))
+                .nextDueAt(start.plusDays(5))
+                .build());
+
+        List<TaskCompletionInsightRow> result = taskCompletionRepository
+                .findInsightRowsByUserIdAndCompletedAtRange(TEST_USER_ID, start, end);
+
+        assertThat(result).extracting(TaskCompletionInsightRow::getTaskId)
+                .containsExactly(task.getId(), task.getId());
+        assertThat(result).extracting(TaskCompletionInsightRow::getTaskName)
+                .containsExactly(task.getName(), task.getName());
+        assertThat(result).extracting(TaskCompletionInsightRow::getCompletedAt)
+                .containsExactly(newer.getCompletedAt(), older.getCompletedAt());
+        assertThat(result).extracting(TaskCompletionInsightRow::getPreviousDueAt)
+                .containsExactly(newer.getPreviousDueAt(), older.getPreviousDueAt());
     }
 
     @Test
