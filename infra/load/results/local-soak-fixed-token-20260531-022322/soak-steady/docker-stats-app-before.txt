@@ -1,0 +1,4 @@
+CONTAINER ID   NAME                CPU %     MEM USAGE / LIMIT    MEM %     NET I/O          BLOCK I/O       PIDS
+d126a2983c4d   task-reloader-web   0.00%     9.867MiB / 12.4GiB   0.08%     52.3kB / 305kB   0B / 12.3kB     13
+8b575b72b7a8   task-reloader-api   0.36%     429.8MiB / 12.4GiB   3.38%     109kB / 1.05MB   0B / 246kB      49
+127915583b40   task-reloader-db    0.01%     42.62MiB / 12.4GiB   0.34%     1.3GB / 1.91GB   41kB / 6.87GB   16
