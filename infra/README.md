@@ -253,6 +253,7 @@ SUITE_MODE=all ./infra/load/run-matrix.sh
 - `MATRIX_NAME` (결과 디렉터리 이름)
 - `RESULT_ROOT` (결과 루트, 기본 `infra/load/results`)
 - `SUMMARY_AFTER_RUN` (`true|false`, 기본 `true`) 실행 후 `k6-summary.tsv/txt` 자동 생성
+- `EXTRACT_LOGS_AFTER_CASE` (`true|false`, 기본 `true`) 각 case 종료 직후 API/DB 로그와 5xx trace 자동 추출
 
 요약만 다시 뽑고 싶으면:
 
@@ -265,6 +266,55 @@ SUITE_MODE=all ./infra/load/run-matrix.sh
 ```bash
 cat infra/load/results/<result-dir>/k6-run-window.txt
 cat infra/load/results/<result-dir>/k6-summary.txt
+```
+
+### 부하 테스트 로그 자동 추출
+
+`run-matrix.sh`는 각 case가 끝난 직후 `infra/load/extract-loadtest-logs.sh`를 실행해 결과 폴더에 원인분석용 로그를 저장합니다.
+
+생성 위치:
+
+```text
+infra/load/results/<result-dir>/<case-dir>/log-extract/
+```
+
+주요 생성 파일:
+
+- `api.log`: case 실행 시간대의 API 컨테이너 로그
+- `db.log`: case 실행 시간대의 DB 컨테이너 로그
+- `access-5xx.log`: 5xx access log
+- `access-500.log`: 500 access log
+- `access-401-429.log`: 인증/rate-limit 관련 access log
+- `5xx-request-ids.txt`: 5xx requestId 목록
+- `5xx-request-traces.log`: requestId별 stack trace
+- `exception-summary.txt`: 예외 클래스별 집계
+- `db-errors.log`: DB error/deadlock/timeout/constraint 관련 로그
+- `500-summary.md`: 위 내용을 한 번에 보는 요약 문서
+
+수동으로 다시 추출:
+
+```bash
+./infra/load/extract-loadtest-logs.sh infra/load/results/<result-dir>
+```
+
+특정 case만 다시 추출:
+
+```bash
+./infra/load/extract-loadtest-logs.sh infra/load/results/<result-dir>/mixed-peak
+```
+
+로그 추출 시간 범위는 `case-env.txt`의 `STARTED_AT_EPOCH`, `FINISHED_AT_EPOCH`를 기준으로 하며, 기본적으로 앞뒤 180초 여유를 둡니다.
+
+```bash
+LOG_EXTRACT_PAD_BEFORE_SEC=300 \
+LOG_EXTRACT_PAD_AFTER_SEC=300 \
+./infra/load/extract-loadtest-logs.sh infra/load/results/<result-dir>
+```
+
+자동 추출을 끄고 싶으면:
+
+```bash
+EXTRACT_LOGS_AFTER_CASE=false SUITE_MODE=soak ./infra/load/run-matrix.sh
 ```
 
 ### Grafana 어노테이션 자동 생성 (공용)

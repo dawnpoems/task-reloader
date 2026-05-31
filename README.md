@@ -301,66 +301,68 @@ Grafana/Prometheus 운영 방법, 대시보드 확인 루틴, 문제 해결은 [
 
 ## 부하 테스트 결과 문서
 
-### k6 운영 안정성 점검(3축)
+### k6 운영 안정성 점검
 
 - `Read Matrix` (완료): `5→20→40→60→80 VU` 단계 부하에서 read API 실패율 `0%`, `p95 8.11ms`로 안정적
 - `Mixed Peak` (완료): read/write 혼합 부하(`70:30`)에서 처리량 피크 `~600 req/s` 확인, 동시에 `401/429` 증가로 인증/보호정책 병목 식별
 - `Soak` (완료): 장시간(`2h`, `60 VU`) 지속 부하에서 처리량/지연은 안정적이지만, `401/429` 대량 발생과 간헐 `500` endpoint를 확인
-- `Mixed Fixed Token` (완료): 고정 access token으로 인증 재시도를 제거한 뒤 mixed 부하를 재실행해 실패율 `0.0243%`, checks 성공률 `99.9757%` 확인
+- `Mixed Fixed Token` (수정 후 재검증 완료): 고정 access token mixed 부하에서 `recent-completions` projection 수정 후 실패율 `0%`, checks 성공률 `100%` 확인
 
-요약 결론: **Read Matrix로 read 경로 용량 기준선을 확보했고, Mixed Peak/Soak에서 관찰된 대량 `401/429`는 고정 토큰 재검증을 통해 인증 재시도 및 rate-limit 경합 문제로 분리했습니다. 인증 조건이 안정적인 경우 read/write API 본체는 `50 VU`, 피크 `~600 req/s` 수준의 mixed 부하를 안정적으로 처리했습니다.**
+요약 결론: **Read Matrix로 read 경로 용량 기준선을 확보했고, Mixed Peak/Soak에서 관찰된 대량 `401/429`는 고정 토큰 재검증을 통해 인증 재시도 및 rate-limit 경합 문제로 분리했습니다. 이후 `recent-completions` 500 원인을 projection 조회로 수정했고, fixed-token mixed 재검증에서 read/write API 본체는 `50 VU`, 피크 `~600 req/s` 수준의 부하를 실패율 `0%`로 처리했습니다.**
+
+### 부하테스트 기반 코드 개선
+
+부하테스트를 단순 결과 수집으로 끝내지 않고, 관측된 실패를 requestId 기반 로그와 연결해 실제 코드 수정까지 이어갔습니다.
+
+1. `401/429` 대량 실패 원인 분리
+   - mixed/soak에서 대량의 `401/429`가 발생해 API 본체 처리량 문제와 인증 경로 문제를 분리할 필요가 있었습니다.
+   - 동일한 mixed 부하를 `ACCESS_TOKEN` 고정, `RELOGIN_ON_401=false` 조건으로 재실행했습니다.
+   - 실패율이 기존 mixed `45.42%`에서 fixed-token mixed `0.0243%`로 급감해, 대량 실패의 중심 원인이 재로그인 폭주와 인증 rate-limit 경합임을 확인했습니다.
+
+2. `recent-completions` 500 원인 확정
+   - fixed-token 조건에서도 `GET /api/insights/recent-completions`에서 소량의 `500`이 남았습니다.
+   - Grafana의 `5xx Endpoint Top5`로 endpoint를 좁히고, Docker access log의 `requestId`로 `Unhandled exception` stack trace를 추적했습니다.
+   - 원인은 `TaskCompletion -> Task` lazy loading 중 삭제된 `Task` row를 조회하면서 발생한 `EntityNotFoundException`이었습니다.
+
+3. Projection 조회로 코드 수정
+   - 기존에는 `TaskCompletion` entity를 조회한 뒤 DTO 변환 중 `completion.getTask().getName()`을 호출했습니다.
+   - mixed write flow가 `create -> update -> complete -> delete`를 반복하는 동안 조회와 삭제가 겹치면 lazy proxy 초기화 시점에 task row가 사라질 수 있었습니다.
+   - `recent-completions`와 같은 DTO 변환 경로를 쓰는 `today-completions`를 JPQL projection 조회로 변경해 lazy loading 경합을 제거했습니다.
+
+4. 수정 후 재검증
+   - 동일 fixed-token mixed 시나리오를 다시 실행했습니다.
+   - `insights_recent` check는 `111,800`건 모두 성공했고 실패는 `0`건입니다.
+   - 전체 HTTP 실패율은 `0%`, checks 성공률은 `100%`, 전체 p95는 `4.92ms`였습니다.
+   - Grafana에서도 5xx 에러율 `0%`, 상태코드 `500 = 0 req/s`로 확인했습니다.
 
 - 최신 로컬 Read Matrix 결과: [infra/load/results/local-read-matrix-20260512-102647/README.md](infra/load/results/local-read-matrix-20260512-102647/README.md)
 - 최신 로컬 Mixed Peak 결과: [infra/load/results/local-mixed-peak-20260517-043551/README.md](infra/load/results/local-mixed-peak-20260517-043551/README.md)
 - 최신 로컬 Soak 결과: [infra/load/results/local-soak-20260517-055109/README.md](infra/load/results/local-soak-20260517-055109/README.md)
-- 고정 토큰 Mixed 재검증 결과: [infra/load/results/local-mixed-fixed-token-20260530-121407/README.md](infra/load/results/local-mixed-fixed-token-20260530-121407/README.md)
+- 고정 토큰 Mixed 원인 분석 결과: [infra/load/results/local-mixed-fixed-token-20260530-121407/README.md](infra/load/results/local-mixed-fixed-token-20260530-121407/README.md)
+- 고정 토큰 Mixed 수정 후 재검증 결과: [infra/load/results/local-mixed-fixed-token-20260531-005152/README.md](infra/load/results/local-mixed-fixed-token-20260531-005152/README.md)
 - k6 후속 테스트 계획: [infra/load/results/local-read-matrix-20260512-102647/k6-next-test-plan.md](infra/load/results/local-read-matrix-20260512-102647/k6-next-test-plan.md)
 - Grafana 대시보드 확장 권고: [infra/load/results/local-read-matrix-20260512-102647/grafana-dashboard-expansion.md](infra/load/results/local-read-matrix-20260512-102647/grafana-dashboard-expansion.md)
 - Work Unit(선정 근거/우선순위): [docs/work-units/20260517/p1-k6-three-test-rationale.md](docs/work-units/20260517/p1-k6-three-test-rationale.md)
 
-### 다음 액션: 문제 구체화 테스트 + 코드 수정 계획
+### 남은 후속 과제
 
-#### 1) 문제 구체화 테스트 (원인 분리)
+1. 인증 안정화
+   - `RELOGIN_ON_401=true` 운영형 시나리오에서는 계정 풀 샤딩, 재로그인 backoff/jitter, 연쇄 실패 cool-off를 적용해 인증 rate-limit 경합을 줄여야 합니다.
+   - 인증 API rate-limit 검증과 API 본체 처리량 검증은 별도 시나리오로 분리합니다.
 
-1. 인증 병목 분리 A/B 테스트 (완료)  
-목적: `401/429`의 주 원인이 재로그인 폭주인지 확인합니다.  
-방법: 동일한 mixed 성격의 부하에서 `ACCESS_TOKEN 고정(재로그인 없음)` 결과와 기존 `RELOGIN_ON_401=true` 결과를 비교했습니다.  
-판정: 고정 토큰에서 실패율이 `45.42% -> 0.0243%`로 급감해, 인증 재로그인 경로가 대량 실패의 1차 병목임을 확인했습니다.
+2. 장시간 재검증
+   - projection 수정 후 soak 테스트를 다시 실행해 장시간 부하에서도 5xx가 재발하지 않는지 확인합니다.
+   - 메모리, DB connection, p95/p99 latency drift를 함께 확인합니다.
 
-2. 계정 샤딩 효과 검증  
-목적: 단일 계정 사용이 `IP+email limit`을 얼마나 악화시키는지 확인합니다.  
-방법: `단일 계정` vs `계정 풀(VU별 고정 계정)`로 mixed/soak를 각각 1회 이상 재실행합니다.  
-판정: 계정 풀에서 `401/429`가 유의미하게 감소하면 계정 분산이 필수 개선안입니다.
+3. 관측성 강화
+   - 테스트 종료 직후 `500 access line + requestId trace`를 결과 폴더에 자동 저장합니다.
+   - Grafana에 `exception class` 또는 에러 코드 기준 패널을 추가해 500 원인을 재현 즉시 좁힐 수 있게 합니다.
 
-3. rate-limit 민감도 테스트  
-목적: 현재 보호정책 값이 실제 운영 목표 트래픽과 맞는지 확인합니다.  
-방법: 같은 시나리오로 `기본값`과 `완화값(테스트 프로파일)`을 비교해 실패율/지연/처리량 변화를 수집합니다.  
-판정: 완화값에서 성공률만 개선되고 지연/자원은 안정적이면 정책 튜닝 근거가 확보됩니다.
+재실행 공통 기준:
 
-4. `recent-completions` 500 재현 테스트  
-목적: 간헐 `500`의 재현성과 조건을 특정합니다.  
-방법: `WRITE_RATIO_PERCENT=0`(read-only)와 `WRITE_RATIO_PERCENT=30`(혼합)을 비교해 endpoint별 5xx를 추적합니다.  
-판정: 혼합에서만 500이 증가하면 read-write 경합/연관조회 타이밍 이슈 가능성이 높습니다.
-
-#### 2) 코드 수정 계획 (우선순위)
-
-1. `P0` 인증 안정화  
-`infra/load/k6-auth-mixed-peak-local.js`, `infra/load/k6-auth-soak-local.js`에 재로그인 backoff+jitter, 계정 풀 샤딩, 연쇄 실패 cool-off를 추가합니다.  
-인증 API rate-limit은 테스트 전용 프로파일에서 별도 운용해 부하테스트 목적(시스템 병목 분석)과 보안정책 검증을 분리합니다.
-
-2. `P1` `recent-completions` 500 완화  
-`/api/insights/recent-completions` 조회 경로를 projection/fetch join 중심으로 단순화해 lazy 연관조회 경합 창을 줄입니다.  
-`GlobalExceptionHandler`에 DB/JPA 계열 예외를 분리 핸들링해 원인 가시성을 높이고, 500을 예외 유형 단위로 식별 가능하게 만듭니다.
-
-3. `P2` 관측성 강화  
-테스트 종료 직후 자동 로그 추출(`500 access line + requestId trace`)을 결과 폴더에 저장합니다.  
-Grafana는 `status`뿐 아니라 `exception class` 기준 패널을 추가해 500 원인을 재현 즉시 좁힐 수 있게 구성합니다.
-
-#### 3) 합격 기준(재실행 공통)
-
-1. `http_req_failed < 1%`  
-2. `checks > 99%`  
-3. `401/429` 비중이 장시간 유지 구간에서 비정상적으로 누적되지 않을 것  
+1. `http_req_failed < 1%`
+2. `checks > 99%`
+3. 의도하지 않은 `401/429` 장기 누적이 없을 것
 4. `5xx`는 0에 수렴하거나, 발생 시 endpoint/exception/requestId까지 즉시 추적 가능할 것
 
 ## 확장 계획
