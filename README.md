@@ -301,69 +301,59 @@ Grafana/Prometheus 운영 방법, 대시보드 확인 루틴, 문제 해결은 [
 
 ## 부하 테스트 결과 문서
 
-### k6 운영 안정성 점검
+부하테스트는 최대 RPS만 측정하는 방식이 아니라, read 기준선 확보 -> read/write 혼합 부하 -> 장시간 soak -> 인증 변수 분리 -> 500 원인 수정 -> 재검증 순서로 진행했습니다.
 
-- `Read Matrix` (완료): `5→20→40→60→80 VU` 단계 부하에서 read API 실패율 `0%`, `p95 8.11ms`로 안정적
-- `Mixed Peak` (완료): read/write 혼합 부하(`70:30`)에서 처리량 피크 `~600 req/s` 확인, 동시에 `401/429` 증가로 인증/보호정책 병목 식별
-- `Soak` (완료): 장시간(`2h`, `60 VU`) 지속 부하에서 처리량/지연은 안정적이지만, `401/429` 대량 발생과 간헐 `500` endpoint를 확인
-- `Mixed Fixed Token` (수정 후 재검증 완료): 고정 access token mixed 부하에서 `recent-completions` projection 수정 후 실패율 `0%`, checks 성공률 `100%` 확인
+- 종합 정리: [docs/load-testing-summary.md](docs/load-testing-summary.md)
 
-요약 결론: **Read Matrix로 read 경로 용량 기준선을 확보했고, Mixed Peak/Soak에서 관찰된 대량 `401/429`는 고정 토큰 재검증을 통해 인증 재시도 및 rate-limit 경합 문제로 분리했습니다. 이후 `recent-completions` 500 원인을 projection 조회로 수정했고, fixed-token mixed 재검증에서 read/write API 본체는 `50 VU`, 피크 `~600 req/s` 수준의 부하를 실패율 `0%`로 처리했습니다.**
+### 전체 흐름 요약
 
-### 부하테스트 기반 코드 개선
+| 단계 | 목적 | 핵심 결과 |
+|------|------|----------|
+| Read Matrix | read API 용량 기준선 확인 | `80 VU`, `553.22 RPS`, p95 `8.11ms`, 실패율 `0%` |
+| Mixed Peak | read/write 혼합 시 병목 확인 | peak 약 `600 RPS`까지 처리했지만 `401/429` 대량 발생, `recent-completions` 500 발견 |
+| 초기 Soak | 장시간 부하에서 실패 누적 확인 | `60 VU`, `2h`; latency는 낮았지만 `401/429` 장기 누적 확인 |
+| Fixed Token Mixed | 인증 변수를 제거하고 API 본체 확인 | 실패율이 `45.42%` -> `0.0243%`로 감소, 남은 실패가 `recent-completions` 500으로 좁혀짐 |
+| Projection 수정 후 Mixed 재검증 | 500 수정 효과 확인 | `972,932` requests, 평균 `463.20 RPS`, 실패율 `0%`, checks `100%` |
+| Fixed Token Soak | 수정 후 장시간 안정성 확인 | `60 VU`, `2h`, `3,507,776` requests, 평균 `487.14 RPS`, 실패율 `0%`, 5xx/500/401/429 `0건` |
 
-부하테스트를 단순 결과 수집으로 끝내지 않고, 관측된 실패를 requestId 기반 로그와 연결해 실제 코드 수정까지 이어갔습니다.
+### 부하테스트로 얻은 것
 
-1. `401/429` 대량 실패 원인 분리
-   - mixed/soak에서 대량의 `401/429`가 발생해 API 본체 처리량 문제와 인증 경로 문제를 분리할 필요가 있었습니다.
-   - 동일한 mixed 부하를 `ACCESS_TOKEN` 고정, `RELOGIN_ON_401=false` 조건으로 재실행했습니다.
-   - 실패율이 기존 mixed `45.42%`에서 fixed-token mixed `0.0243%`로 급감해, 대량 실패의 중심 원인이 재로그인 폭주와 인증 rate-limit 경합임을 확인했습니다.
+1. Read API 기준선 확보
+   - read-only API는 `80 VU`까지 실패 없이 처리했습니다.
+   - 따라서 현재 홈서버 로컬 환경에서 read API 자체는 목표 수준의 동시접속 부하를 안정적으로 처리한다고 판단했습니다.
 
-2. `recent-completions` 500 원인 확정
-   - fixed-token 조건에서도 `GET /api/insights/recent-completions`에서 소량의 `500`이 남았습니다.
-   - Grafana의 `5xx Endpoint Top5`로 endpoint를 좁히고, Docker access log의 `requestId`로 `Unhandled exception` stack trace를 추적했습니다.
-   - 원인은 `TaskCompletion -> Task` lazy loading 중 삭제된 `Task` row를 조회하면서 발생한 `EntityNotFoundException`이었습니다.
+2. 인증 문제와 API 본체 문제 분리
+   - 초기 mixed/soak에서 `401/429`가 대량 발생했습니다.
+   - 같은 mixed 부하를 고정 access token으로 재실행하자 실패율이 급감해, 대량 실패의 중심이 API 처리량 부족이 아니라 인증 재로그인/rate-limit 경합임을 확인했습니다.
 
-3. Projection 조회로 코드 수정
-   - 기존에는 `TaskCompletion` entity를 조회한 뒤 DTO 변환 중 `completion.getTask().getName()`을 호출했습니다.
-   - mixed write flow가 `create -> update -> complete -> delete`를 반복하는 동안 조회와 삭제가 겹치면 lazy proxy 초기화 시점에 task row가 사라질 수 있었습니다.
-   - `recent-completions`와 같은 DTO 변환 경로를 쓰는 `today-completions`를 JPQL projection 조회로 변경해 lazy loading 경합을 제거했습니다.
+3. `recent-completions` 500 원인 확정 및 수정
+   - Grafana의 5xx endpoint와 requestId 기반 로그를 연결해 `EntityNotFoundException`을 확인했습니다.
+   - 원인은 `TaskCompletion -> Task` lazy loading 중 연결된 Task가 삭제되는 read/write 경합이었습니다.
+   - `recent-completions`, `today-completions`를 DTO projection 조회로 변경해 lazy loading 경합을 제거했습니다.
 
-4. 수정 후 재검증
-   - 동일 fixed-token mixed 시나리오를 다시 실행했습니다.
-   - `insights_recent` check는 `111,800`건 모두 성공했고 실패는 `0`건입니다.
-   - 전체 HTTP 실패율은 `0%`, checks 성공률은 `100%`, 전체 p95는 `4.92ms`였습니다.
-   - Grafana에서도 5xx 에러율 `0%`, 상태코드 `500 = 0 req/s`로 확인했습니다.
+4. `overview` projection 리팩터링
+   - 새 인사이트 API인 `/api/insights/overview`도 유사한 lazy/N+1 리스크가 있는지 점검했습니다.
+   - 즉시 500 위험은 낮았지만, 장시간 부하와 데이터 증가를 고려해 projection 기반 조회로 선제 리팩터링했습니다.
 
-- 최신 로컬 Read Matrix 결과: [infra/load/results/local-read-matrix-20260512-102647/README.md](infra/load/results/local-read-matrix-20260512-102647/README.md)
-- 최신 로컬 Mixed Peak 결과: [infra/load/results/local-mixed-peak-20260517-043551/README.md](infra/load/results/local-mixed-peak-20260517-043551/README.md)
-- 최신 로컬 Soak 결과: [infra/load/results/local-soak-20260517-055109/README.md](infra/load/results/local-soak-20260517-055109/README.md)
-- 고정 토큰 Mixed 원인 분석 결과: [infra/load/results/local-mixed-fixed-token-20260530-121407/README.md](infra/load/results/local-mixed-fixed-token-20260530-121407/README.md)
-- 고정 토큰 Mixed 수정 후 재검증 결과: [infra/load/results/local-mixed-fixed-token-20260531-005152/README.md](infra/load/results/local-mixed-fixed-token-20260531-005152/README.md)
-- k6 후속 테스트 계획: [infra/load/results/local-read-matrix-20260512-102647/k6-next-test-plan.md](infra/load/results/local-read-matrix-20260512-102647/k6-next-test-plan.md)
-- Grafana 대시보드 확장 권고: [infra/load/results/local-read-matrix-20260512-102647/grafana-dashboard-expansion.md](infra/load/results/local-read-matrix-20260512-102647/grafana-dashboard-expansion.md)
-- Work Unit(선정 근거/우선순위): [docs/work-units/20260517/p1-k6-three-test-rationale.md](docs/work-units/20260517/p1-k6-three-test-rationale.md)
+5. 관측성 강화
+   - 부하테스트 종료 직후 API/DB 로그, 5xx/500/401/429 access log, requestId trace, exception summary를 결과 폴더에 자동 저장하도록 개선했습니다.
+   - 이후 500이 다시 발생하면 Grafana 수치에서 끝나지 않고 requestId와 stack trace까지 빠르게 연결할 수 있습니다.
 
-### 남은 후속 과제
+### 현재 판단
 
-1. 인증 안정화
-   - `RELOGIN_ON_401=true` 운영형 시나리오에서는 계정 풀 샤딩, 재로그인 backoff/jitter, 연쇄 실패 cool-off를 적용해 인증 rate-limit 경합을 줄여야 합니다.
-   - 인증 API rate-limit 검증과 API 본체 처리량 검증은 별도 시나리오로 분리합니다.
+현재까지 검증한 범위에서는, 인증 변수를 제거한 조건에서 API 본체와 DB 접근 패턴은 `50 VU` mixed peak 및 `60 VU` 2시간 soak 부하를 안정적으로 처리했습니다. 특히 projection 수정 이후 fixed-token mixed와 fixed-token soak 모두 실패율 `0%`, checks `100%`를 기록했습니다.
 
-2. 장시간 재검증
-   - projection 수정 후 soak 테스트를 다시 실행해 장시간 부하에서도 5xx가 재발하지 않는지 확인합니다.
-   - 메모리, DB connection, p95/p99 latency drift를 함께 확인합니다.
+다만 이 결론은 로그인/refresh/token 만료/rate-limit까지 포함한 인증 계층 전체의 안정성을 의미하지는 않습니다. 초기 테스트에서 `401/429`가 실제로 크게 드러났기 때문에, 인증 안정화는 별도 시나리오로 검증해야 합니다.
 
-3. 관측성 강화
-   - 테스트 종료 직후 `500 access line + requestId trace`를 결과 폴더에 자동 저장합니다.
-   - Grafana에 `exception class` 또는 에러 코드 기준 패널을 추가해 500 원인을 재현 즉시 좁힐 수 있게 합니다.
+### 상세 결과 문서
 
-재실행 공통 기준:
-
-1. `http_req_failed < 1%`
-2. `checks > 99%`
-3. 의도하지 않은 `401/429` 장기 누적이 없을 것
-4. `5xx`는 0에 수렴하거나, 발생 시 endpoint/exception/requestId까지 즉시 추적 가능할 것
+- Read Matrix 결과: [infra/load/results/local-read-matrix-20260512-102647/README.md](infra/load/results/local-read-matrix-20260512-102647/README.md)
+- Mixed Peak 결과: [infra/load/results/local-mixed-peak-20260517-043551/README.md](infra/load/results/local-mixed-peak-20260517-043551/README.md)
+- 초기 Soak 결과: [infra/load/results/local-soak-20260517-055109/README.md](infra/load/results/local-soak-20260517-055109/README.md)
+- Fixed Token Mixed 결과: [infra/load/results/local-mixed-fixed-token-20260530-121407/README.md](infra/load/results/local-mixed-fixed-token-20260530-121407/README.md)
+- 500 원인 분석: [infra/load/results/local-mixed-fixed-token-20260530-121407/500-root-cause-analysis.md](infra/load/results/local-mixed-fixed-token-20260530-121407/500-root-cause-analysis.md)
+- Fixed Token Mixed 재검증: [infra/load/results/local-mixed-fixed-token-20260531-005152/README.md](infra/load/results/local-mixed-fixed-token-20260531-005152/README.md)
+- Fixed Token Soak 결과: [infra/load/results/local-soak-fixed-token-20260531-022322/README.md](infra/load/results/local-soak-fixed-token-20260531-022322/README.md)
 
 ## 확장 계획
 
