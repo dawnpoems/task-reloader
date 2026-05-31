@@ -306,12 +306,14 @@ Grafana/Prometheus 운영 방법, 대시보드 확인 루틴, 문제 해결은 [
 - `Read Matrix` (완료): `5→20→40→60→80 VU` 단계 부하에서 read API 실패율 `0%`, `p95 8.11ms`로 안정적
 - `Mixed Peak` (완료): read/write 혼합 부하(`70:30`)에서 처리량 피크 `~600 req/s` 확인, 동시에 `401/429` 증가로 인증/보호정책 병목 식별
 - `Soak` (완료): 장시간(`2h`, `60 VU`) 지속 부하에서 처리량/지연은 안정적이지만, `401/429` 대량 발생과 간헐 `500` endpoint를 확인
+- `Mixed Fixed Token` (완료): 고정 access token으로 인증 재시도를 제거한 뒤 mixed 부하를 재실행해 실패율 `0.0243%`, checks 성공률 `99.9757%` 확인
 
-요약 결론: **Read Matrix로 read 경로 용량 기준선을 확보했고, Mixed Peak/Soak에서 공통적으로 인증 구간(`401/429`)이 운영 안정성 병목임을 확인했습니다.**
+요약 결론: **Read Matrix로 read 경로 용량 기준선을 확보했고, Mixed Peak/Soak에서 관찰된 대량 `401/429`는 고정 토큰 재검증을 통해 인증 재시도 및 rate-limit 경합 문제로 분리했습니다. 인증 조건이 안정적인 경우 read/write API 본체는 `50 VU`, 피크 `~600 req/s` 수준의 mixed 부하를 안정적으로 처리했습니다.**
 
 - 최신 로컬 Read Matrix 결과: [infra/load/results/local-read-matrix-20260512-102647/README.md](infra/load/results/local-read-matrix-20260512-102647/README.md)
 - 최신 로컬 Mixed Peak 결과: [infra/load/results/local-mixed-peak-20260517-043551/README.md](infra/load/results/local-mixed-peak-20260517-043551/README.md)
 - 최신 로컬 Soak 결과: [infra/load/results/local-soak-20260517-055109/README.md](infra/load/results/local-soak-20260517-055109/README.md)
+- 고정 토큰 Mixed 재검증 결과: [infra/load/results/local-mixed-fixed-token-20260530-121407/README.md](infra/load/results/local-mixed-fixed-token-20260530-121407/README.md)
 - k6 후속 테스트 계획: [infra/load/results/local-read-matrix-20260512-102647/k6-next-test-plan.md](infra/load/results/local-read-matrix-20260512-102647/k6-next-test-plan.md)
 - Grafana 대시보드 확장 권고: [infra/load/results/local-read-matrix-20260512-102647/grafana-dashboard-expansion.md](infra/load/results/local-read-matrix-20260512-102647/grafana-dashboard-expansion.md)
 - Work Unit(선정 근거/우선순위): [docs/work-units/20260517/p1-k6-three-test-rationale.md](docs/work-units/20260517/p1-k6-three-test-rationale.md)
@@ -320,10 +322,10 @@ Grafana/Prometheus 운영 방법, 대시보드 확인 루틴, 문제 해결은 [
 
 #### 1) 문제 구체화 테스트 (원인 분리)
 
-1. 인증 병목 분리 A/B 테스트  
+1. 인증 병목 분리 A/B 테스트 (완료)  
 목적: `401/429`의 주 원인이 재로그인 폭주인지 확인합니다.  
-방법: 동일한 mixed/soak 부하에서 `ACCESS_TOKEN 고정(재로그인 없음)` vs `현재 방식(RELOGIN_ON_401=true)`를 비교합니다.  
-판정: 고정 토큰에서 실패율이 급감하면 인증 재로그인 경로가 1차 병목입니다.
+방법: 동일한 mixed 성격의 부하에서 `ACCESS_TOKEN 고정(재로그인 없음)` 결과와 기존 `RELOGIN_ON_401=true` 결과를 비교했습니다.  
+판정: 고정 토큰에서 실패율이 `45.42% -> 0.0243%`로 급감해, 인증 재로그인 경로가 대량 실패의 1차 병목임을 확인했습니다.
 
 2. 계정 샤딩 효과 검증  
 목적: 단일 계정 사용이 `IP+email limit`을 얼마나 악화시키는지 확인합니다.  

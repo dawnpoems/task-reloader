@@ -27,6 +27,7 @@ import com.yegkim.task_reloader_api.task.repository.TaskCompletionRepository;
 import com.yegkim.task_reloader_api.task.repository.TaskRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -51,6 +52,7 @@ import java.util.Set;
 @Transactional(readOnly = true)
 public class TaskService {
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+    private static final int RECENT_COMPLETION_LIMIT = 5;
 
     // OVERDUE / TODAY / UPCOMING 모두 오래된 것부터 (next_due_at ASC)
     private static final Comparator<Task> BY_NEXT_DUE_AT_ASC =
@@ -140,9 +142,10 @@ public class TaskService {
 
     public List<RecentTaskCompletionResponse> findRecentCompletions() {
         Long userId = authenticatedUserProvider.currentUserId();
-        return taskCompletionRepository.findTop5ByUserIdOrderByCompletedAtDesc(userId).stream()
-                .map(this::toRecentCompletionResponse)
-                .toList();
+        return taskCompletionRepository.findRecentCompletionResponsesByUserId(
+                userId,
+                PageRequest.of(0, RECENT_COMPLETION_LIMIT)
+        );
     }
 
     public List<RecentTaskCompletionResponse> findTodayCompletions() {
@@ -152,12 +155,9 @@ public class TaskService {
         OffsetDateTime tomorrowStart = window.getTomorrowStartUtc().atOffset(ZoneOffset.UTC);
 
         return taskCompletionRepository
-                .findByUserIdAndCompletedAtGreaterThanEqualAndCompletedAtLessThanOrderByCompletedAtDesc(
+                .findRecentCompletionResponsesByUserIdAndCompletedAtRange(
                         userId, todayStart, tomorrowStart
-                )
-                .stream()
-                .map(this::toRecentCompletionResponse)
-                .toList();
+                );
     }
 
     public DashboardSummaryResponse getDashboardSummary() {
@@ -427,17 +427,6 @@ public class TaskService {
     private TaskCompletionResponse toCompletionResponse(TaskCompletion completion) {
         return TaskCompletionResponse.builder()
                 .id(completion.getId())
-                .completedAt(completion.getCompletedAt())
-                .previousDueAt(completion.getPreviousDueAt())
-                .nextDueAt(completion.getNextDueAt())
-                .build();
-    }
-
-    private RecentTaskCompletionResponse toRecentCompletionResponse(TaskCompletion completion) {
-        return RecentTaskCompletionResponse.builder()
-                .id(completion.getId())
-                .taskId(completion.getTask().getId())
-                .taskName(completion.getTask().getName())
                 .completedAt(completion.getCompletedAt())
                 .previousDueAt(completion.getPreviousDueAt())
                 .nextDueAt(completion.getNextDueAt())
