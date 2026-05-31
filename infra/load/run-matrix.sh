@@ -27,6 +27,9 @@ SOAK_VUS="${SOAK_VUS:-60}"
 SOAK_DURATION="${SOAK_DURATION:-2h}"
 SOAK_WRITE_RATIO_PERCENT="${SOAK_WRITE_RATIO_PERCENT:-15}"
 SUMMARY_AFTER_RUN="${SUMMARY_AFTER_RUN:-true}"
+EXTRACT_LOGS_AFTER_CASE="${EXTRACT_LOGS_AFTER_CASE:-true}"
+LOG_EXTRACT_PAD_BEFORE_SEC="${LOG_EXTRACT_PAD_BEFORE_SEC:-180}"
+LOG_EXTRACT_PAD_AFTER_SEC="${LOG_EXTRACT_PAD_AFTER_SEC:-180}"
 
 if [[ -z "${MATRIX_NAME:-}" ]]; then
   case "${SUITE_MODE}" in
@@ -97,6 +100,9 @@ git status --short | tee "${MATRIX_DIR}/git-status.txt"
   echo "SOAK_WRITE_RATIO_PERCENT=${SOAK_WRITE_RATIO_PERCENT}"
   echo "COOLDOWN_SECONDS=${COOLDOWN_SECONDS}"
   echo "SUMMARY_AFTER_RUN=${SUMMARY_AFTER_RUN}"
+  echo "EXTRACT_LOGS_AFTER_CASE=${EXTRACT_LOGS_AFTER_CASE}"
+  echo "LOG_EXTRACT_PAD_BEFORE_SEC=${LOG_EXTRACT_PAD_BEFORE_SEC}"
+  echo "LOG_EXTRACT_PAD_AFTER_SEC=${LOG_EXTRACT_PAD_AFTER_SEC}"
   echo "STARTED_AT=$(date -Iseconds)"
   echo "STARTED_AT_EPOCH=$(date +%s)"
 } | tee "${MATRIX_DIR}/test-env.txt"
@@ -149,6 +155,23 @@ should_run() {
   return 1
 }
 
+extract_case_logs_if_enabled() {
+  local case_dir="$1"
+  if [[ "${EXTRACT_LOGS_AFTER_CASE}" != "true" ]]; then
+    return 0
+  fi
+
+  local extract_script="${PROJECT_ROOT}/infra/load/extract-loadtest-logs.sh"
+  if [[ ! -x "${extract_script}" ]]; then
+    echo "Log extract script not executable: ${extract_script}" >&2
+    return 0
+  fi
+
+  LOG_EXTRACT_PAD_BEFORE_SEC="${LOG_EXTRACT_PAD_BEFORE_SEC}" \
+  LOG_EXTRACT_PAD_AFTER_SEC="${LOG_EXTRACT_PAD_AFTER_SEC}" \
+  "${extract_script}" "${case_dir}" || true
+}
+
 if should_run "read" && [[ ! -f "${SCRIPT_PATH}" ]]; then
   echo "Read script not found: ${SCRIPT_PATH}" >&2
   exit 1
@@ -191,17 +214,21 @@ run_read_case() {
   docker stats --no-stream "${APP_CONTAINERS[@]}" | tee "${case_dir}/docker-stats-app-before.txt"
   docker stats --no-stream "${OBS_CONTAINERS[@]}" | tee "${case_dir}/docker-stats-observability-before.txt"
 
+  local k6_exit=0
+  set +e
   BASE_URL="${BASE_URL}" \
-  AUTH_EMAIL="${AUTH_EMAIL}" \
-  AUTH_PASSWORD="${AUTH_PASSWORD}" \
-  RELOGIN_ON_401="${RELOGIN_ON_401}" \
-  VUS="${vus}" \
-  DURATION="${duration}" \
-  k6 run "${SCRIPT_PATH}" \
-    --summary-mode=full \
-    --summary-trend-stats="avg,min,med,max,p(90),p(95),p(99),count" \
-    --summary-export "${case_dir}/summary.json" \
-    | tee "${case_dir}/k6.log"
+    AUTH_EMAIL="${AUTH_EMAIL}" \
+    AUTH_PASSWORD="${AUTH_PASSWORD}" \
+    RELOGIN_ON_401="${RELOGIN_ON_401}" \
+    VUS="${vus}" \
+    DURATION="${duration}" \
+    k6 run "${SCRIPT_PATH}" \
+      --summary-mode=full \
+      --summary-trend-stats="avg,min,med,max,p(90),p(95),p(99),count" \
+      --summary-export "${case_dir}/summary.json" \
+      | tee "${case_dir}/k6.log"
+  k6_exit="${PIPESTATUS[0]}"
+  set -e
 
   echo "Container stats after case..."
   docker stats --no-stream "${APP_CONTAINERS[@]}" | tee "${case_dir}/docker-stats-app-after.txt"
@@ -210,7 +237,15 @@ run_read_case() {
   {
     echo "FINISHED_AT=$(date -Iseconds)"
     echo "FINISHED_AT_EPOCH=$(date +%s)"
+    echo "K6_EXIT_CODE=${k6_exit}"
   } | tee -a "${case_dir}/case-env.txt"
+
+  extract_case_logs_if_enabled "${case_dir}"
+
+  if [[ "${k6_exit}" -ne 0 ]]; then
+    echo "k6 exited with code ${k6_exit} for ${case_dir}" >&2
+    return "${k6_exit}"
+  fi
 
   echo "Cooling down for ${COOLDOWN_SECONDS} seconds..."
   sleep "${COOLDOWN_SECONDS}"
@@ -243,17 +278,21 @@ run_single_case() {
   docker stats --no-stream "${APP_CONTAINERS[@]}" | tee "${case_dir}/docker-stats-app-before.txt"
   docker stats --no-stream "${OBS_CONTAINERS[@]}" | tee "${case_dir}/docker-stats-observability-before.txt"
 
+  local k6_exit=0
+  set +e
   env \
-    BASE_URL="${BASE_URL}" \
-    AUTH_EMAIL="${AUTH_EMAIL}" \
-    AUTH_PASSWORD="${AUTH_PASSWORD}" \
-    RELOGIN_ON_401="${RELOGIN_ON_401}" \
-    "$@" \
-    k6 run "${script_path}" \
-    --summary-mode=full \
-    --summary-trend-stats="avg,min,med,max,p(90),p(95),p(99),count" \
-    --summary-export "${case_dir}/summary.json" \
-    | tee "${case_dir}/k6.log"
+      BASE_URL="${BASE_URL}" \
+      AUTH_EMAIL="${AUTH_EMAIL}" \
+      AUTH_PASSWORD="${AUTH_PASSWORD}" \
+      RELOGIN_ON_401="${RELOGIN_ON_401}" \
+      "$@" \
+      k6 run "${script_path}" \
+      --summary-mode=full \
+      --summary-trend-stats="avg,min,med,max,p(90),p(95),p(99),count" \
+      --summary-export "${case_dir}/summary.json" \
+      | tee "${case_dir}/k6.log"
+  k6_exit="${PIPESTATUS[0]}"
+  set -e
 
   echo "Container stats after case..."
   docker stats --no-stream "${APP_CONTAINERS[@]}" | tee "${case_dir}/docker-stats-app-after.txt"
@@ -262,7 +301,15 @@ run_single_case() {
   {
     echo "FINISHED_AT=$(date -Iseconds)"
     echo "FINISHED_AT_EPOCH=$(date +%s)"
+    echo "K6_EXIT_CODE=${k6_exit}"
   } | tee -a "${case_dir}/case-env.txt"
+
+  extract_case_logs_if_enabled "${case_dir}"
+
+  if [[ "${k6_exit}" -ne 0 ]]; then
+    echo "k6 exited with code ${k6_exit} for ${case_dir}" >&2
+    return "${k6_exit}"
+  fi
 
   echo "Cooling down for ${COOLDOWN_SECONDS} seconds..."
   sleep "${COOLDOWN_SECONDS}"
