@@ -130,6 +130,7 @@ npm run dev
 ## Documentation
 
 - [Architecture](docs/architecture.md): Cloudflare Tunnel, Nginx, API, DB, Prometheus/Grafana 운영 구조
+- [Auth & Refresh Token](docs/auth-refresh-token.md): access token, HttpOnly refresh cookie, rotation, CSRF 보호 흐름
 - [API Reference](docs/api.md): 인증, Task, 인사이트, 이메일 알림, 관리자 API와 지표 정의
 - [Design Decisions](docs/design-decisions.md): 상태 모델, 완료 처리, 인증/승인, 알림, 인사이트 조회 등 trade-off
 - [Load Testing Summary](docs/load-testing-summary.md): read/mixed/soak 부하테스트 전체 흐름과 결과
