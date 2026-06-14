@@ -567,6 +567,20 @@ docker compose down -v
 - API의 `/actuator/prometheus` 응답 확인
 - `docker compose logs prometheus grafana api`로 에러 로그 확인
 
+### Grafana Alert Rule Health가 error일 때
+
+- Grafana `Alerting > Alert rules > <rule>`에서 evaluation error 메시지를 먼저 확인합니다.
+- `failed to parse expression 'B': setting replaceWithValue must be specified when mode is 'replaceNN'`가 보이면, reduce expression 설정에 `replaceWithValue`가 빠진 상태입니다.
+- `infra/monitoring/grafana/provisioning/alerting/task-reloader-rules.yml`의 각 reduce expression은 아래 형태를 유지해야 합니다.
+
+```yaml
+settings:
+  mode: replaceNN
+  replaceWithValue: 0
+```
+
+- rule 파일을 수정한 뒤에는 `docker compose restart grafana`로 Grafana가 provisioning 파일을 다시 읽게 합니다.
+
 ### DB 연결 실패로 API가 시작되지 않을 때
 
 - PostgreSQL 컨테이너 상태 확인: `docker compose ps`
