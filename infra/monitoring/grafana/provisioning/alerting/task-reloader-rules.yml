@@ -1,0 +1,274 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: task-reloader-operational
+    folder: Task Reloader
+    interval: 1m
+    rules:
+      - uid: task-reloader-api-down
+        title: API Down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: max(up{job="task-reloader-api"})
+              instant: true
+              intervalMs: 1000
+              legendFormat: __auto
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: B
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: __expr__
+            model:
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              settings:
+                mode: replaceNN
+              type: reduce
+          - refId: C
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 1
+                    type: lt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        dashboardUid: task-reloader-api-overview
+        panelId: 1
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 3m
+        annotations:
+          summary: API scrape target이 3분 이상 내려가 있습니다.
+          description: api 컨테이너 상태, /healthz 응답, /actuator/prometheus 응답을 먼저 확인하세요.
+          dashboard: Task Reloader - API Overview > 요청량 (RPS)
+          runbook: infra/README.md > Grafana Alerting 알림별 1차 확인
+          threshold: max(up{job="task-reloader-api"}) < 1 for 3m
+        labels:
+          category: availability
+          environment: home
+          service: task-reloader-api
+          severity: critical
+
+      - uid: task-reloader-5xx-error-rate-high
+        title: 5xx Error Rate High
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: |
+                (
+                  100 *
+                  sum(rate(http_server_requests_seconds_count{uri!~"/actuator.*|/healthz|/favicon.ico",status=~"5.."}[5m]))
+                  /
+                  clamp_min(sum(rate(http_server_requests_seconds_count{uri!~"/actuator.*|/healthz|/favicon.ico"}[5m])), 0.000001)
+                )
+                and
+                (
+                  sum(rate(http_server_requests_seconds_count{uri!~"/actuator.*|/healthz|/favicon.ico"}[5m])) > 0.02
+                )
+              instant: true
+              intervalMs: 1000
+              legendFormat: __auto
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: B
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: __expr__
+            model:
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              settings:
+                mode: replaceNN
+              type: reduce
+          - refId: C
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 10
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        dashboardUid: task-reloader-api-overview
+        panelId: 2
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        annotations:
+          summary: API 5xx 에러율이 10분 이상 높습니다.
+          description: 에러율 패널과 5xx Endpoint Top5를 확인한 뒤 requestId 기준으로 API 로그를 추적하세요.
+          dashboard: Task Reloader - API Overview > 에러율 (5xx)
+          runbook: infra/README.md > Grafana Alerting 알림별 1차 확인
+          threshold: 5xx error rate > 10% for 10m, request rate > 0.02 rps
+        labels:
+          category: errors
+          environment: home
+          service: task-reloader-api
+          severity: critical
+
+      - uid: task-reloader-p95-latency-high
+        title: p95 Latency High
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: prometheus
+            model:
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: |
+                histogram_quantile(
+                  0.95,
+                  sum(rate(http_server_requests_seconds_bucket{uri!~"/actuator.*|/healthz|/favicon.ico"}[5m])) by (le)
+                )
+                and
+                (
+                  sum(rate(http_server_requests_seconds_count{uri!~"/actuator.*|/healthz|/favicon.ico"}[5m])) > 0.02
+                )
+              instant: true
+              intervalMs: 1000
+              legendFormat: __auto
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: B
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: __expr__
+            model:
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              settings:
+                mode: replaceNN
+              type: reduce
+          - refId: C
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 2
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        dashboardUid: task-reloader-api-overview
+        panelId: 3
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        annotations:
+          summary: API p95 latency가 15분 이상 높습니다.
+          description: p95 Latency와 느린 API Top5를 확인하고, 같은 시간대의 RPS와 5xx 동반 상승 여부를 비교하세요.
+          dashboard: Task Reloader - API Overview > p95 Latency
+          runbook: infra/README.md > Grafana Alerting 알림별 1차 확인
+          threshold: p95 latency > 2s for 15m, request rate > 0.02 rps
+        labels:
+          category: latency
+          environment: home
+          service: task-reloader-api
+          severity: warning

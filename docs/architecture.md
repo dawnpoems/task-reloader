@@ -105,12 +105,13 @@ PostgreSQL은 작업, 완료 이력, 사용자, 알림 설정과 발송 이력 �
 ## 관측성
 
 API는 Actuator의 Prometheus endpoint를 통해 metrics를 노출하고, Prometheus가 이를 주기적으로 수집한다.
-Grafana는 Prometheus를 datasource로 사용해 운영 대시보드를 제공한다.
+Grafana는 Prometheus를 datasource로 사용해 운영 대시보드를 제공하고, Grafana Alerting으로 핵심 운영 알림을 평가한다.
 
 ```mermaid
 flowchart LR
     prometheus["Prometheus<br/>scrape / store"] -->|scrape /actuator/prometheus| api["Spring Boot API<br/>/actuator/prometheus"]
-    grafana["Grafana<br/>API Overview dashboard"] -->|query| prometheus
+    grafana["Grafana<br/>Dashboard / Alerting"] -->|query| prometheus
+    grafana -.-> alertEmail["Email alert<br/>task-reloader-email"]
     api -.-> logs["API access log<br/>requestId / status / latency"]
 ```
 
@@ -124,6 +125,7 @@ Grafana 대시보드에서는 다음 지표를 중심으로 상태를 확인한�
 - 5xx endpoint Top5
 
 장애나 성능 저하가 보이면 Grafana에서 문제가 집중된 endpoint를 확인하고, API access log의 `requestId`를 기준으로 세부 로그를 추적한다.
+기본 Alert Rule은 `API Down`, `5xx Error Rate High`, `p95 Latency High` 세 가지이며, 홈서버 운영에서 알림 피로를 줄이기 위해 지속 시간과 최소 요청률 조건을 둔다.
 
 ## 포트 노출 원칙
 
@@ -141,4 +143,6 @@ Grafana 대시보드에서는 다음 지표를 중심으로 상태를 확인한�
 - [apps/web/nginx.conf](../apps/web/nginx.conf): React SPA 서빙과 `/api` 프록시
 - [infra/monitoring/prometheus/prometheus.yml](../infra/monitoring/prometheus/prometheus.yml): Prometheus scrape 설정
 - [infra/monitoring/grafana/dashboards/task-reloader-overview.json](../infra/monitoring/grafana/dashboards/task-reloader-overview.json): Grafana 대시보드
+- [infra/monitoring/grafana/provisioning/alerting/task-reloader-alerting.yml](../infra/monitoring/grafana/provisioning/alerting/task-reloader-alerting.yml): Grafana contact point와 notification policy
+- [infra/monitoring/grafana/provisioning/alerting/task-reloader-rules.yml](../infra/monitoring/grafana/provisioning/alerting/task-reloader-rules.yml): Grafana alert rule
 - [infra/README.md](../infra/README.md): 실행, 환경 변수, Cloudflare Tunnel 운영 절차
