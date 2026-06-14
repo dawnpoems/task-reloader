@@ -57,6 +57,15 @@ TASK_RELOADER_APP_URL=http://localhost:3000
 
 GRAFANA_ADMIN_USER=admin
 GRAFANA_ADMIN_PASSWORD=admin
+GRAFANA_SMTP_ENABLED=false
+GRAFANA_SMTP_HOST=host.docker.internal:1025
+GRAFANA_SMTP_USER=
+GRAFANA_SMTP_PASSWORD=
+GRAFANA_SMTP_FROM_ADDRESS=alerts@task-reloader.local
+GRAFANA_SMTP_FROM_NAME=Task Reloader Grafana
+GRAFANA_SMTP_SKIP_VERIFY=false
+GRAFANA_SMTP_STARTTLS_POLICY=OpportunisticStartTLS
+GRAFANA_ALERT_EMAIL_TO=admin@task-reloader.local
 
 # Cloudflare Tunnel (Docker profile)
 CLOUDFLARE_TUNNEL_TOKEN=<Cloudflare 대시보드에서 발급한 토큰>
@@ -172,7 +181,30 @@ docker compose logs -f cloudflared
 - Datasource: Prometheus (`infra/monitoring/grafana/provisioning/datasources/datasource.yml`)
 - Dashboard provider: `infra/monitoring/grafana/provisioning/dashboards/dashboard.yml`
 - Dashboard JSON: `infra/monitoring/grafana/dashboards/task-reloader-overview.json`
+- Alerting: `infra/monitoring/grafana/provisioning/alerting/task-reloader-alerting.yml`
 - 기본 대시보드: `Task Reloader - API Overview`
+
+### Grafana Alerting 메일 설정
+
+- Grafana 운영 알림 메일은 앱의 작업 마감 이메일 설정(`MAIL_*`)과 분리해서 관리합니다.
+- 기본 contact point는 `task-reloader-email`이며, 수신자는 `GRAFANA_ALERT_EMAIL_TO`를 사용합니다.
+- 로컬 SMTP 캡처 도구를 호스트에서 실행할 때는 기본값 `GRAFANA_SMTP_HOST=host.docker.internal:1025`를 사용할 수 있습니다.
+- 실제 메일 발송을 켜려면 `infra/.env`에서 아래 값을 SMTP 제공자에 맞게 설정합니다.
+  - `GRAFANA_SMTP_ENABLED=true`
+  - `GRAFANA_SMTP_HOST`
+  - `GRAFANA_SMTP_USER`
+  - `GRAFANA_SMTP_PASSWORD`
+  - `GRAFANA_SMTP_FROM_ADDRESS`
+  - `GRAFANA_SMTP_FROM_NAME`
+  - `GRAFANA_SMTP_SKIP_VERIFY`
+  - `GRAFANA_SMTP_STARTTLS_POLICY`
+  - `GRAFANA_ALERT_EMAIL_TO`
+- 설정 변경 후에는 Grafana 컨테이너를 재시작합니다.
+
+```bash
+cd infra
+docker compose up -d grafana
+```
 
 ### 대시보드에서 보는 핵심
 

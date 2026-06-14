@@ -161,6 +161,15 @@ services:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
       GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SMTP_ENABLED: "${GRAFANA_SMTP_ENABLED:-false}"
+      GF_SMTP_HOST: "${GRAFANA_SMTP_HOST:-host.docker.internal:1025}"
+      GF_SMTP_USER: "${GRAFANA_SMTP_USER:-}"
+      GF_SMTP_PASSWORD: "${GRAFANA_SMTP_PASSWORD:-}"
+      GF_SMTP_FROM_ADDRESS: "${GRAFANA_SMTP_FROM_ADDRESS:-alerts@task-reloader.local}"
+      GF_SMTP_FROM_NAME: "${GRAFANA_SMTP_FROM_NAME:-Task Reloader Grafana}"
+      GF_SMTP_SKIP_VERIFY: "${GRAFANA_SMTP_SKIP_VERIFY:-false}"
+      GF_SMTP_STARTTLS_POLICY: "${GRAFANA_SMTP_STARTTLS_POLICY:-OpportunisticStartTLS}"
+      GRAFANA_ALERT_EMAIL_TO: "${GRAFANA_ALERT_EMAIL_TO:-admin@task-reloader.local}"
     volumes:
       - grafana_data:/var/lib/grafana
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
