@@ -162,7 +162,7 @@ export function InsightsOverviewSection({
                     </div>
                   </div>
                   <div className="insights-risky-item__meta">
-                    <span>다음 예정 {formatDateTime(task.nextDueAt)}</span>
+                    <span>다음 예정 {formatDate(task.nextDueAt)}</span>
                     <span>마지막 완료 {formatDateTime(task.lastCompletedAt ?? undefined)}</span>
                   </div>
                   <p className="insights-risky-item__hint">

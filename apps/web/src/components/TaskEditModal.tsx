@@ -1,7 +1,7 @@
 import { useId, useRef, useState } from 'react'
 import { useModalFocusTrap } from '../hooks/useModalFocusTrap'
 import { useTaskCompletions } from '../hooks/useTaskCompletions'
-import { formatDateTime } from '../lib/utils'
+import { formatDate, formatDateTime } from '../lib/utils'
 import type { Task, UpdateTaskRequest } from '../types/task'
 
 interface TaskEditModalProps {
@@ -179,7 +179,7 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
                   </div>
                   <div className="modal__history-item-meta">
                     <span>이전 예정 {formatDateTime(completion.previousDueAt)}</span>
-                    <span>다음 예정 {formatDateTime(completion.nextDueAt)}</span>
+                    <span>다음 예정 {formatDate(completion.nextDueAt)}</span>
                   </div>
                 </li>
               ))}
