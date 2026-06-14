@@ -245,6 +245,42 @@ docker compose up -d grafana
 - Grafana alert rule은 `Task Reloader - API Overview` 대시보드의 관련 패널에 연결합니다.
 - 메일의 `summary`, `description`, `threshold`, `dashboard`, `runbook` annotation을 보고 1차 확인 순서를 정합니다.
 
+### Grafana Alerting 변경 후 검증 루틴
+
+Alerting provisioning 파일을 바꾼 뒤에는 아래 순서로 확인합니다.
+
+1. Compose 설정 렌더링 확인
+
+```bash
+cd infra
+docker compose --env-file .env.example config --quiet
+```
+
+2. Grafana 재시작
+
+```bash
+cd infra
+docker compose up -d grafana
+```
+
+3. Grafana 로그에서 provisioning 에러 확인
+
+```bash
+cd infra
+docker compose logs grafana
+```
+
+4. 브라우저에서 provisioning 결과 확인
+
+- `Alerting > Contact points`: `task-reloader-email`
+- `Alerting > Notification policies`: 기본 receiver `task-reloader-email`
+- `Alerting > Alert rules`: `Task Reloader / task-reloader-operational`
+
+5. 실제 메일 경로 확인
+
+- `Alerting > Contact points > task-reloader-email`에서 테스트 발송
+- 메일이 오지 않으면 `GRAFANA_SMTP_*`, `GRAFANA_ALERT_EMAIL_TO`, SMTP 제공자 보안 정책, Grafana 로그를 순서대로 확인
+
 ### 대시보드에서 보는 핵심
 
 - `요청량 (RPS)`: 트래픽 변화/급증 감지
