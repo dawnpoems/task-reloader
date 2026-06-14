@@ -1,6 +1,6 @@
 import { apiClient, ApiResponse } from './client'
 import { withQuery } from './query'
-import type { Task, CreateTaskRequest, UpdateTaskRequest, TaskStatusFilter } from '../types/task'
+import type { Task, CreateTaskRequest, UpdateTaskRequest, CompleteTaskRequest, TaskStatusFilter } from '../types/task'
 import type { DashboardSummary, InsightsOverview, RecentTaskCompletion } from '../types/insights'
 import type { TaskCompletion } from '../types/taskCompletion'
 
@@ -59,6 +59,6 @@ export const tasksApi = {
     apiClient.delete<void>(`/tasks/${id}`),
 
   // 백엔드는 POST /{id}/complete
-  complete: (id: number): Promise<ApiResponse<Task>> =>
-    apiClient.post<Task>(`/tasks/${id}/complete`, {}),
+  complete: (id: number, request: CompleteTaskRequest = {}): Promise<ApiResponse<Task>> =>
+    apiClient.post<Task>(`/tasks/${id}/complete`, request),
 }

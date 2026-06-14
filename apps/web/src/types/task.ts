@@ -30,6 +30,10 @@ export interface UpdateTaskRequest {
   timezone?: string
 }
 
+export interface CompleteTaskRequest {
+  completedDate?: string
+}
+
 // tasksApi.getAll() 쿼리 파라미터용
 export type TaskStatusFilter = 'ALL' | 'DUE_NOW' | 'OVERDUE' | 'TODAY' | 'UPCOMING'
 

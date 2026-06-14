@@ -11,7 +11,7 @@ interface UseTaskWorkflowOptions {
   fetchUpcomingTasks: () => Promise<void>
   createTask: (request: CreateTaskRequest) => Promise<boolean>
   updateTask: (id: number, request: UpdateTaskRequest) => Promise<boolean>
-  completeTask: (id: number) => Promise<boolean>
+  completeTask: (id: number, completedDate?: string) => Promise<boolean>
   deleteTask: (id: number) => Promise<boolean>
   onCreateSuccess: () => void
   onSelectedTaskDeleted: () => void
@@ -115,8 +115,8 @@ export function useTaskWorkflow({
     }
   }, [completeTask, refreshAll])
 
-  const handleCompleteTaskFromDetail = useCallback(async (id: number) => {
-    const ok = await completeTask(id)
+  const handleCompleteTaskFromDetail = useCallback(async (id: number, completedDate?: string) => {
+    const ok = await completeTask(id, completedDate)
     if (!ok) return false
 
     const tasksToRefresh = [refetchDueNow(), refetchDashboard()]

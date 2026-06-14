@@ -39,6 +39,7 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -384,25 +385,30 @@ public class TaskService {
 
     @Transactional
     public TaskResponse complete(Long id) {
+        return complete(id, null);
+    }
+
+    @Transactional
+    public TaskResponse complete(Long id, LocalDate completedDate) {
         Long userId = authenticatedUserProvider.currentUserId();
         Task task = taskRepository.findByIdAndUserIdForUpdate(id, userId)
                 .orElseThrow(() -> new TaskNotFoundException(id));
 
         if (!task.getIsActive()) {
-            eventPublisher.publishEvent(new TaskCompleteRejectedEvent(id, "inactive"));
+            rejectCompletion(id, "inactive");
             throw new TaskInactiveException(id);
         }
 
-        Instant now = clock.instant();
+        Instant completionInstant = resolveCompletionInstant(id, task, completedDate);
         OffsetDateTime previousDueAt = task.getNextDueAt();
 
         if (task.getLastCompletedAt() != null
-                && Duration.between(task.getLastCompletedAt().toInstant(), now).toSeconds() < COMPLETE_COOLDOWN_SECONDS) {
-            eventPublisher.publishEvent(new TaskCompleteRejectedEvent(id, "cooldown"));
+                && Duration.between(task.getLastCompletedAt().toInstant(), completionInstant).toSeconds() < COMPLETE_COOLDOWN_SECONDS) {
+            rejectCompletion(id, "cooldown");
             throw new TaskRecentlyCompletedException(id);
         }
 
-        task.complete(now);
+        task.complete(completionInstant);
         taskCompletionRepository.save(TaskCompletion.builder()
                 .task(task)
                 .completedAt(task.getCompletedAt())
@@ -413,6 +419,34 @@ public class TaskService {
                 new TaskCompletedEvent(task.getId(), task.getCompletedAt(), previousDueAt, task.getNextDueAt())
         );
         return withStatus(taskMapper.toResponse(task), task, currentWindow());
+    }
+
+    private Instant resolveCompletionInstant(Long taskId, Task task, LocalDate completedDate) {
+        Instant now = clock.instant();
+        if (completedDate == null) {
+            return now;
+        }
+
+        ZonedDateTime nowKst = now.atZone(KST);
+        if (completedDate.isAfter(nowKst.toLocalDate())) {
+            rejectCompletion(taskId, "future_completed_date");
+            throw new IllegalArgumentException("미래 날짜는 완료 처리할 수 없습니다.");
+        }
+        if (task.getStartDate() != null && completedDate.isBefore(task.getStartDate())) {
+            rejectCompletion(taskId, "before_start_date");
+            throw new IllegalArgumentException("시작일 이전 날짜는 완료 처리할 수 없습니다.");
+        }
+
+        Instant completionInstant = completedDate.atTime(nowKst.toLocalTime()).atZone(KST).toInstant();
+        if (task.getLastCompletedAt() != null && !completionInstant.isAfter(task.getLastCompletedAt().toInstant())) {
+            rejectCompletion(taskId, "before_last_completion");
+            throw new IllegalArgumentException("마지막 완료 시각 이후로만 완료 처리할 수 있습니다.");
+        }
+        return completionInstant;
+    }
+
+    private void rejectCompletion(Long id, String reason) {
+        eventPublisher.publishEvent(new TaskCompleteRejectedEvent(id, reason));
     }
 
     private TimeWindow currentWindow() {
