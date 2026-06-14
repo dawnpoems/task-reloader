@@ -1,4 +1,4 @@
-import { formatDateTime } from '../lib/utils'
+import { formatDate, formatDateTime } from '../lib/utils'
 import type { RecentTaskCompletion } from '../types/insights'
 
 interface RecentCompletionsSectionProps {
@@ -41,7 +41,7 @@ export function RecentCompletionsSection({
               </div>
               <div className="recent-completion-card__meta">
                 <span>이전 예정 {formatDateTime(completion.previousDueAt)}</span>
-                <span>다음 예정 {formatDateTime(completion.nextDueAt)}</span>
+                <span>다음 예정 {formatDate(completion.nextDueAt)}</span>
               </div>
             </li>
           ))}

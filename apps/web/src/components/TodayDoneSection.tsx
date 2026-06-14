@@ -1,4 +1,4 @@
-import { formatDateTime } from '../lib/utils'
+import { formatDate, formatDateTime } from '../lib/utils'
 import type { DashboardSummary, RecentTaskCompletion } from '../types/insights'
 
 interface TodayDoneSectionProps {
@@ -94,7 +94,7 @@ export function TodayDoneSection({
                   <span>{formatDateTime(completion.completedAt)}</span>
                 </div>
                 <small>
-                  이전 예정 {formatDateTime(completion.previousDueAt)} · 다음 예정 {formatDateTime(completion.nextDueAt)}
+                  이전 예정 {formatDateTime(completion.previousDueAt)} · 다음 예정 {formatDate(completion.nextDueAt)}
                 </small>
               </li>
             ))}
