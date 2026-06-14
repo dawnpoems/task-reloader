@@ -1398,42 +1398,70 @@ class TaskServiceTest {
     }
 
     @Test
-    @DisplayName("작업 완료 - 마지막 완료일보다 이전 날짜 지정 시 400 예외")
-    void testCompleteBeforeLastCompletionDate() {
+    @DisplayName("작업 완료 - 마지막 완료일보다 이전 날짜도 이력만 추가하고 현재 일정은 유지")
+    void testCompleteBeforeLastCompletionDateKeepsCurrentSchedule() {
         // given
         Instant fixedNow = Instant.parse("2026-06-13T06:30:00Z");
         OffsetDateTime lastCompletedAt = OffsetDateTime.parse("2026-06-11T10:00:00+09:00");
+        OffsetDateTime currentNextDueAt = lastCompletedAt.plusDays(7);
+        LocalDate completedDate = LocalDate.of(2026, 6, 10);
+        OffsetDateTime expectedCompletedAt = OffsetDateTime.parse("2026-06-10T15:30:00+09:00");
+        OffsetDateTime expectedPreviousDueAt = OffsetDateTime.parse("2026-06-10T00:00:00+09:00");
+        OffsetDateTime expectedNextDueAt = OffsetDateTime.parse("2026-06-17T00:00:00+09:00");
         Task activeTask = Task.builder()
                 .id(1L)
                 .name("Test Task")
                 .everyNDays(7)
                 .timezone("Asia/Seoul")
                 .startDate(LocalDate.of(2026, 6, 1))
-                .nextDueAt(lastCompletedAt.plusDays(7))
+                .nextDueAt(currentNextDueAt)
+                .completedAt(lastCompletedAt)
                 .lastCompletedAt(lastCompletedAt)
                 .isActive(true)
                 .createdAt(lastCompletedAt)
                 .updatedAt(lastCompletedAt)
                 .build();
+        TaskResponse response = TaskResponse.builder()
+                .id(1L)
+                .name("Test Task")
+                .everyNDays(7)
+                .nextDueAt(currentNextDueAt)
+                .lastCompletedAt(lastCompletedAt)
+                .completedAt(lastCompletedAt)
+                .isActive(true)
+                .build();
 
         when(clock.instant()).thenReturn(fixedNow);
         when(taskRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(activeTask));
+        when(taskMapper.toResponse(activeTask)).thenReturn(response);
+        when(taskStatusResolver.resolve(any(Instant.class), any())).thenReturn(TaskStatus.UPCOMING);
 
-        // when & then
-        assertThatThrownBy(() -> taskService.complete(1L, LocalDate.of(2026, 6, 10)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("마지막 완료 시각 이후");
+        // when
+        TaskResponse result = taskService.complete(1L, completedDate);
 
-        verify(taskCompletionRepository, never()).save(any());
-        verify(taskMapper, never()).toResponse(any());
+        // then
+        assertThat(result.getStatus()).isEqualTo(TaskStatus.UPCOMING);
+        assertThat(activeTask.getCompletedAt()).isEqualTo(lastCompletedAt);
+        assertThat(activeTask.getLastCompletedAt()).isEqualTo(lastCompletedAt);
+        assertThat(activeTask.getNextDueAt()).isEqualTo(currentNextDueAt);
+        verify(taskCompletionRepository, times(1)).save(argThat(completion ->
+                completion.getTask().equals(activeTask)
+                        && completion.getCompletedAt().isEqual(expectedCompletedAt)
+                        && completion.getPreviousDueAt().isEqual(expectedPreviousDueAt)
+                        && completion.getNextDueAt().isEqual(expectedNextDueAt)
+        ));
+        verify(taskMapper, times(1)).toResponse(activeTask);
     }
 
     @Test
-    @DisplayName("작업 완료 - 시작일 이전 날짜 지정 시 400 예외")
+    @DisplayName("작업 완료 - 시작일 이전 날짜도 기록이 없으면 정상 처리")
     void testCompleteBeforeStartDate() {
         // given
         Instant fixedNow = Instant.parse("2026-06-13T06:30:00Z");
-        OffsetDateTime now = fixedNow.atOffset(ZoneOffset.UTC);
+        LocalDate completedDate = LocalDate.of(2026, 6, 9);
+        OffsetDateTime now = OffsetDateTime.parse("2026-06-13T15:30:00+09:00");
+        OffsetDateTime expectedCompletedAt = OffsetDateTime.parse("2026-06-09T15:30:00+09:00");
+        OffsetDateTime expectedNextDueAt = OffsetDateTime.parse("2026-06-16T00:00:00+09:00");
         Task activeTask = Task.builder()
                 .id(1L)
                 .name("Test Task")
@@ -1445,14 +1473,64 @@ class TaskServiceTest {
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
+        TaskResponse response = TaskResponse.builder()
+                .id(1L)
+                .name("Test Task")
+                .everyNDays(7)
+                .nextDueAt(expectedNextDueAt)
+                .lastCompletedAt(expectedCompletedAt)
+                .completedAt(expectedCompletedAt)
+                .isActive(true)
+                .build();
 
         when(clock.instant()).thenReturn(fixedNow);
         when(taskRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(activeTask));
+        when(taskMapper.toResponse(activeTask)).thenReturn(response);
+        when(taskStatusResolver.resolve(any(Instant.class), any())).thenReturn(TaskStatus.UPCOMING);
+
+        // when
+        TaskResponse result = taskService.complete(1L, completedDate);
+
+        // then
+        assertThat(result.getStatus()).isEqualTo(TaskStatus.UPCOMING);
+        assertThat(activeTask.getCompletedAt()).isEqualTo(expectedCompletedAt);
+        assertThat(activeTask.getLastCompletedAt()).isEqualTo(expectedCompletedAt);
+        assertThat(activeTask.getNextDueAt()).isEqualTo(expectedNextDueAt);
+        verify(taskCompletionRepository, times(1)).save(any(TaskCompletion.class));
+        verify(taskMapper, times(1)).toResponse(activeTask);
+    }
+
+    @Test
+    @DisplayName("작업 완료 - 이미 기록이 있는 날짜는 중복 기록을 막음")
+    void testCompleteWithDuplicateCompletedDate() {
+        // given
+        Instant fixedNow = Instant.parse("2026-06-13T06:30:00Z");
+        OffsetDateTime now = fixedNow.atOffset(ZoneOffset.UTC);
+        LocalDate completedDate = LocalDate.of(2026, 6, 10);
+        OffsetDateTime dayStart = OffsetDateTime.parse("2026-06-10T00:00:00+09:00");
+        OffsetDateTime nextDayStart = OffsetDateTime.parse("2026-06-11T00:00:00+09:00");
+        Task activeTask = Task.builder()
+                .id(1L)
+                .name("Test Task")
+                .everyNDays(7)
+                .timezone("Asia/Seoul")
+                .startDate(LocalDate.of(2026, 6, 1))
+                .nextDueAt(now)
+                .isActive(true)
+                .createdAt(now)
+                .updatedAt(now)
+                .build();
+
+        when(clock.instant()).thenReturn(fixedNow);
+        when(taskRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(activeTask));
+        when(taskCompletionRepository.existsByUserIdAndTaskIdAndCompletedAtGreaterThanEqualAndCompletedAtLessThan(
+                USER_ID, 1L, dayStart, nextDayStart
+        )).thenReturn(true);
 
         // when & then
-        assertThatThrownBy(() -> taskService.complete(1L, LocalDate.of(2026, 6, 9)))
+        assertThatThrownBy(() -> taskService.complete(1L, completedDate))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("시작일 이전");
+                .hasMessageContaining("이미 완료 기록");
 
         verify(taskCompletionRepository, never()).save(any());
         verify(taskMapper, never()).toResponse(any());

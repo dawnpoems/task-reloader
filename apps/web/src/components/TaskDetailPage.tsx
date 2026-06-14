@@ -6,6 +6,9 @@ import { ErrorNotice } from './ErrorNotice'
 import type { Task } from '../types/task'
 import type { TaskCompletion } from '../types/taskCompletion'
 
+const toKstDateKey = (dateTime: string): string =>
+  new Date(dateTime).toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' })
+
 interface TaskDetailPageProps {
   taskId: number
   refreshToken?: number
@@ -22,6 +25,7 @@ export function TaskDetailPage({ taskId, refreshToken = 0, onBack, onEdit, onCom
     return new Date(now.getFullYear(), now.getMonth(), 1)
   })
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null)
+  const [todayDateKey, setTodayDateKey] = useState(() => toKstDateKey(new Date().toISOString()))
   const { task, isLoading, error: loadError, refetch: refetchTask } = useTaskDetail(taskId, refreshToken)
   const {
     completions,
@@ -34,10 +38,12 @@ export function TaskDetailPage({ taskId, refreshToken = 0, onBack, onEdit, onCom
     refreshToken,
   })
 
-  const toKstDateKey = (dateTime: string): string =>
-    new Date(dateTime).toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' })
-
-  const todayDateKey = useMemo(() => toKstDateKey(new Date().toISOString()), [])
+  useEffect(() => {
+    const updateToday = () => setTodayDateKey(toKstDateKey(new Date().toISOString()))
+    const intervalId = window.setInterval(updateToday, 60_000)
+    updateToday()
+    return () => window.clearInterval(intervalId)
+  }, [])
 
   const completionsByDate = useMemo(() => {
     const grouped = new Map<string, TaskCompletion[]>()
@@ -78,19 +84,7 @@ export function TaskDetailPage({ taskId, refreshToken = 0, onBack, onEdit, onCom
     [completionsByDate, selectedDateKey]
   )
 
-  const selectedDateCompleteBlockReason = useMemo(() => {
-    if (!selectedDateKey) return null
-    if (!task?.isActive) return '비활성 Task는 완료 처리할 수 없습니다.'
-    if (selectedDateKey > todayDateKey) return '미래 날짜는 완료 처리할 수 없습니다.'
-    if (task.startDate && selectedDateKey < task.startDate) return '시작일 이전 날짜는 완료 처리할 수 없습니다.'
-    const lastCompletedDateKey = task.lastCompletedAt ? toKstDateKey(task.lastCompletedAt) : null
-    if (lastCompletedDateKey && selectedDateKey <= lastCompletedDateKey) {
-      return '마지막 완료일 이후 날짜만 완료 처리할 수 있습니다.'
-    }
-    return null
-  }, [selectedDateKey, task, todayDateKey])
-
-  const canCompleteSelectedDate = selectedDateKey !== null && selectedDateCompleteBlockReason === null
+  const isSelectedDateInFuture = selectedDateKey !== null && selectedDateKey > todayDateKey
 
   useEffect(() => {
     if (!selectedDateKey) return
@@ -118,7 +112,11 @@ export function TaskDetailPage({ taskId, refreshToken = 0, onBack, onEdit, onCom
   }
 
   const handleCompleteSelectedDate = async () => {
-    if (!selectedDateKey || !canCompleteSelectedDate || isCompleting) return
+    if (!selectedDateKey || isSelectedDateInFuture || isCompleting) return
+
+    const selectedDateLabel = new Date(`${selectedDateKey}T00:00:00`).toLocaleDateString('ko-KR')
+    const confirmed = window.confirm(`${selectedDateLabel}에 완료 기록을 추가할까요?`)
+    if (!confirmed) return
 
     setActionError(null)
     setIsCompleting(true)
@@ -280,15 +278,15 @@ export function TaskDetailPage({ taskId, refreshToken = 0, onBack, onEdit, onCom
                 </div>
                 {selectedCompletions.length === 0 ? (
                   <>
-                    {task.isActive && (
+                    {task.isActive && !isSelectedDateInFuture && (
                       <div className="detail-calendar__selected-actions">
                         <button
                           type="button"
                           className="btn-complete detail-calendar__selected-action"
                           onClick={handleCompleteSelectedDate}
-                          disabled={!canCompleteSelectedDate || isCompleting}
-                          aria-disabled={!canCompleteSelectedDate || isCompleting}
-                          title={selectedDateCompleteBlockReason ?? (isCompleting ? '완료 처리 중입니다.' : undefined)}
+                          disabled={isCompleting}
+                          aria-disabled={isCompleting}
+                          title={isCompleting ? '완료 처리 중입니다.' : undefined}
                         >
                           {isCompleting ? '기록 중...' : '이 날짜에 완료 기록하기'}
                         </button>

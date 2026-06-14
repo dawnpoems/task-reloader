@@ -29,6 +29,13 @@ public interface TaskCompletionRepository extends JpaRepository<TaskCompletion, 
             OffsetDateTime endExclusive
     );
 
+    boolean existsByUserIdAndTaskIdAndCompletedAtGreaterThanEqualAndCompletedAtLessThan(
+            Long userId,
+            Long taskId,
+            OffsetDateTime startInclusive,
+            OffsetDateTime endExclusive
+    );
+
     List<TaskCompletion> findTop5ByOrderByCompletedAtDesc();
 
     List<TaskCompletion> findTop5ByUserIdOrderByCompletedAtDesc(Long userId);

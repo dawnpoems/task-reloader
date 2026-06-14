@@ -399,29 +399,49 @@ public class TaskService {
             throw new TaskInactiveException(id);
         }
 
-        Instant completionInstant = resolveCompletionInstant(id, task, completedDate);
-        OffsetDateTime previousDueAt = task.getNextDueAt();
+        Instant completionInstant = resolveCompletionInstant(id, completedDate);
+        if (completedDate != null && hasCompletionOnDate(userId, id, completedDate)) {
+            rejectCompletion(id, "duplicate_completed_date");
+            throw new IllegalArgumentException("이미 완료 기록이 있는 날짜입니다.");
+        }
 
-        if (task.getLastCompletedAt() != null
+        boolean shouldUpdateCurrentSchedule = completedDate == null
+                || task.getLastCompletedAt() == null
+                || completionInstant.isAfter(task.getLastCompletedAt().toInstant());
+
+        if (shouldUpdateCurrentSchedule
+                && task.getLastCompletedAt() != null
                 && Duration.between(task.getLastCompletedAt().toInstant(), completionInstant).toSeconds() < COMPLETE_COOLDOWN_SECONDS) {
             rejectCompletion(id, "cooldown");
             throw new TaskRecentlyCompletedException(id);
         }
 
-        task.complete(completionInstant);
+        OffsetDateTime completedAt = completionInstant.atOffset(ZoneOffset.UTC);
+        OffsetDateTime previousDueAt;
+        OffsetDateTime nextDueAt;
+        if (shouldUpdateCurrentSchedule) {
+            previousDueAt = task.getNextDueAt();
+            task.complete(completionInstant);
+            completedAt = task.getCompletedAt();
+            nextDueAt = task.getNextDueAt();
+        } else {
+            previousDueAt = toStartOfDay(completedDate);
+            nextDueAt = toStartOfDay(completedDate.plusDays(task.getEveryNDays()));
+        }
+
         taskCompletionRepository.save(TaskCompletion.builder()
                 .task(task)
-                .completedAt(task.getCompletedAt())
+                .completedAt(completedAt)
                 .previousDueAt(previousDueAt)
-                .nextDueAt(task.getNextDueAt())
+                .nextDueAt(nextDueAt)
                 .build());
         eventPublisher.publishEvent(
-                new TaskCompletedEvent(task.getId(), task.getCompletedAt(), previousDueAt, task.getNextDueAt())
+                new TaskCompletedEvent(task.getId(), completedAt, previousDueAt, nextDueAt)
         );
         return withStatus(taskMapper.toResponse(task), task, currentWindow());
     }
 
-    private Instant resolveCompletionInstant(Long taskId, Task task, LocalDate completedDate) {
+    private Instant resolveCompletionInstant(Long taskId, LocalDate completedDate) {
         Instant now = clock.instant();
         if (completedDate == null) {
             return now;
@@ -432,17 +452,20 @@ public class TaskService {
             rejectCompletion(taskId, "future_completed_date");
             throw new IllegalArgumentException("미래 날짜는 완료 처리할 수 없습니다.");
         }
-        if (task.getStartDate() != null && completedDate.isBefore(task.getStartDate())) {
-            rejectCompletion(taskId, "before_start_date");
-            throw new IllegalArgumentException("시작일 이전 날짜는 완료 처리할 수 없습니다.");
-        }
+        return completedDate.atTime(nowKst.toLocalTime()).atZone(KST).toInstant();
+    }
 
-        Instant completionInstant = completedDate.atTime(nowKst.toLocalTime()).atZone(KST).toInstant();
-        if (task.getLastCompletedAt() != null && !completionInstant.isAfter(task.getLastCompletedAt().toInstant())) {
-            rejectCompletion(taskId, "before_last_completion");
-            throw new IllegalArgumentException("마지막 완료 시각 이후로만 완료 처리할 수 있습니다.");
-        }
-        return completionInstant;
+    private boolean hasCompletionOnDate(Long userId, Long taskId, LocalDate completedDate) {
+        OffsetDateTime dayStart = toStartOfDay(completedDate);
+        OffsetDateTime nextDayStart = dayStart.plusDays(1);
+        return taskCompletionRepository
+                .existsByUserIdAndTaskIdAndCompletedAtGreaterThanEqualAndCompletedAtLessThan(
+                        userId, taskId, dayStart, nextDayStart
+                );
+    }
+
+    private OffsetDateTime toStartOfDay(LocalDate date) {
+        return date.atStartOfDay(KST).toOffsetDateTime();
     }
 
     private void rejectCompletion(Long id, String reason) {
