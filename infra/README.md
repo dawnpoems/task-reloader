@@ -182,6 +182,7 @@ docker compose logs -f cloudflared
 - Dashboard provider: `infra/monitoring/grafana/provisioning/dashboards/dashboard.yml`
 - Dashboard JSON: `infra/monitoring/grafana/dashboards/task-reloader-overview.json`
 - Alerting: `infra/monitoring/grafana/provisioning/alerting/task-reloader-alerting.yml`
+- Alert rules: `infra/monitoring/grafana/provisioning/alerting/task-reloader-rules.yml`
 - 기본 대시보드: `Task Reloader - API Overview`
 
 ### Grafana Alerting 메일 설정
@@ -205,6 +206,32 @@ docker compose logs -f cloudflared
 cd infra
 docker compose up -d grafana
 ```
+
+### 홈서버 Grafana Alerting 운영 체크
+
+- `infra/.env`의 `GRAFANA_SMTP_PASSWORD`는 커밋하지 않습니다. 일반 계정 비밀번호보다 SMTP 전용 토큰이나 앱 비밀번호를 사용합니다.
+- `GRAFANA_SMTP_HOST`의 `localhost`는 홈서버 호스트가 아니라 Grafana 컨테이너 자신을 의미합니다.
+- macOS/Windows Docker Desktop에서 호스트 SMTP 캡처 도구를 쓰면 `host.docker.internal:1025`를 사용할 수 있습니다.
+- Linux 홈서버에서는 `host.docker.internal`이 기본 동작하지 않을 수 있으므로, 실제 SMTP 제공자를 쓰거나 SMTP 캡처 도구를 Compose 서비스로 올린 뒤 서비스 이름을 `GRAFANA_SMTP_HOST`에 사용합니다.
+- 운영 SMTP는 제공자 정책에 맞춰 `GRAFANA_SMTP_HOST`, `GRAFANA_SMTP_USER`, `GRAFANA_SMTP_PASSWORD`, `GRAFANA_SMTP_FROM_ADDRESS`를 맞춥니다. 발신 주소가 인증 계정이나 허용된 도메인과 다르면 발송 실패 또는 스팸 분류가 날 수 있습니다.
+- 운영에서는 `GRAFANA_SMTP_SKIP_VERIFY=false`를 유지합니다. 자체 서명 인증서 등으로 TLS 검증이 실패하는 임시 상황이 아니면 끄지 않습니다.
+- Grafana와 Prometheus host port는 기본값처럼 `127.0.0.1`에만 바인딩합니다. 외부에서 Grafana를 봐야 하면 Cloudflare Access, VPN, SSH tunnel 같은 별도 보호 경로를 사용합니다.
+- 이 구성은 Grafana가 알림 평가와 메일 발송을 담당합니다. 홈서버 전원, 네트워크, Docker, Grafana 자체가 내려가면 알림도 발송되지 않습니다. 서버 다운까지 감지하려면 외부 uptime monitor나 Grafana Cloud 같은 외부 관측을 별도로 둡니다.
+- 설정 후 Grafana UI에서 `Alerting > Contact points > task-reloader-email` 테스트 발송을 먼저 확인하고, 그 다음 실제 alert rule을 추가합니다.
+
+### 기본 Alert Rule
+
+기본 운영 알림은 잦은 오탐을 줄이기 위해 조금 여유 있는 기준으로 시작합니다.
+
+| Rule | 조건 | 지속 시간 | No data |
+|---|---|---:|---|
+| API Down | `up{job="task-reloader-api"}`가 `1` 미만 | 3분 | Alerting |
+| 5xx Error Rate High | 5xx 비율 `10%` 초과, 전체 요청률 `0.02 rps` 초과 | 10분 | OK |
+| p95 Latency High | p95 latency `2s` 초과, 전체 요청률 `0.02 rps` 초과 | 15분 | OK |
+
+- 5xx와 p95 rule은 요청이 거의 없는 시간대의 노이즈를 줄이기 위해 최소 요청률 조건을 함께 둡니다.
+- 임계값을 바꾸려면 `task-reloader-rules.yml`을 수정하고 Grafana 컨테이너를 재시작합니다.
+- 테스트 firing을 확인할 때는 임계값이나 `for`를 임시로 낮춘 뒤, 테스트가 끝나면 운영값으로 되돌립니다.
 
 ### 대시보드에서 보는 핵심
 

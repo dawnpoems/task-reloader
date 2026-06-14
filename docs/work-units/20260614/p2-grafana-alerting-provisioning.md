@@ -6,6 +6,7 @@
 - Grafana SMTP 설정을 앱 메일 설정과 분리된 `GRAFANA_SMTP_*` 환경 변수로 매핑했다.
 - `GRAFANA_ALERT_EMAIL_TO`로 운영 알림 수신자를 설정할 수 있게 했다.
 - `infra/.env.example`과 `infra/README.md`에 Grafana Alerting 메일 설정과 재시작 방법을 추가했다.
+- 홈서버 운영 시 SMTP 인증정보, `localhost`/컨테이너 네트워크, 포트 노출, 외부 장애 감지 한계를 확인할 수 있도록 체크리스트를 보강했다.
 
 ## 테스트 방법
 
