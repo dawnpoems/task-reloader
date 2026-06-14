@@ -43,6 +43,7 @@ groups:
               refId: B
               settings:
                 mode: replaceNN
+                replaceWithValue: 0
               type: reduce
           - refId: C
             relativeTimeRange:
@@ -136,6 +137,7 @@ groups:
               refId: B
               settings:
                 mode: replaceNN
+                replaceWithValue: 0
               type: reduce
           - refId: C
             relativeTimeRange:
@@ -227,6 +229,7 @@ groups:
               refId: B
               settings:
                 mode: replaceNN
+                replaceWithValue: 0
               type: reduce
           - refId: C
             relativeTimeRange:
