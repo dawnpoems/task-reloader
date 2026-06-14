@@ -867,7 +867,7 @@ class TaskControllerTest {
                 .updatedAt(now)
                 .build();
 
-        when(taskService.complete(1L)).thenReturn(completedResponse);
+        when(taskService.complete(1L, null)).thenReturn(completedResponse);
 
         // when & then
         mockMvc.perform(post("/api/tasks/1/complete")
@@ -880,14 +880,51 @@ class TaskControllerTest {
                 .andExpect(jsonPath("$.data.lastCompletedAt").exists())
                 .andExpect(jsonPath("$.error").doesNotExist());
 
-        verify(taskService, times(1)).complete(1L);
+        verify(taskService, times(1)).complete(1L, null);
+    }
+
+    @Test
+    @DisplayName("작업 완료 - 날짜 지정 성공 (200 OK + TaskResponse)")
+    void testCompleteWithCompletedDateSuccess() throws Exception {
+        // given
+        LocalDate completedDate = LocalDate.of(2026, 6, 10);
+        OffsetDateTime completedAt = OffsetDateTime.parse("2026-06-10T15:30:00+09:00");
+        TaskResponse completedResponse = TaskResponse.builder()
+                .id(1L)
+                .name("Test Task")
+                .everyNDays(7)
+                .timezone("Asia/Seoul")
+                .status(TaskStatus.UPCOMING)
+                .nextDueAt(completedAt.plusDays(7))
+                .completedAt(completedAt)
+                .lastCompletedAt(completedAt)
+                .isActive(true)
+                .createdAt(completedAt.minusDays(10))
+                .updatedAt(completedAt)
+                .build();
+
+        when(taskService.complete(1L, completedDate)).thenReturn(completedResponse);
+
+        // when & then
+        mockMvc.perform(post("/api/tasks/1/complete")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"completedDate\":\"2026-06-10\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.data.id", is(1)))
+                .andExpect(jsonPath("$.data.status", is("UPCOMING")))
+                .andExpect(jsonPath("$.data.completedAt").exists())
+                .andExpect(jsonPath("$.data.lastCompletedAt").exists())
+                .andExpect(jsonPath("$.error").doesNotExist());
+
+        verify(taskService, times(1)).complete(1L, completedDate);
     }
 
     @Test
     @DisplayName("작업 완료 - 존재하지 않음 (404)")
     void testCompleteNotFound() throws Exception {
         // given
-        when(taskService.complete(999L)).thenThrow(new TaskNotFoundException(999L));
+        when(taskService.complete(999L, null)).thenThrow(new TaskNotFoundException(999L));
 
         // when & then
         mockMvc.perform(post("/api/tasks/999/complete")
@@ -898,14 +935,14 @@ class TaskControllerTest {
                 .andExpect(jsonPath("$.error.message", containsString("999")))
                 .andExpect(jsonPath("$.data").doesNotExist());
 
-        verify(taskService, times(1)).complete(999L);
+        verify(taskService, times(1)).complete(999L, null);
     }
 
     @Test
     @DisplayName("작업 완료 - 비활성 Task (409)")
     void testCompleteInactiveTask() throws Exception {
         // given
-        when(taskService.complete(1L)).thenThrow(new TaskInactiveException(1L));
+        when(taskService.complete(1L, null)).thenThrow(new TaskInactiveException(1L));
 
         // when & then
         mockMvc.perform(post("/api/tasks/1/complete")
@@ -916,14 +953,14 @@ class TaskControllerTest {
                 .andExpect(jsonPath("$.error.message", containsString("1")))
                 .andExpect(jsonPath("$.data").doesNotExist());
 
-        verify(taskService, times(1)).complete(1L);
+        verify(taskService, times(1)).complete(1L, null);
     }
 
     @Test
     @DisplayName("작업 완료 - 2초 이내 중복 완료 (409)")
     void testCompleteRecentlyCompleted() throws Exception {
         // given
-        when(taskService.complete(1L)).thenThrow(new TaskRecentlyCompletedException(1L));
+        when(taskService.complete(1L, null)).thenThrow(new TaskRecentlyCompletedException(1L));
 
         // when & then
         mockMvc.perform(post("/api/tasks/1/complete")
@@ -934,6 +971,6 @@ class TaskControllerTest {
                 .andExpect(jsonPath("$.error.message", containsString("1")))
                 .andExpect(jsonPath("$.data").doesNotExist());
 
-        verify(taskService, times(1)).complete(1L);
+        verify(taskService, times(1)).complete(1L, null);
     }
 }

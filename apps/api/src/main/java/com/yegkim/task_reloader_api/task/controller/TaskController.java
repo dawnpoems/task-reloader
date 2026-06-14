@@ -1,6 +1,7 @@
 package com.yegkim.task_reloader_api.task.controller;
 
 import com.yegkim.task_reloader_api.common.response.ApiResponse;
+import com.yegkim.task_reloader_api.task.dto.CompleteTaskRequest;
 import com.yegkim.task_reloader_api.task.dto.CreateTaskRequest;
 import com.yegkim.task_reloader_api.task.dto.TaskCompletionResponse;
 import com.yegkim.task_reloader_api.task.dto.TaskResponse;
@@ -92,7 +93,10 @@ public class TaskController {
 
     @Operation(summary = "작업 완료")
     @PostMapping("/{id}/complete")
-    public ApiResponse<TaskResponse> complete(@PathVariable Long id) {
-        return ApiResponse.success(taskService.complete(id));
+    public ApiResponse<TaskResponse> complete(
+            @PathVariable Long id,
+            @Valid @RequestBody(required = false) CompleteTaskRequest request
+    ) {
+        return ApiResponse.success(taskService.complete(id, request == null ? null : request.getCompletedDate()));
     }
 }

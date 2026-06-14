@@ -6,19 +6,13 @@
 
 ## 한눈에 보는 결론
 
-부하테스트를 통해 얻은 결론은 다음과 같다.
+부하테스트에서 확인한 핵심은 다음과 같다.
 
-- Read API는 `80 VU`, 평균 `553.22 RPS`, p95 `8.11ms`, 실패율 `0%`로 안정적이었다.
-- read/write 혼합 부하에서는 평균 `415.59 RPS`, peak 약 `600 RPS`까지 처리했지만, `401/429`가 대량 발생해 운영 안정성 기준에는 미달했다.
-- 고정 access token으로 인증 재로그인/rate-limit 변수를 제거하자 mixed 실패율이 `45.42%`에서 `0.0243%`로 떨어졌다.
-- 인증 변수를 제거한 뒤에도 남은 `GET /api/insights/recent-completions` 500은 실제 서버 예외였고, requestId 로그로 `EntityNotFoundException`을 확인했다.
-- `recent-completions`, `today-completions`를 DTO projection 조회로 수정한 뒤 동일 mixed 부하에서 실패율 `0%`, checks `100%`를 확인했다.
-- 이후 `/api/insights/overview`도 lazy/N+1 리스크를 줄이기 위해 projection 기반으로 선제 리팩터링했다.
+- Read API는 `80 VU read-only 시나리오`, 평균 `553.22 RPS`, p95 `8.11ms`, 실패율 `0%`로 안정적이었다.
+- 초기 mixed/soak의 대량 실패는 API 처리량 부족보다 인증 재로그인/rate-limit 변수의 영향이 컸고, fixed access token 조건에서 mixed 실패율이 `45.42%`에서 `0.0243%`로 떨어졌다.
+- fixed-token mixed에서 남은 `GET /api/insights/recent-completions` 500은 실제 서버 예외였고, requestId 로그로 `EntityNotFoundException`을 확인했다.
+- `recent-completions`, `today-completions`를 DTO projection 조회로 수정한 뒤 동일 mixed 부하에서 실패율 `0%`, checks `100%`를 확인했고, `/api/insights/overview`도 lazy/N+1 리스크를 줄이기 위해 선제 리팩터링했다.
 - 최종 fixed-token soak에서는 `60 VU`, `2h`, 총 `3,507,776` 요청, 평균 `487.14 RPS`, 실패율 `0%`, checks `100%`, 5xx/500/401/429 `0건`을 확인했다.
-
-현재 결론은 다음과 같다.
-
-> 인증 재로그인/rate-limit 변수를 제거한 조건에서, API 본체와 DB 접근 패턴은 read/write 혼합 부하와 2시간 지속 부하를 안정적으로 처리했다. 특히 부하테스트로 발견한 lazy loading 기반 500은 코드 수정 후 재검증까지 완료했다.
 
 ## 전체 진행 흐름
 
@@ -27,9 +21,9 @@
 | 순서 | 테스트/작업 | 확인하려던 것 | 결과 | 다음 행동 |
 | --- | --- | --- | --- | --- |
 | 1 | Read Matrix | read API 용량 기준선 | `80 VU`, p95 `8.11ms`, 실패율 `0%` | read는 안정적이므로 mixed 부하로 확장 |
-| 2 | Mixed Peak | read/write 혼합 시 병목 | `401/429` 대량 발생, `recent-completions` 500 확인 | 인증 문제와 API 본체 문제 분리 필요 |
+| 2 | Mixed Peak | read/write 혼합 시 병목 | `401/429` 대량 발생, `recent-completions` 500 확인 | 인증 재로그인/rate-limit 변수와 API 본체 문제 분리 필요 |
 | 3 | 초기 Soak | 장시간 부하에서 실패 누적 | `401/429` 장시간 누적, `recent-completions` 500 반복 | fixed token 조건으로 재검증 |
-| 4 | Fixed Token Mixed | 인증 변수를 제거한 API 본체 안정성 | 실패율 `0.0243%`, 남은 실패는 `recent-completions` 500 | requestId 로그로 500 원인 추적 |
+| 4 | Fixed Token Mixed | 인증 재로그인/rate-limit 변수를 제거한 API 본체 안정성 | 실패율 `0.0243%`, 남은 실패는 `recent-completions` 500 | requestId 로그로 500 원인 추적 |
 | 5 | 코드 수정 1 | `recent-completions` 500 제거 | lazy loading 경합을 DTO projection으로 제거 | 동일 mixed 부하 재실행 |
 | 6 | Mixed 재검증 | projection 수정 효과 | 실패율 `0%`, checks `100%` | 유사한 인사이트 조회 API 점검 |
 | 7 | 코드 수정 2 | `overview` lazy/N+1 리스크 제거 | `TaskCompletionInsightRow` projection 적용 | 장시간 soak 재검증 |
@@ -58,7 +52,7 @@
 
 - read API는 `80 VU`까지 처리량이 거의 선형적으로 증가했다.
 - 최고 부하에서도 실패율은 `0%`였고 p95는 `8.11ms`였다.
-- 따라서 read API만 놓고 보면 홈서버 로컬 환경에서 80명 수준 동시접속 read 부하는 안정적으로 처리 가능하다고 판단했다.
+- 따라서 read API만 놓고 보면 홈서버 로컬 환경에서 `80 VU read-only 시나리오`는 안정적으로 처리 가능하다고 판단했다.
 - 다만 read-only 테스트는 쓰기 경합, 인증 만료, rate-limit, 장시간 누적 문제를 검증하지 않는다.
 
 이후 행동:
@@ -98,7 +92,7 @@
 이후 행동:
 
 - 같은 부하를 장시간으로 늘려 실패가 누적되는지 확인했다.
-- 이후 인증 변수를 제거한 fixed token 테스트를 설계했다.
+- 이후 인증 재로그인/rate-limit 변수를 제거한 fixed token 테스트를 설계했다.
 
 ### 3. 초기 Soak
 
@@ -121,7 +115,7 @@
 
 - 처리량과 지연은 장시간 동안 큰 드리프트 없이 유지되었다.
 - 그러나 `401/429`가 장시간 유지되며 성공률을 크게 낮췄다.
-- mixed peak에서 보인 인증/보호정책 병목이 장시간 테스트에서도 반복되었다.
+- mixed peak에서 보인 인증 재로그인/rate-limit 변수가 장시간 테스트에서도 반복되었다.
 - `recent-completions` 500도 소량 반복되어 별도 수정 대상으로 유지했다.
 
 판단:
@@ -328,7 +322,7 @@ TaskCompletion + Task join
 
 ## 부하테스트를 통해 실제로 바뀐 것
 
-이번 부하테스트를 통해 바뀐 것은 크게 네 가지다.
+이번 부하테스트를 통해 바뀐 것은 크게 다섯 가지다.
 
 ### 1. 안정성 판단 기준이 바뀜
 
@@ -341,7 +335,7 @@ TaskCompletion + Task join
 - `http_req_failed`, checks, 상태코드 분포를 함께 본다.
 - 5xx는 비율이 낮아도 서버 내부 예외이므로 별도 수정 대상으로 본다.
 
-### 2. 인증 병목과 API 본체를 분리함
+### 2. 인증 재로그인/rate-limit 변수와 API 본체를 분리함
 
 초기 mixed/soak에서는 `401`, `429`, `500`이 동시에 발생했다. fixed token 테스트를 통해 대량 실패의 중심이 인증 재로그인/rate-limit 경합임을 분리했다.
 
@@ -385,9 +379,7 @@ TaskCompletion + Task join
 - `overview`는 직접 장애가 난 뒤 고친 것이 아니라, 같은 계열의 리스크를 발견하고 선제적으로 projection 리팩터링했다.
 - 5xx가 다시 발생할 경우 requestId와 trace를 결과 폴더에서 바로 확인할 수 있는 기반을 마련했다.
 
-따라서 현재 결론은 다음과 같다.
-
-> API 본체와 DB 접근 패턴은 현재 목표한 로컬 홈서버 부하 범위에서 안정적으로 동작한다. 특히 부하테스트가 실제 코드 수정과 재검증으로 이어졌기 때문에, 단순 성능 측정보다 운영 안정성 개선에 가까운 결과를 얻었다.
+요약하면, API 본체와 DB 접근 패턴은 현재 목표한 로컬 홈서버 부하 범위에서 안정적으로 동작한다고 볼 수 있다. 부하테스트가 실제 코드 수정과 재검증으로 이어졌다는 점에서도 단순 성능 측정보다 운영 안정성 개선에 가까운 결과를 얻었다.
 
 ## 한계와 이후 할 일
 

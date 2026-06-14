@@ -12,7 +12,7 @@ interface UseTasksReturn {
   createTask: (request: CreateTaskRequest) => Promise<boolean>
   updateTask: (id: number, request: UpdateTaskRequest) => Promise<boolean>
   deleteTask: (id: number) => Promise<boolean>
-  completeTask: (id: number) => Promise<boolean>
+  completeTask: (id: number, completedDate?: string) => Promise<boolean>
 }
 
 export function useTasks(filter: TaskStatusFilter = 'ALL', enabled = true): UseTasksReturn {
@@ -92,13 +92,13 @@ export function useTasks(filter: TaskStatusFilter = 'ALL', enabled = true): UseT
     return false
   }
 
-  const completeTask = async (id: number): Promise<boolean> => {
+  const completeTask = async (id: number, completedDate?: string): Promise<boolean> => {
     if (!enabled) {
       setErrorWithTimeout('로그인이 필요합니다.')
       return false
     }
 
-    const res = await tasksApi.complete(id)
+    const res = await tasksApi.complete(id, { completedDate })
     if (res.success) { setToastWithTimeout('완료 처리됐습니다 ✓'); return true }
     setErrorWithTimeout(extractErrorMessage(res.error, 'Task 완료 처리에 실패했습니다.'))
     return false

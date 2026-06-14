@@ -11,7 +11,7 @@ interface TaskDetailPageProps {
   refreshToken?: number
   onBack: () => void
   onEdit: (task: Task) => void
-  onComplete: (id: number) => Promise<boolean>
+  onComplete: (id: number, completedDate?: string) => Promise<boolean>
 }
 
 export function TaskDetailPage({ taskId, refreshToken = 0, onBack, onEdit, onComplete }: TaskDetailPageProps) {
@@ -36,6 +36,8 @@ export function TaskDetailPage({ taskId, refreshToken = 0, onBack, onEdit, onCom
 
   const toKstDateKey = (dateTime: string): string =>
     new Date(dateTime).toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' })
+
+  const todayDateKey = useMemo(() => toKstDateKey(new Date().toISOString()), [])
 
   const completionsByDate = useMemo(() => {
     const grouped = new Map<string, TaskCompletion[]>()
@@ -76,6 +78,20 @@ export function TaskDetailPage({ taskId, refreshToken = 0, onBack, onEdit, onCom
     [completionsByDate, selectedDateKey]
   )
 
+  const selectedDateCompleteBlockReason = useMemo(() => {
+    if (!selectedDateKey) return null
+    if (!task?.isActive) return '비활성 Task는 완료 처리할 수 없습니다.'
+    if (selectedDateKey > todayDateKey) return '미래 날짜는 완료 처리할 수 없습니다.'
+    if (task.startDate && selectedDateKey < task.startDate) return '시작일 이전 날짜는 완료 처리할 수 없습니다.'
+    const lastCompletedDateKey = task.lastCompletedAt ? toKstDateKey(task.lastCompletedAt) : null
+    if (lastCompletedDateKey && selectedDateKey <= lastCompletedDateKey) {
+      return '마지막 완료일 이후 날짜만 완료 처리할 수 있습니다.'
+    }
+    return null
+  }, [selectedDateKey, task, todayDateKey])
+
+  const canCompleteSelectedDate = selectedDateKey !== null && selectedDateCompleteBlockReason === null
+
   useEffect(() => {
     if (!selectedDateKey) return
     if (!selectedDateKey.startsWith(monthPrefix)) {
@@ -92,6 +108,24 @@ export function TaskDetailPage({ taskId, refreshToken = 0, onBack, onEdit, onCom
       const ok = await onComplete(taskId)
       if (!ok) {
         setActionError('완료 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.')
+        return
+      }
+
+      await Promise.all([refetchTask(), refetchCompletions()])
+    } finally {
+      setIsCompleting(false)
+    }
+  }
+
+  const handleCompleteSelectedDate = async () => {
+    if (!selectedDateKey || !canCompleteSelectedDate || isCompleting) return
+
+    setActionError(null)
+    setIsCompleting(true)
+    try {
+      const ok = await onComplete(taskId, selectedDateKey)
+      if (!ok) {
+        setActionError('선택한 날짜로 완료 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.')
         return
       }
 
@@ -166,7 +200,7 @@ export function TaskDetailPage({ taskId, refreshToken = 0, onBack, onEdit, onCom
           <h3>기본 정보</h3>
           <dl className="detail-card__list">
             <div><dt>반복 주기</dt><dd>{task.everyNDays}일마다 반복</dd></div>
-            <div><dt>다음 예정</dt><dd>{formatDateTime(task.nextDueAt)}</dd></div>
+            <div><dt>다음 예정</dt><dd>{formatDate(task.nextDueAt)}</dd></div>
             <div><dt>시작일</dt><dd>{task.startDate ?? '-'}</dd></div>
             <div><dt>최근 완료</dt><dd>{formatDateTime(task.completedAt)}</dd></div>
             <div><dt>생성일</dt><dd>{formatDate(task.createdAt)}</dd></div>
@@ -208,15 +242,18 @@ export function TaskDetailPage({ taskId, refreshToken = 0, onBack, onEdit, onCom
               const dateKey = `${monthPrefix}-${String(day).padStart(2, '0')}`
               const completionCount = completionsByDate.get(dateKey)?.length ?? 0
               const isSelected = selectedDateKey === dateKey
+              const isToday = dateKey === todayDateKey
 
               return (
                 <button
                   key={dateKey}
                   type="button"
-                  className={`detail-calendar__day ${completionCount > 0 ? 'detail-calendar__day--has-data' : ''} ${isSelected ? 'detail-calendar__day--selected' : ''}`}
+                  className={`detail-calendar__day ${completionCount > 0 ? 'detail-calendar__day--has-data' : ''} ${isToday ? 'detail-calendar__day--today' : ''} ${isSelected ? 'detail-calendar__day--selected' : ''}`}
                   onClick={() => setSelectedDateKey(dateKey)}
+                  aria-label={`${dateKey}${isToday ? ' 오늘' : ''}${completionCount > 0 ? ` 완료 ${completionCount}건` : ''}`}
                 >
                   <span>{day}</span>
+                  {isToday && <span className="detail-calendar__today-label">오늘</span>}
                   {completionCount > 0 && (
                     <span className="detail-calendar__dot">
                       {completionCount > 1 ? completionCount : ''}
@@ -234,22 +271,42 @@ export function TaskDetailPage({ taskId, refreshToken = 0, onBack, onEdit, onCom
               <ErrorNotice message={completionsError} onRetry={refetchCompletions} />
             ) : !selectedDateKey ? (
               <p className="section-state">날짜를 선택하면 완료 이력을 확인할 수 있습니다.</p>
-            ) : selectedCompletions.length === 0 ? (
-              <p className="section-state">선택한 날짜에 완료 기록이 없습니다.</p>
             ) : (
               <>
-                <p className="detail-calendar__selected-title">
-                  {new Date(`${selectedDateKey}T00:00:00`).toLocaleDateString('ko-KR')} 완료 이력
-                </p>
-                <ul className="detail-history">
-                  {selectedCompletions.map((completion) => (
-                    <li key={completion.id} className="detail-history__item">
-                      <strong>{formatDateTime(completion.completedAt)} 완료</strong>
-                      <span>이전 예정 {formatDateTime(completion.previousDueAt)}</span>
-                      <span>다음 예정 {formatDateTime(completion.nextDueAt)}</span>
-                    </li>
-                  ))}
-                </ul>
+                <div className="detail-calendar__selected-header">
+                  <p className="detail-calendar__selected-title">
+                    {new Date(`${selectedDateKey}T00:00:00`).toLocaleDateString('ko-KR')} 완료 이력
+                  </p>
+                </div>
+                {selectedCompletions.length === 0 ? (
+                  <>
+                    {task.isActive && (
+                      <div className="detail-calendar__selected-actions">
+                        <button
+                          type="button"
+                          className="btn-complete detail-calendar__selected-action"
+                          onClick={handleCompleteSelectedDate}
+                          disabled={!canCompleteSelectedDate || isCompleting}
+                          aria-disabled={!canCompleteSelectedDate || isCompleting}
+                          title={selectedDateCompleteBlockReason ?? (isCompleting ? '완료 처리 중입니다.' : undefined)}
+                        >
+                          {isCompleting ? '기록 중...' : '이 날짜에 완료 기록하기'}
+                        </button>
+                      </div>
+                    )}
+                    <p className="section-state">선택한 날짜에 완료 기록이 없습니다.</p>
+                  </>
+                ) : (
+                  <ul className="detail-history">
+                    {selectedCompletions.map((completion) => (
+                      <li key={completion.id} className="detail-history__item">
+                        <strong>{formatDateTime(completion.completedAt)} 완료</strong>
+                        <span>이전 예정 {formatDateTime(completion.previousDueAt)}</span>
+                        <span>다음 예정 {formatDate(completion.nextDueAt)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </>
             )}
           </div>
