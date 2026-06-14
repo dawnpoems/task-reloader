@@ -200,7 +200,7 @@ export function TaskDetailPage({ taskId, refreshToken = 0, onBack, onEdit, onCom
           <h3>기본 정보</h3>
           <dl className="detail-card__list">
             <div><dt>반복 주기</dt><dd>{task.everyNDays}일마다 반복</dd></div>
-            <div><dt>다음 예정</dt><dd>{formatDateTime(task.nextDueAt)}</dd></div>
+            <div><dt>다음 예정</dt><dd>{formatDate(task.nextDueAt)}</dd></div>
             <div><dt>시작일</dt><dd>{task.startDate ?? '-'}</dd></div>
             <div><dt>최근 완료</dt><dd>{formatDateTime(task.completedAt)}</dd></div>
             <div><dt>생성일</dt><dd>{formatDate(task.createdAt)}</dd></div>
@@ -302,7 +302,7 @@ export function TaskDetailPage({ taskId, refreshToken = 0, onBack, onEdit, onCom
                       <li key={completion.id} className="detail-history__item">
                         <strong>{formatDateTime(completion.completedAt)} 완료</strong>
                         <span>이전 예정 {formatDateTime(completion.previousDueAt)}</span>
-                        <span>다음 예정 {formatDateTime(completion.nextDueAt)}</span>
+                        <span>다음 예정 {formatDate(completion.nextDueAt)}</span>
                       </li>
                     ))}
                   </ul>

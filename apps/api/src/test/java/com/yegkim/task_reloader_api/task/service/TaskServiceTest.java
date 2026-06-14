@@ -1134,6 +1134,7 @@ class TaskServiceTest {
         // given
         Instant fixedNow = Instant.parse("2026-03-05T12:00:00Z");
         OffsetDateTime fixedOdt = fixedNow.atOffset(ZoneOffset.UTC);
+        OffsetDateTime expectedNextDueAt = OffsetDateTime.parse("2026-03-12T00:00:00+09:00");
 
         OffsetDateTime beforeNow = fixedOdt.minusDays(1);
         Task activeTask = Task.builder()
@@ -1151,7 +1152,7 @@ class TaskServiceTest {
                 .id(1L)
                 .name("Test Task")
                 .everyNDays(7)
-                .nextDueAt(fixedOdt.plusDays(7))
+                .nextDueAt(expectedNextDueAt)
                 .lastCompletedAt(fixedOdt)
                 .completedAt(fixedOdt)
                 .isActive(true)
@@ -1169,15 +1170,15 @@ class TaskServiceTest {
         // completedAt = lastCompletedAt = fixedNow(UTC)
         assertThat(activeTask.getCompletedAt()).isEqualTo(fixedOdt);
         assertThat(activeTask.getLastCompletedAt()).isEqualTo(fixedOdt);
-        // nextDueAt = fixedNow + 7일
-        assertThat(activeTask.getNextDueAt()).isEqualTo(fixedOdt.plusDays(7));
+        // nextDueAt = 완료한 KST 날짜 + 7일의 00:00
+        assertThat(activeTask.getNextDueAt()).isEqualTo(expectedNextDueAt);
         // 응답 status 포함
         assertThat(result.getStatus()).isEqualTo(TaskStatus.UPCOMING);
         verify(taskCompletionRepository, times(1)).save(argThat(completion ->
                 completion.getTask().equals(activeTask)
                         && completion.getCompletedAt().isEqual(fixedOdt)
                         && completion.getPreviousDueAt().isEqual(beforeNow)
-                        && completion.getNextDueAt().isEqual(fixedOdt.plusDays(7))
+                        && completion.getNextDueAt().isEqual(expectedNextDueAt)
         ));
         verify(clock, times(2)).instant();
         verify(taskRepository, times(1)).findByIdForUpdate(1L);
@@ -1267,6 +1268,7 @@ class TaskServiceTest {
         // given
         Instant fixedNow = Instant.parse("2026-03-05T12:00:03Z");
         OffsetDateTime fixedOdt = fixedNow.atOffset(ZoneOffset.UTC);
+        OffsetDateTime expectedNextDueAt = OffsetDateTime.parse("2026-03-12T00:00:00+09:00");
         OffsetDateTime lastCompleted = Instant.parse("2026-03-05T12:00:00Z").atOffset(ZoneOffset.UTC); // 3초 전
 
         Task previouslyCompletedTask = Task.builder()
@@ -1284,7 +1286,7 @@ class TaskServiceTest {
                 .id(1L)
                 .name("Test Task")
                 .everyNDays(7)
-                .nextDueAt(fixedOdt.plusDays(7))
+                .nextDueAt(expectedNextDueAt)
                 .lastCompletedAt(fixedOdt)
                 .completedAt(fixedOdt)
                 .isActive(true)
@@ -1302,7 +1304,7 @@ class TaskServiceTest {
         assertThat(result.getStatus()).isEqualTo(TaskStatus.UPCOMING);
         assertThat(previouslyCompletedTask.getCompletedAt()).isEqualTo(fixedOdt);
         assertThat(previouslyCompletedTask.getLastCompletedAt()).isEqualTo(fixedOdt);
-        assertThat(previouslyCompletedTask.getNextDueAt()).isEqualTo(fixedOdt.plusDays(7));
+        assertThat(previouslyCompletedTask.getNextDueAt()).isEqualTo(expectedNextDueAt);
         verify(taskCompletionRepository, times(1)).save(any(TaskCompletion.class));
         verify(taskRepository, times(1)).findByIdForUpdate(1L);
         verify(taskMapper, times(1)).toResponse(previouslyCompletedTask);
@@ -1318,6 +1320,7 @@ class TaskServiceTest {
                 .atTime(fixedNow.atZone(ZoneId.of("Asia/Seoul")).toLocalTime())
                 .atZone(ZoneId.of("Asia/Seoul"))
                 .toOffsetDateTime();
+        OffsetDateTime expectedNextDueAt = OffsetDateTime.parse("2026-06-17T00:00:00+09:00");
         OffsetDateTime previousDueAt = OffsetDateTime.parse("2026-06-09T00:00:00+09:00");
 
         Task activeTask = Task.builder()
@@ -1336,7 +1339,7 @@ class TaskServiceTest {
                 .id(1L)
                 .name("Test Task")
                 .everyNDays(7)
-                .nextDueAt(expectedCompletedAt.plusDays(7))
+                .nextDueAt(expectedNextDueAt)
                 .lastCompletedAt(expectedCompletedAt)
                 .completedAt(expectedCompletedAt)
                 .isActive(true)
@@ -1354,12 +1357,12 @@ class TaskServiceTest {
         assertThat(result.getStatus()).isEqualTo(TaskStatus.UPCOMING);
         assertThat(activeTask.getCompletedAt()).isEqualTo(expectedCompletedAt);
         assertThat(activeTask.getLastCompletedAt()).isEqualTo(expectedCompletedAt);
-        assertThat(activeTask.getNextDueAt()).isEqualTo(expectedCompletedAt.plusDays(7));
+        assertThat(activeTask.getNextDueAt()).isEqualTo(expectedNextDueAt);
         verify(taskCompletionRepository, times(1)).save(argThat(completion ->
                 completion.getTask().equals(activeTask)
                         && completion.getCompletedAt().isEqual(expectedCompletedAt)
                         && completion.getPreviousDueAt().isEqual(previousDueAt)
-                        && completion.getNextDueAt().isEqual(expectedCompletedAt.plusDays(7))
+                        && completion.getNextDueAt().isEqual(expectedNextDueAt)
         ));
         verify(taskMapper, times(1)).toResponse(activeTask);
     }

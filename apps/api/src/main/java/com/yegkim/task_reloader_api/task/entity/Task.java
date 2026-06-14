@@ -76,7 +76,8 @@ public class Task {
         OffsetDateTime odt = now.atOffset(ZoneOffset.UTC);
         this.completedAt = odt;
         this.lastCompletedAt = odt;
-        this.nextDueAt = odt.plusDays(this.everyNDays);
+        LocalDate nextDueDate = now.atZone(resolveZoneId()).toLocalDate().plusDays(this.everyNDays);
+        this.nextDueAt = toStartOfDay(nextDueDate);
     }
 
     @PrePersist
