@@ -72,14 +72,20 @@ groups:
               maxDataPoints: 43200
               refId: C
               type: threshold
+        dashboardUid: task-reloader-api-overview
+        panelId: 1
         noDataState: Alerting
         execErrState: Alerting
         for: 3m
         annotations:
-          summary: API scrape target is down.
-          description: Prometheus cannot scrape task-reloader-api for more than 3 minutes.
+          summary: API scrape target이 3분 이상 내려가 있습니다.
+          description: api 컨테이너 상태, /healthz 응답, /actuator/prometheus 응답을 먼저 확인하세요.
+          dashboard: Task Reloader - API Overview > 요청량 (RPS)
+          runbook: infra/README.md > Grafana Alerting 알림별 1차 확인
+          threshold: max(up{job="task-reloader-api"}) < 1 for 3m
         labels:
           category: availability
+          environment: home
           service: task-reloader-api
           severity: critical
 
@@ -159,14 +165,20 @@ groups:
               maxDataPoints: 43200
               refId: C
               type: threshold
+        dashboardUid: task-reloader-api-overview
+        panelId: 2
         noDataState: OK
         execErrState: Error
         for: 10m
         annotations:
-          summary: API 5xx error rate is high.
-          description: API 5xx error rate is above 10% for 10 minutes while request traffic is present.
+          summary: API 5xx 에러율이 10분 이상 높습니다.
+          description: 에러율 패널과 5xx Endpoint Top5를 확인한 뒤 requestId 기준으로 API 로그를 추적하세요.
+          dashboard: Task Reloader - API Overview > 에러율 (5xx)
+          runbook: infra/README.md > Grafana Alerting 알림별 1차 확인
+          threshold: 5xx error rate > 10% for 10m, request rate > 0.02 rps
         labels:
           category: errors
+          environment: home
           service: task-reloader-api
           severity: critical
 
@@ -244,13 +256,19 @@ groups:
               maxDataPoints: 43200
               refId: C
               type: threshold
+        dashboardUid: task-reloader-api-overview
+        panelId: 3
         noDataState: OK
         execErrState: Error
         for: 15m
         annotations:
-          summary: API p95 latency is high.
-          description: API p95 latency is above 2 seconds for 15 minutes while request traffic is present.
+          summary: API p95 latency가 15분 이상 높습니다.
+          description: p95 Latency와 느린 API Top5를 확인하고, 같은 시간대의 RPS와 5xx 동반 상승 여부를 비교하세요.
+          dashboard: Task Reloader - API Overview > p95 Latency
+          runbook: infra/README.md > Grafana Alerting 알림별 1차 확인
+          threshold: p95 latency > 2s for 15m, request rate > 0.02 rps
         labels:
           category: latency
+          environment: home
           service: task-reloader-api
           severity: warning

@@ -233,6 +233,18 @@ docker compose up -d grafana
 - 임계값을 바꾸려면 `task-reloader-rules.yml`을 수정하고 Grafana 컨테이너를 재시작합니다.
 - 테스트 firing을 확인할 때는 임계값이나 `for`를 임시로 낮춘 뒤, 테스트가 끝나면 운영값으로 되돌립니다.
 
+### Grafana Alerting 알림별 1차 확인
+
+| Alert | 먼저 볼 곳 | 확인할 것 |
+|---|---|---|
+| API Down | `docker compose ps`, `/healthz`, `/actuator/prometheus` | API 컨테이너가 떠 있는지, healthcheck가 실패하는지, Prometheus scrape endpoint가 응답하는지 확인 |
+| 5xx Error Rate High | Grafana `에러율 (5xx)`, `5xx Endpoint Top5`, API 로그 | 오류가 특정 endpoint에 집중되는지 확인하고 requestId로 예외 로그 추적 |
+| p95 Latency High | Grafana `p95 Latency`, `느린 API Top5 (p95)`, `요청량 (RPS)` | 지연이 특정 endpoint에 집중되는지, RPS/5xx 상승과 같이 발생했는지 확인 |
+
+- 모든 alert rule에는 `environment=home`, `service=task-reloader-api`, `category`, `severity` label을 붙입니다.
+- Grafana alert rule은 `Task Reloader - API Overview` 대시보드의 관련 패널에 연결합니다.
+- 메일의 `summary`, `description`, `threshold`, `dashboard`, `runbook` annotation을 보고 1차 확인 순서를 정합니다.
+
 ### 대시보드에서 보는 핵심
 
 - `요청량 (RPS)`: 트래픽 변화/급증 감지
