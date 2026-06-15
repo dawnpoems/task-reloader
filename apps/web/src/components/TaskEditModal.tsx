@@ -1,6 +1,7 @@
 import { useId, useRef, useState } from 'react'
 import { useModalFocusTrap } from '../hooks/useModalFocusTrap'
 import { useTaskCompletions } from '../hooks/useTaskCompletions'
+import { normalizeEveryNDaysInput, parseEveryNDaysInput } from '../lib/taskForm'
 import { formatDate, formatDateTime } from '../lib/utils'
 import type { Task, UpdateTaskRequest } from '../types/task'
 
@@ -23,7 +24,7 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
   const titleId = useId()
   const nameInputRef = useRef<HTMLInputElement | null>(null)
   const [name, setName] = useState(task.name)
-  const [everyNDays, setEveryNDays] = useState(task.everyNDays)
+  const [everyNDaysInput, setEveryNDaysInput] = useState(String(task.everyNDays))
   const [startDate, setStartDate] = useState(task.startDate ?? todayDateInput())
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -52,7 +53,8 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim()) { setError('이름을 입력해 주세요.'); return }
-    if (everyNDays < 1) { setError('반복 주기는 1일 이상이어야 합니다.'); return }
+    const everyNDays = parseEveryNDaysInput(everyNDaysInput)
+    if (everyNDays === null) { setError('반복 주기는 1일 이상이어야 합니다.'); return }
     setIsSubmitting(true)
     setError(null)
     const ok = await onUpdate(task.id, { name: name.trim(), everyNDays, startDate: startDate || undefined })
@@ -109,10 +111,11 @@ export function TaskEditModal({ task, onUpdate, onDelete, onClose }: TaskEditMod
             <label htmlFor="edit-everyNDays">반복 주기 (일) *</label>
             <input
               id="edit-everyNDays"
-              type="number"
-              min={1}
-              value={everyNDays}
-              onChange={(e) => setEveryNDays(Number(e.target.value))}
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={everyNDaysInput}
+              onChange={(e) => setEveryNDaysInput(normalizeEveryNDaysInput(e.target.value))}
               disabled={isBusy}
             />
           </div>
