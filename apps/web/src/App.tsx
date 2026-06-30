@@ -64,6 +64,7 @@ function App() {
     updateTask,
     completeTask,
     deleteTask,
+    deleteTaskCompletion,
     refetch,
   } = useTasks('DUE_NOW', isDataEnabled)
 
@@ -99,6 +100,7 @@ function App() {
     handleDeleteTask,
     handleCompleteTask,
     handleCompleteTaskFromDetail,
+    handleDeleteTaskCompletionFromDetail,
   } = useTaskWorkflow({
     isDataEnabled,
     selectedTaskId,
@@ -111,6 +113,7 @@ function App() {
     updateTask,
     completeTask,
     deleteTask,
+    deleteTaskCompletion,
     onCreateSuccess: () => setShowForm(false),
     onSelectedTaskDeleted: () => navigateTo(HOME_PATH),
   })
@@ -316,6 +319,7 @@ function App() {
             onBack={() => navigateTo(HOME_PATH)}
             onEdit={setSelectedTask}
             onComplete={handleCompleteTaskFromDetail}
+            onDeleteCompletion={handleDeleteTaskCompletionFromDetail}
           />
         ) : isInsightsPage ? (
           <InsightsPage

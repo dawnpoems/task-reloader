@@ -12,6 +12,7 @@ interface UseTasksReturn {
   createTask: (request: CreateTaskRequest) => Promise<boolean>
   updateTask: (id: number, request: UpdateTaskRequest) => Promise<boolean>
   deleteTask: (id: number) => Promise<boolean>
+  deleteTaskCompletion: (id: number, completionId: number) => Promise<boolean>
   completeTask: (id: number, completedDate?: string) => Promise<boolean>
 }
 
@@ -92,6 +93,18 @@ export function useTasks(filter: TaskStatusFilter = 'ALL', enabled = true): UseT
     return false
   }
 
+  const deleteTaskCompletion = async (id: number, completionId: number): Promise<boolean> => {
+    if (!enabled) {
+      setErrorWithTimeout('로그인이 필요합니다.')
+      return false
+    }
+
+    const res = await tasksApi.deleteCompletion(id, completionId)
+    if (res.success) { setToastWithTimeout('완료 기록이 삭제됐습니다'); return true }
+    setErrorWithTimeout(extractErrorMessage(res.error, '완료 기록 삭제에 실패했습니다.'))
+    return false
+  }
+
   const completeTask = async (id: number, completedDate?: string): Promise<boolean> => {
     if (!enabled) {
       setErrorWithTimeout('로그인이 필요합니다.')
@@ -104,5 +117,5 @@ export function useTasks(filter: TaskStatusFilter = 'ALL', enabled = true): UseT
     return false
   }
 
-  return { tasks, isLoading, error, toast, refetch: fetchTasks, createTask, updateTask, deleteTask, completeTask }
+  return { tasks, isLoading, error, toast, refetch: fetchTasks, createTask, updateTask, deleteTask, deleteTaskCompletion, completeTask }
 }

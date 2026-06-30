@@ -79,6 +79,13 @@ public class GlobalExceptionHandler {
         return error("TASK_NOT_FOUND", ex.getMessage());
     }
 
+    @ExceptionHandler(TaskCompletionNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ApiResponse<Void> handleTaskCompletionNotFound(TaskCompletionNotFoundException ex) {
+        log.warn("Task completion not found requestId={} message={}", currentRequestId(), ex.getMessage());
+        return error("TASK_COMPLETION_NOT_FOUND", ex.getMessage());
+    }
+
     @ExceptionHandler(TaskInactiveException.class)
     @ResponseStatus(HttpStatus.CONFLICT)
     public ApiResponse<Void> handleTaskInactive(TaskInactiveException ex) {

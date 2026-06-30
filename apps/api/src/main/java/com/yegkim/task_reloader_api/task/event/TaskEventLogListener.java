@@ -52,6 +52,19 @@ public class TaskEventLogListener {
         );
     }
 
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onTaskCompletionDeleted(TaskCompletionDeletedEvent event) {
+        log.info(
+                "event=task_completion_deleted taskId={} completionId={} deletedCompletedAt={} restoredLastCompletedAt={} restoredNextDueAt={} requestId={}",
+                event.taskId(),
+                event.completionId(),
+                event.deletedCompletedAt(),
+                event.restoredLastCompletedAt(),
+                event.restoredNextDueAt(),
+                currentRequestId()
+        );
+    }
+
     @EventListener
     public void onTaskCompleteRejected(TaskCompleteRejectedEvent event) {
         log.warn(

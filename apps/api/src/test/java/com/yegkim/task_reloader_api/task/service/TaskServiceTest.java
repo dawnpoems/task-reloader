@@ -1,6 +1,7 @@
 package com.yegkim.task_reloader_api.task.service;
 
 import com.yegkim.task_reloader_api.auth.security.AuthenticatedUserProvider;
+import com.yegkim.task_reloader_api.common.exception.TaskCompletionNotFoundException;
 import com.yegkim.task_reloader_api.common.exception.TaskInactiveException;
 import com.yegkim.task_reloader_api.common.exception.TaskNotFoundException;
 import com.yegkim.task_reloader_api.common.exception.TaskRecentlyCompletedException;
@@ -1213,6 +1214,196 @@ class TaskServiceTest {
 
         verify(taskRepository, times(1)).findById(999L);
         verify(taskRepository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("완료 기록 삭제 - 최신 기록 삭제 시 남은 최신 완료일 기준으로 현재 일정 복구")
+    void testDeleteCompletionRestoresCurrentScheduleFromRemainingLatestCompletion() {
+        LocalDate startDate = LocalDate.of(2026, 6, 1);
+        OffsetDateTime olderCompletedAt = OffsetDateTime.parse("2026-06-10T15:30:00+09:00");
+        OffsetDateTime latestCompletedAt = OffsetDateTime.parse("2026-06-13T15:30:00+09:00");
+        OffsetDateTime expectedNextDueAt = OffsetDateTime.parse("2026-06-17T00:00:00+09:00");
+        Task completedTask = Task.builder()
+                .id(1L)
+                .name("Test Task")
+                .everyNDays(7)
+                .timezone("Asia/Seoul")
+                .startDate(startDate)
+                .completedAt(latestCompletedAt)
+                .lastCompletedAt(latestCompletedAt)
+                .nextDueAt(OffsetDateTime.parse("2026-06-20T00:00:00+09:00"))
+                .isActive(true)
+                .createdAt(olderCompletedAt)
+                .updatedAt(latestCompletedAt)
+                .build();
+        TaskCompletion deleteTarget = TaskCompletion.builder()
+                .id(202L)
+                .task(completedTask)
+                .completedAt(latestCompletedAt)
+                .previousDueAt(OffsetDateTime.parse("2026-06-13T00:00:00+09:00"))
+                .nextDueAt(OffsetDateTime.parse("2026-06-20T00:00:00+09:00"))
+                .build();
+        TaskCompletion remainingLatest = TaskCompletion.builder()
+                .id(201L)
+                .task(completedTask)
+                .completedAt(olderCompletedAt)
+                .previousDueAt(OffsetDateTime.parse("2026-06-10T00:00:00+09:00"))
+                .nextDueAt(expectedNextDueAt)
+                .build();
+        TaskResponse response = TaskResponse.builder()
+                .id(1L)
+                .name("Test Task")
+                .everyNDays(7)
+                .nextDueAt(expectedNextDueAt)
+                .completedAt(olderCompletedAt)
+                .lastCompletedAt(olderCompletedAt)
+                .isActive(true)
+                .build();
+
+        when(taskRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(completedTask));
+        when(taskCompletionRepository.findByIdAndUserIdAndTaskId(202L, USER_ID, 1L))
+                .thenReturn(Optional.of(deleteTarget));
+        when(taskCompletionRepository.findFirstByUserIdAndTaskIdAndIdNotOrderByCompletedAtDesc(USER_ID, 1L, 202L))
+                .thenReturn(Optional.of(remainingLatest));
+        when(taskMapper.toResponse(completedTask)).thenReturn(response);
+        when(taskStatusResolver.resolve(any(Instant.class), any())).thenReturn(TaskStatus.UPCOMING);
+
+        TaskResponse result = taskService.deleteCompletion(1L, 202L);
+
+        assertThat(completedTask.getCompletedAt()).isEqualTo(olderCompletedAt);
+        assertThat(completedTask.getLastCompletedAt()).isEqualTo(olderCompletedAt);
+        assertThat(completedTask.getNextDueAt()).isEqualTo(expectedNextDueAt);
+        assertThat(result.getStatus()).isEqualTo(TaskStatus.UPCOMING);
+        verify(taskCompletionRepository, times(1)).delete(deleteTarget);
+    }
+
+    @Test
+    @DisplayName("완료 기록 삭제 - 과거 기록 삭제 시 최신 완료 기준 현재 일정 유지")
+    void testDeleteCompletionKeepsCurrentScheduleWhenDeletingOlderCompletion() {
+        LocalDate startDate = LocalDate.of(2026, 6, 1);
+        OffsetDateTime olderCompletedAt = OffsetDateTime.parse("2026-06-10T15:30:00+09:00");
+        OffsetDateTime latestCompletedAt = OffsetDateTime.parse("2026-06-13T15:30:00+09:00");
+        OffsetDateTime expectedNextDueAt = OffsetDateTime.parse("2026-06-20T00:00:00+09:00");
+        Task completedTask = Task.builder()
+                .id(1L)
+                .name("Test Task")
+                .everyNDays(7)
+                .timezone("Asia/Seoul")
+                .startDate(startDate)
+                .completedAt(latestCompletedAt)
+                .lastCompletedAt(latestCompletedAt)
+                .nextDueAt(expectedNextDueAt)
+                .isActive(true)
+                .createdAt(olderCompletedAt)
+                .updatedAt(latestCompletedAt)
+                .build();
+        TaskCompletion deleteTarget = TaskCompletion.builder()
+                .id(201L)
+                .task(completedTask)
+                .completedAt(olderCompletedAt)
+                .previousDueAt(OffsetDateTime.parse("2026-06-10T00:00:00+09:00"))
+                .nextDueAt(OffsetDateTime.parse("2026-06-17T00:00:00+09:00"))
+                .build();
+        TaskCompletion remainingLatest = TaskCompletion.builder()
+                .id(202L)
+                .task(completedTask)
+                .completedAt(latestCompletedAt)
+                .previousDueAt(OffsetDateTime.parse("2026-06-13T00:00:00+09:00"))
+                .nextDueAt(expectedNextDueAt)
+                .build();
+        TaskResponse response = TaskResponse.builder()
+                .id(1L)
+                .name("Test Task")
+                .everyNDays(7)
+                .nextDueAt(expectedNextDueAt)
+                .completedAt(latestCompletedAt)
+                .lastCompletedAt(latestCompletedAt)
+                .isActive(true)
+                .build();
+
+        when(taskRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(completedTask));
+        when(taskCompletionRepository.findByIdAndUserIdAndTaskId(201L, USER_ID, 1L))
+                .thenReturn(Optional.of(deleteTarget));
+        when(taskCompletionRepository.findFirstByUserIdAndTaskIdAndIdNotOrderByCompletedAtDesc(USER_ID, 1L, 201L))
+                .thenReturn(Optional.of(remainingLatest));
+        when(taskMapper.toResponse(completedTask)).thenReturn(response);
+        when(taskStatusResolver.resolve(any(Instant.class), any())).thenReturn(TaskStatus.UPCOMING);
+
+        TaskResponse result = taskService.deleteCompletion(1L, 201L);
+
+        assertThat(completedTask.getCompletedAt()).isEqualTo(latestCompletedAt);
+        assertThat(completedTask.getLastCompletedAt()).isEqualTo(latestCompletedAt);
+        assertThat(completedTask.getNextDueAt()).isEqualTo(expectedNextDueAt);
+        assertThat(result.getStatus()).isEqualTo(TaskStatus.UPCOMING);
+        verify(taskCompletionRepository, times(1)).delete(deleteTarget);
+    }
+
+    @Test
+    @DisplayName("완료 기록 삭제 - 남은 기록이 없으면 시작일 기준으로 현재 일정 초기화")
+    void testDeleteLastCompletionRestoresStartDateSchedule() {
+        LocalDate startDate = LocalDate.of(2026, 6, 1);
+        OffsetDateTime completedAt = OffsetDateTime.parse("2026-06-10T15:30:00+09:00");
+        OffsetDateTime expectedNextDueAt = OffsetDateTime.parse("2026-06-01T00:00:00+09:00");
+        Task completedTask = Task.builder()
+                .id(1L)
+                .name("Test Task")
+                .everyNDays(7)
+                .timezone("Asia/Seoul")
+                .startDate(startDate)
+                .completedAt(completedAt)
+                .lastCompletedAt(completedAt)
+                .nextDueAt(OffsetDateTime.parse("2026-06-17T00:00:00+09:00"))
+                .isActive(true)
+                .createdAt(completedAt)
+                .updatedAt(completedAt)
+                .build();
+        TaskCompletion deleteTarget = TaskCompletion.builder()
+                .id(201L)
+                .task(completedTask)
+                .completedAt(completedAt)
+                .previousDueAt(OffsetDateTime.parse("2026-06-10T00:00:00+09:00"))
+                .nextDueAt(OffsetDateTime.parse("2026-06-17T00:00:00+09:00"))
+                .build();
+        TaskResponse response = TaskResponse.builder()
+                .id(1L)
+                .name("Test Task")
+                .everyNDays(7)
+                .startDate(startDate)
+                .nextDueAt(expectedNextDueAt)
+                .isActive(true)
+                .build();
+
+        when(taskRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(completedTask));
+        when(taskCompletionRepository.findByIdAndUserIdAndTaskId(201L, USER_ID, 1L))
+                .thenReturn(Optional.of(deleteTarget));
+        when(taskCompletionRepository.findFirstByUserIdAndTaskIdAndIdNotOrderByCompletedAtDesc(USER_ID, 1L, 201L))
+                .thenReturn(Optional.empty());
+        when(taskMapper.toResponse(completedTask)).thenReturn(response);
+        when(taskStatusResolver.resolve(any(Instant.class), any())).thenReturn(TaskStatus.OVERDUE);
+
+        TaskResponse result = taskService.deleteCompletion(1L, 201L);
+
+        assertThat(completedTask.getCompletedAt()).isNull();
+        assertThat(completedTask.getLastCompletedAt()).isNull();
+        assertThat(completedTask.getNextDueAt()).isEqualTo(expectedNextDueAt);
+        assertThat(result.getStatus()).isEqualTo(TaskStatus.OVERDUE);
+        verify(taskCompletionRepository, times(1)).delete(deleteTarget);
+    }
+
+    @Test
+    @DisplayName("완료 기록 삭제 - 완료 기록이 없으면 404")
+    void testDeleteCompletionNotFound() {
+        when(taskRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(task));
+        when(taskCompletionRepository.findByIdAndUserIdAndTaskId(999L, USER_ID, 1L))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> taskService.deleteCompletion(1L, 999L))
+                .isInstanceOf(TaskCompletionNotFoundException.class)
+                .hasMessageContaining("완료 기록을 찾을 수 없습니다")
+                .hasMessageContaining("999");
+
+        verify(taskCompletionRepository, never()).delete(any());
+        verify(taskMapper, never()).toResponse(any());
     }
 
     @Test
