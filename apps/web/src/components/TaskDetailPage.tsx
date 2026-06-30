@@ -15,10 +15,12 @@ interface TaskDetailPageProps {
   onBack: () => void
   onEdit: (task: Task) => void
   onComplete: (id: number, completedDate?: string) => Promise<boolean>
+  onDeleteCompletion: (id: number, completionId: number) => Promise<boolean>
 }
 
-export function TaskDetailPage({ taskId, refreshToken = 0, onBack, onEdit, onComplete }: TaskDetailPageProps) {
+export function TaskDetailPage({ taskId, refreshToken = 0, onBack, onEdit, onComplete, onDeleteCompletion }: TaskDetailPageProps) {
   const [isCompleting, setIsCompleting] = useState(false)
+  const [deletingCompletionId, setDeletingCompletionId] = useState<number | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [viewMonth, setViewMonth] = useState(() => {
     const now = new Date()
@@ -133,6 +135,30 @@ export function TaskDetailPage({ taskId, refreshToken = 0, onBack, onEdit, onCom
     }
   }
 
+  const handleDeleteCompletion = async (completion: TaskCompletion) => {
+    if (deletingCompletionId !== null) return
+
+    const completedAtLabel = formatDateTime(completion.completedAt)
+    const confirmed = window.confirm(`${completedAtLabel} 완료 기록을 삭제할까요?`)
+    if (!confirmed) return
+
+    setActionError(null)
+    setDeletingCompletionId(completion.id)
+    try {
+      const ok = await onDeleteCompletion(taskId, completion.id)
+      if (!ok) {
+        setActionError('완료 기록 삭제에 실패했습니다. 잠시 후 다시 시도해 주세요.')
+        return
+      }
+
+      await Promise.all([refetchTask(), refetchCompletions()])
+    } finally {
+      setDeletingCompletionId(null)
+    }
+  }
+
+  const isActionBusy = isCompleting || deletingCompletionId !== null
+
   if (isLoading) {
     return <p className="app-loading">상세 정보를 불러오는 중...</p>
   }
@@ -163,9 +189,9 @@ export function TaskDetailPage({ taskId, refreshToken = 0, onBack, onEdit, onCom
               type="button"
               className="btn-complete detail-page__action-btn detail-page__action-btn--complete"
               onClick={handleComplete}
-              disabled={isCompleting}
-              aria-disabled={isCompleting}
-              title={isCompleting ? '완료 처리 중입니다.' : undefined}
+              disabled={isActionBusy}
+              aria-disabled={isActionBusy}
+              title={isActionBusy ? '처리 중입니다.' : undefined}
             >
               {isCompleting ? '처리 중...' : '완료'}
             </button>
@@ -174,9 +200,9 @@ export function TaskDetailPage({ taskId, refreshToken = 0, onBack, onEdit, onCom
             type="button"
             className="btn-edit detail-page__action-btn detail-page__action-btn--edit"
             onClick={() => onEdit(task)}
-            disabled={isCompleting}
-            aria-disabled={isCompleting}
-            title={isCompleting ? '완료 처리 중에는 수정할 수 없습니다.' : undefined}
+            disabled={isActionBusy}
+            aria-disabled={isActionBusy}
+            title={isActionBusy ? '처리 중에는 수정할 수 없습니다.' : undefined}
           >
             수정
           </button>
@@ -284,9 +310,9 @@ export function TaskDetailPage({ taskId, refreshToken = 0, onBack, onEdit, onCom
                           type="button"
                           className="btn-complete detail-calendar__selected-action"
                           onClick={handleCompleteSelectedDate}
-                          disabled={isCompleting}
-                          aria-disabled={isCompleting}
-                          title={isCompleting ? '완료 처리 중입니다.' : undefined}
+                          disabled={isActionBusy}
+                          aria-disabled={isActionBusy}
+                          title={isActionBusy ? '처리 중입니다.' : undefined}
                         >
                           {isCompleting ? '기록 중...' : '이 날짜에 완료 기록하기'}
                         </button>
@@ -298,9 +324,20 @@ export function TaskDetailPage({ taskId, refreshToken = 0, onBack, onEdit, onCom
                   <ul className="detail-history">
                     {selectedCompletions.map((completion) => (
                       <li key={completion.id} className="detail-history__item">
-                        <strong>{formatDateTime(completion.completedAt)} 완료</strong>
+                        <div className="detail-history__item-top">
+                          <strong>{formatDateTime(completion.completedAt)} 완료</strong>
+                        </div>
                         <span>이전 예정 {formatDateTime(completion.previousDueAt)}</span>
                         <span>다음 예정 {formatDate(completion.nextDueAt)}</span>
+                        <button
+                          type="button"
+                          className="btn-delete detail-history__delete"
+                          onClick={() => handleDeleteCompletion(completion)}
+                          disabled={isActionBusy}
+                          aria-disabled={isActionBusy}
+                        >
+                          {deletingCompletionId === completion.id ? '삭제 중...' : '완료기록 삭제하기'}
+                        </button>
                       </li>
                     ))}
                   </ul>

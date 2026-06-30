@@ -13,6 +13,7 @@ interface UseTaskWorkflowOptions {
   updateTask: (id: number, request: UpdateTaskRequest) => Promise<boolean>
   completeTask: (id: number, completedDate?: string) => Promise<boolean>
   deleteTask: (id: number) => Promise<boolean>
+  deleteTaskCompletion: (id: number, completionId: number) => Promise<boolean>
   onCreateSuccess: () => void
   onSelectedTaskDeleted: () => void
 }
@@ -29,6 +30,7 @@ export function useTaskWorkflow({
   updateTask,
   completeTask,
   deleteTask,
+  deleteTaskCompletion,
   onCreateSuccess,
   onSelectedTaskDeleted,
 }: UseTaskWorkflowOptions) {
@@ -127,6 +129,18 @@ export function useTaskWorkflow({
     return true
   }, [completeTask, fetchUpcomingTasks, isUpcomingLoaded, refetchDashboard, refetchDueNow])
 
+  const handleDeleteTaskCompletionFromDetail = useCallback(async (id: number, completionId: number) => {
+    const ok = await deleteTaskCompletion(id, completionId)
+    if (!ok) return false
+
+    const tasksToRefresh = [refetchDueNow(), refetchDashboard(), refetchInsights()]
+    if (isUpcomingLoaded) {
+      tasksToRefresh.push(fetchUpcomingTasks())
+    }
+    await Promise.all(tasksToRefresh)
+    return true
+  }, [deleteTaskCompletion, fetchUpcomingTasks, isUpcomingLoaded, refetchDashboard, refetchDueNow, refetchInsights])
+
   return {
     completingTaskIds,
     completedTaskIds,
@@ -137,5 +151,6 @@ export function useTaskWorkflow({
     handleDeleteTask,
     handleCompleteTask,
     handleCompleteTaskFromDetail,
+    handleDeleteTaskCompletionFromDetail,
   }
 }

@@ -88,6 +88,26 @@ public class Task {
         this.nextDueAt = toStartOfDay(nextDueDate);
     }
 
+    public void restoreScheduleAfterCompletionDeleted(OffsetDateTime latestCompletedAt) {
+        this.completedAt = latestCompletedAt;
+        this.lastCompletedAt = latestCompletedAt;
+
+        if (latestCompletedAt != null) {
+            LocalDate nextDueDate = latestCompletedAt.atZoneSameInstant(resolveZoneId()).toLocalDate()
+                    .plusDays(this.everyNDays);
+            this.nextDueAt = toStartOfDay(nextDueDate);
+            return;
+        }
+
+        LocalDate initialDueDate = this.startDate;
+        if (initialDueDate == null && this.createdAt != null) {
+            initialDueDate = this.createdAt.atZoneSameInstant(resolveZoneId()).toLocalDate();
+        }
+        if (initialDueDate != null) {
+            this.nextDueAt = toStartOfDay(initialDueDate);
+        }
+    }
+
     @PrePersist
     protected void onCreate() {
         OffsetDateTime now = OffsetDateTime.now();

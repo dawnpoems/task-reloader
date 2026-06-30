@@ -3,6 +3,7 @@ package com.yegkim.task_reloader_api.task.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.yegkim.task_reloader_api.common.exception.TaskCompletionNotFoundException;
 import com.yegkim.task_reloader_api.common.exception.TaskInactiveException;
 import com.yegkim.task_reloader_api.common.exception.TaskNotFoundException;
 import com.yegkim.task_reloader_api.common.exception.TaskRecentlyCompletedException;
@@ -846,6 +847,54 @@ class TaskControllerTest {
                 .andExpect(jsonPath("$.error.code", is("BAD_REQUEST")));
 
         verify(taskService, times(1)).delete(999L);
+    }
+
+    @Test
+    @DisplayName("완료 기록 삭제 - 성공")
+    void testDeleteCompletionSuccess() throws Exception {
+        OffsetDateTime restoredAt = OffsetDateTime.parse("2026-06-10T15:30:00+09:00");
+        TaskResponse response = TaskResponse.builder()
+                .id(1L)
+                .name("Test Task")
+                .everyNDays(7)
+                .timezone("Asia/Seoul")
+                .status(TaskStatus.UPCOMING)
+                .nextDueAt(OffsetDateTime.parse("2026-06-17T00:00:00+09:00"))
+                .completedAt(restoredAt)
+                .lastCompletedAt(restoredAt)
+                .isActive(true)
+                .createdAt(restoredAt.minusDays(10))
+                .updatedAt(restoredAt)
+                .build();
+
+        when(taskService.deleteCompletion(1L, 201L)).thenReturn(response);
+
+        mockMvc.perform(delete("/api/tasks/1/completions/201")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success", is(true)))
+                .andExpect(jsonPath("$.data.id", is(1)))
+                .andExpect(jsonPath("$.data.nextDueAt").exists())
+                .andExpect(jsonPath("$.data.lastCompletedAt").exists())
+                .andExpect(jsonPath("$.error").doesNotExist());
+
+        verify(taskService, times(1)).deleteCompletion(1L, 201L);
+    }
+
+    @Test
+    @DisplayName("완료 기록 삭제 - 완료 기록 없음")
+    void testDeleteCompletionNotFound() throws Exception {
+        when(taskService.deleteCompletion(1L, 999L)).thenThrow(new TaskCompletionNotFoundException(999L));
+
+        mockMvc.perform(delete("/api/tasks/1/completions/999")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success", is(false)))
+                .andExpect(jsonPath("$.error.code", is("TASK_COMPLETION_NOT_FOUND")))
+                .andExpect(jsonPath("$.error.message", containsString("999")))
+                .andExpect(jsonPath("$.data").doesNotExist());
+
+        verify(taskService, times(1)).deleteCompletion(1L, 999L);
     }
 
     @Test

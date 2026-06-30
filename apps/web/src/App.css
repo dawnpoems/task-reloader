@@ -1950,6 +1950,25 @@
   font-size: 0.84rem;
 }
 
+.detail-history__item-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.detail-history__delete {
+  flex-shrink: 0;
+  min-height: 2rem;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.78rem;
+}
+
+.detail-history__delete:disabled {
+  opacity: 0.72;
+  cursor: not-allowed;
+}
+
 .recent-completion-card__meta {
   display: flex;
   flex-direction: column;
@@ -2309,6 +2328,21 @@
   }
   .detail-calendar__selected-action {
     max-width: 100%;
+  }
+  .detail-history__item-top {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .detail-history__delete {
+    width: 100%;
+    max-width: 100%;
+    min-height: 2.4rem;
+    padding: 0.45rem 0.65rem;
+    font-size: 0.8rem;
+    line-height: 1.25;
+    white-space: normal;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
   }
   .detail-calendar__nav-btn {
     min-height: 2.35rem;

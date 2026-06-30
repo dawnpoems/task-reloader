@@ -58,6 +58,9 @@ export const tasksApi = {
   delete: (id: number): Promise<ApiResponse<void>> =>
     apiClient.delete<void>(`/tasks/${id}`),
 
+  deleteCompletion: (id: number, completionId: number): Promise<ApiResponse<Task>> =>
+    apiClient.delete<Task>(`/tasks/${id}/completions/${completionId}`),
+
   // 백엔드는 POST /{id}/complete
   complete: (id: number, request: CompleteTaskRequest = {}): Promise<ApiResponse<Task>> =>
     apiClient.post<Task>(`/tasks/${id}/complete`, request),

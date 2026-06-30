@@ -70,6 +70,12 @@ public class TaskController {
         return ApiResponse.success(taskService.findCompletions(id, year, month));
     }
 
+    @Operation(summary = "작업 완료 이력 삭제")
+    @DeleteMapping("/{id}/completions/{completionId}")
+    public ApiResponse<TaskResponse> deleteCompletion(@PathVariable Long id, @PathVariable Long completionId) {
+        return ApiResponse.success(taskService.deleteCompletion(id, completionId));
+    }
+
     @Operation(summary = "작업 생성")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)

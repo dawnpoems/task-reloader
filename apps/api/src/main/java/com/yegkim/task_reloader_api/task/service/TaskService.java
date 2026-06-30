@@ -1,6 +1,7 @@
 package com.yegkim.task_reloader_api.task.service;
 
 import com.yegkim.task_reloader_api.auth.security.AuthenticatedUserProvider;
+import com.yegkim.task_reloader_api.common.exception.TaskCompletionNotFoundException;
 import com.yegkim.task_reloader_api.common.exception.TaskInactiveException;
 import com.yegkim.task_reloader_api.common.exception.TaskNotFoundException;
 import com.yegkim.task_reloader_api.common.exception.TaskRecentlyCompletedException;
@@ -17,6 +18,7 @@ import com.yegkim.task_reloader_api.task.dto.TaskTrendInsightResponse;
 import com.yegkim.task_reloader_api.task.dto.UpdateTaskRequest;
 import com.yegkim.task_reloader_api.task.dto.TaskResponse;
 import com.yegkim.task_reloader_api.task.event.TaskCompleteRejectedEvent;
+import com.yegkim.task_reloader_api.task.event.TaskCompletionDeletedEvent;
 import com.yegkim.task_reloader_api.task.event.TaskCompletedEvent;
 import com.yegkim.task_reloader_api.task.event.TaskCreatedEvent;
 import com.yegkim.task_reloader_api.task.event.TaskDeletedEvent;
@@ -379,6 +381,33 @@ public class TaskService {
                 .orElseThrow(() -> new TaskNotFoundException(id));
         taskRepository.delete(task);
         eventPublisher.publishEvent(new TaskDeletedEvent(id));
+    }
+
+    @Transactional
+    public TaskResponse deleteCompletion(Long taskId, Long completionId) {
+        Long userId = authenticatedUserProvider.currentUserId();
+        Task task = taskRepository.findByIdAndUserIdForUpdate(taskId, userId)
+                .orElseThrow(() -> new TaskNotFoundException(taskId));
+        TaskCompletion completion = taskCompletionRepository.findByIdAndUserIdAndTaskId(completionId, userId, taskId)
+                .orElseThrow(() -> new TaskCompletionNotFoundException(completionId));
+        OffsetDateTime deletedCompletedAt = completion.getCompletedAt();
+        OffsetDateTime restoredLastCompletedAt = taskCompletionRepository
+                .findFirstByUserIdAndTaskIdAndIdNotOrderByCompletedAtDesc(userId, taskId, completionId)
+                .map(TaskCompletion::getCompletedAt)
+                .orElse(null);
+
+        taskCompletionRepository.delete(completion);
+        task.restoreScheduleAfterCompletionDeleted(restoredLastCompletedAt);
+        eventPublisher.publishEvent(
+                new TaskCompletionDeletedEvent(
+                        task.getId(),
+                        completion.getId(),
+                        deletedCompletedAt,
+                        task.getLastCompletedAt(),
+                        task.getNextDueAt()
+                )
+        );
+        return withStatus(taskMapper.toResponse(task), task, currentWindow());
     }
 
     private static final long COMPLETE_COOLDOWN_SECONDS = 2;
