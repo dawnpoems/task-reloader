@@ -63,12 +63,20 @@ public class Task {
     }
 
     public void update(String name, Integer everyNDays, Boolean isActive, LocalDate startDate) {
+        boolean everyNDaysChanged = everyNDays != null && !everyNDays.equals(this.everyNDays);
+        boolean startDateChanged = startDate != null && !startDate.equals(this.startDate);
+
         if (name != null) this.name = name;
         if (everyNDays != null) this.everyNDays = everyNDays;
         if (isActive != null) this.isActive = isActive;
         if (startDate != null) {
             this.startDate = startDate;
-            this.nextDueAt = toStartOfDay(startDate);
+        }
+
+        if (startDateChanged) {
+            this.nextDueAt = toStartOfDay(this.startDate);
+        } else if (everyNDaysChanged) {
+            recalculateNextDueAtFromCurrentAnchor();
         }
     }
 
@@ -102,6 +110,15 @@ public class Task {
 
     private OffsetDateTime toStartOfDay(LocalDate date) {
         return date.atStartOfDay(resolveZoneId()).toOffsetDateTime();
+    }
+
+    private void recalculateNextDueAtFromCurrentAnchor() {
+        if (this.lastCompletedAt != null) {
+            LocalDate lastCompletedDate = this.lastCompletedAt.atZoneSameInstant(resolveZoneId()).toLocalDate();
+            this.nextDueAt = toStartOfDay(lastCompletedDate.plusDays(this.everyNDays));
+        } else if (this.startDate != null) {
+            this.nextDueAt = toStartOfDay(this.startDate);
+        }
     }
 
     private ZoneId resolveZoneId() {

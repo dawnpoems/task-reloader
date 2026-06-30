@@ -1048,6 +1048,93 @@ class TaskServiceTest {
     }
 
     @Test
+    @DisplayName("작업 수정 - 반복 주기만 변경하면 최근 완료일 기준으로 nextDueAt 재계산")
+    void testUpdateEveryNDaysRecalculatesNextDueAtFromLastCompletedAt() {
+        LocalDate startDate = LocalDate.of(2026, 6, 1);
+        OffsetDateTime lastCompletedAt = OffsetDateTime.parse("2026-06-10T15:30:00+09:00");
+        OffsetDateTime currentNextDueAt = OffsetDateTime.parse("2026-06-17T00:00:00+09:00");
+        OffsetDateTime expectedDueAt = OffsetDateTime.parse("2026-06-13T00:00:00+09:00");
+        Task completedTask = Task.builder()
+                .id(1L)
+                .name("Test Task")
+                .everyNDays(7)
+                .timezone("Asia/Seoul")
+                .startDate(startDate)
+                .nextDueAt(currentNextDueAt)
+                .lastCompletedAt(lastCompletedAt)
+                .isActive(true)
+                .createdAt(lastCompletedAt)
+                .updatedAt(lastCompletedAt)
+                .build();
+        UpdateTaskRequest request = UpdateTaskRequest.builder()
+                .everyNDays(3)
+                .startDate(startDate)
+                .build();
+        TaskResponse updatedResponse = TaskResponse.builder()
+                .id(1L)
+                .name("Test Task")
+                .everyNDays(3)
+                .timezone("Asia/Seoul")
+                .startDate(startDate)
+                .nextDueAt(expectedDueAt)
+                .lastCompletedAt(lastCompletedAt)
+                .isActive(true)
+                .build();
+
+        when(taskRepository.findById(1L)).thenReturn(Optional.of(completedTask));
+        when(taskMapper.toResponse(completedTask)).thenReturn(updatedResponse);
+        when(taskStatusResolver.resolve(any(Instant.class), any())).thenReturn(TaskStatus.UPCOMING);
+
+        TaskResponse result = taskService.update(1L, request);
+
+        assertThat(completedTask.getEveryNDays()).isEqualTo(3);
+        assertThat(completedTask.getStartDate()).isEqualTo(startDate);
+        assertThat(completedTask.getNextDueAt()).isEqualTo(expectedDueAt);
+        assertThat(result.getStatus()).isEqualTo(TaskStatus.UPCOMING);
+    }
+
+    @Test
+    @DisplayName("작업 수정 - 완료 이력이 없으면 반복 주기 변경 후에도 시작일이 nextDueAt")
+    void testUpdateEveryNDaysWithoutLastCompletionKeepsStartDateAsNextDueAt() {
+        LocalDate startDate = LocalDate.of(2026, 7, 1);
+        OffsetDateTime startDueAt = OffsetDateTime.parse("2026-07-01T00:00:00+09:00");
+        Task notCompletedTask = Task.builder()
+                .id(1L)
+                .name("Test Task")
+                .everyNDays(7)
+                .timezone("Asia/Seoul")
+                .startDate(startDate)
+                .nextDueAt(startDueAt)
+                .isActive(true)
+                .createdAt(startDueAt)
+                .updatedAt(startDueAt)
+                .build();
+        UpdateTaskRequest request = UpdateTaskRequest.builder()
+                .everyNDays(3)
+                .startDate(startDate)
+                .build();
+        TaskResponse updatedResponse = TaskResponse.builder()
+                .id(1L)
+                .name("Test Task")
+                .everyNDays(3)
+                .timezone("Asia/Seoul")
+                .startDate(startDate)
+                .nextDueAt(startDueAt)
+                .isActive(true)
+                .build();
+
+        when(taskRepository.findById(1L)).thenReturn(Optional.of(notCompletedTask));
+        when(taskMapper.toResponse(notCompletedTask)).thenReturn(updatedResponse);
+        when(taskStatusResolver.resolve(any(Instant.class), any())).thenReturn(TaskStatus.UPCOMING);
+
+        TaskResponse result = taskService.update(1L, request);
+
+        assertThat(notCompletedTask.getEveryNDays()).isEqualTo(3);
+        assertThat(notCompletedTask.getNextDueAt()).isEqualTo(startDueAt);
+        assertThat(result.getStatus()).isEqualTo(TaskStatus.UPCOMING);
+    }
+
+    @Test
     @DisplayName("작업 수정 - 일부 필드만 수정")
     void testUpdatePartialFields() {
         // given
