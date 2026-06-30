@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { normalizeEveryNDaysInput, parseEveryNDaysInput } from '../lib/taskForm'
 import type { CreateTaskRequest } from '../types/task'
 
 interface TaskFormProps {
@@ -17,7 +18,7 @@ const todayDateInput = (): string => {
 
 export function TaskForm({ onSubmit, onCancel, hideTitle = false }: TaskFormProps) {
   const [name, setName] = useState('')
-  const [everyNDays, setEveryNDays] = useState(7)
+  const [everyNDaysInput, setEveryNDaysInput] = useState('7')
   const [startDate, setStartDate] = useState(todayDateInput())
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -25,11 +26,12 @@ export function TaskForm({ onSubmit, onCancel, hideTitle = false }: TaskFormProp
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim()) { setError('이름을 입력해 주세요.'); return }
-    if (everyNDays < 1) { setError('반복 주기는 1일 이상이어야 합니다.'); return }
+    const everyNDays = parseEveryNDaysInput(everyNDaysInput)
+    if (everyNDays === null) { setError('반복 주기는 1일 이상이어야 합니다.'); return }
     setIsSubmitting(true)
     setError(null)
     const success = await onSubmit({ name: name.trim(), everyNDays, startDate: startDate || undefined })
-    if (success) { setName(''); setEveryNDays(7); setStartDate(todayDateInput()) }
+    if (success) { setName(''); setEveryNDaysInput('7'); setStartDate(todayDateInput()) }
     else { setError('저장에 실패했습니다. 다시 시도해 주세요.') }
     setIsSubmitting(false)
   }
@@ -48,8 +50,8 @@ export function TaskForm({ onSubmit, onCancel, hideTitle = false }: TaskFormProp
 
       <div className="task-form__field">
         <label htmlFor="everyNDays">반복 주기 (일) *</label>
-        <input id="everyNDays" type="number" min={1} value={everyNDays}
-          onChange={(e) => setEveryNDays(Number(e.target.value))}
+        <input id="everyNDays" type="text" inputMode="numeric" pattern="[0-9]*" value={everyNDaysInput}
+          onChange={(e) => setEveryNDaysInput(normalizeEveryNDaysInput(e.target.value))}
           disabled={isSubmitting} />
       </div>
 
